@@ -20,9 +20,9 @@ This repository contains a MATLAB implementation of a numerical model that simul
 
 ### Folder Structure
 
-/src                  - Core model functions \
-/test                 - Main simulation codes called from the initialization script and post-processing functions \
-/results              - Folder where the results are saved (***) \
+`/src`                  - Core model functions \
+`/test`                 - Main simulation codes called from the initialization script and post-processing functions \
+`/results`              - Folder where the results are saved (***) \
 `Run_droplet_test.m`  - Main script to run the simulation \
 
 (***) It is recommended, once the simulation is finished, to store the files generated in the results folder in another folder that is not included in the path to avoid errors in future simulations.
@@ -52,4 +52,9 @@ Daniel Betrán (Fluid and Energy Engineering Laboratory, LIFEn) \
 Manuel Colera (Universidad Politécnica de Madrid) \
 Álvaro Muelas (Fluid and Energy Engineering Laboratory, LIFEn) \
 Javier Ballester (Universidad de Zaragoza)
+
+### Cite as
+
+(Por determinar)
+
 
