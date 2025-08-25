@@ -583,7 +583,7 @@ function [save_vars, model_l, model_g] = ...
                     % and many temporary or convergence errors appear in the console, X should be a value around 26.
                     % It is recommended to adjust this value based on the reported NLSiters/stage results
                     % in the simulation to avoid time steps that are too large or too small.
-                    Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(27/NLS_iters), 2.0]); 
+                    Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(30/NLS_iters), 2.0]); 
                     RepeatT     = false;
                 else
                     if Deltat_n>2e-3

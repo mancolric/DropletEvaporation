@@ -36,8 +36,8 @@ if strcmpi(estado, 'liquido') && T>Tb
 elseif strcmpi(estado, 'liquido') && T<T_fusion % El liquido se congelaría!
     % Las propiedades se extrapolan, pero la simulación dejaría de ser
     % válida. Se interrumpe aquí:
-    fprintf('### [%s] WARNING: T_eval > T_freezing when evaluating liquid properties! Code will break! ### \n ',char(comb))
-    return % Se interrumpe el modelo (eliminar/comentar "return" si se quiere proseguir simulación extrapolando propiedades del liquido para T<Tf)
+    % fprintf('### [%s] WARNING: T_eval > T_freezing when evaluating liquid properties! Code will break! ### \n ',char(comb))
+    % return % Se interrumpe el modelo (eliminar/comentar "return" si se quiere proseguir simulación extrapolando propiedades del liquido para T<Tf)
 end
 
 
