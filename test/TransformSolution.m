@@ -15,13 +15,13 @@ close all              % Close all figure windows
 
 % List of filenames to load (including the .mat extension)
 % You must manually ENTER THE NAMES OF THE saved result FILES in the correct order
-file_ids_sol  = {'Saved_solutions5.mat', 'Saved_solutions25.mat'};
+file_ids_sol  = {'Saved_solutions3_37.mat', 'Saved_solutions40.mat', 'Saved_solutions16_5.mat'};
 N_parts       = numel(file_ids_sol);
 
 % If you want to COMBINE THE "Saved_vars" FILES too, you must manually ENTER THE NAMES OF THE
 % FILES in the correct order.
 % If you want to merge the files, set Combine_vars=1; otherwise, set Combine_vars=0.
-Combine_vars  = 1;
+Combine_vars  = 0;
 file_ids_vars = {'Saved_vars5.mat', 'Saved_vars25.mat'};
 N_parts_vars  = numel(file_ids_vars);
 
@@ -252,4 +252,4 @@ end
 %----------------------- SAVE SPECIFIC RESULTS ----------------------------
 
 %Save specific results in a .mat file to make them more manageable:
-save(fullfile(folderName, 'X.mat'),'t_n','m_l','m_g','d','T_ql','T_l_0')
+save(fullfile(folderName, 'Heptano+Eicosano.mat'),'t_n','m_l','m_g','d','T_ql','T_l_0', 'T_l', 'y_l', 'xplot_l')

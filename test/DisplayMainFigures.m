@@ -5,7 +5,7 @@ tic
 close all
 
 %LOAD RESULTS:
-aux1 = load('X.mat');
+aux1 = load('Heptano+Eicosano.mat');
 
 %CALCULATE EVAPORATED MASS FLOW:
 m_g_1 = 4*pi().*((cell2mat(aux1.d)./2).^2).*cell2mat(aux1.m_g);     
