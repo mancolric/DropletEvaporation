@@ -46,13 +46,13 @@ R_0               = (150e-6)/2; % Initial droplet radius [m]
 XRad              = 150;        % Domain size (in gas phase) as a multiple of the initial radius
 R_end_percent     = 0.15;       % Final droplet size as a fraction of initial radius (when Save = true)
 
-T_0               = 340;        % Initial temperature at the center of the droplet [K]
+T_0               = 310;        % Initial temperature at the center of the droplet [K]
 T_inf             = 1730;       % Ambient (far-field) temperature [K]
 
 % --------------------------- SPECIES DEFINITION --------------------------
 
 fuel_names        = {'Octano', 'Eicosano'};     % Fuel components
-mass_fracL        = {0.70, 0.30};                    % Mass fraction of each fuel component (same order as above)
+mass_fracL        = {0.75, 0.25};                    % Mass fraction of each fuel component (same order as above)
 inert_comps       = {'N2', 'O2', 'CO2', 'H2O'};    % Inert gas species (DO NOT MODIFY)
 mass_fracG        = {0.7248, 0.0, 0.1513, 0.1239}; % Mass fraction of each inert species in the gas phase (same order as above)
 
@@ -69,7 +69,7 @@ mass_fracG        = {0.7248, 0.0, 0.1513, 0.1239}; % Mass fraction of each inert
 % NOTE: Deltat0 may need to be smaller
 % If the simulation is performed in parts, this call restarts it from 
 % a previously saved state (e.g., after an interruption or for long simulations)
-FileName    = 'Saved_solutions70.mat'; % File containing saved variables from previous run
+FileName    = 'Saved_solutions4_51.mat'; % File containing saved variables from previous run
 
 [save_vars] = droplet_testRestart(nElems_l, nElems_g, p, Deltat0, ...
     t_final, TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, ...
