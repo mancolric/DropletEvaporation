@@ -1,4 +1,4 @@
-%% MAIN SCRIPT TO LAUNCH THE DROPLET EVAPORATION SIMULATION
+% MAIN SCRIPT TO LAUNCH THE DROPLET EVAPORATION SIMULATION
 
 format long            % Display numerical results with high precision
 clear                  % Clear all variables from workspace

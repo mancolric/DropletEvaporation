@@ -475,7 +475,7 @@ function [save_vars, model_l, model_g] = ...
                     title_main = sprintf('%s %s %.2f%%', title_main, fuel_names{i}, percentage);
                 end
             end
-            sgtitle(title_main);
+%             sgtitle(title_main);
         end
     end
     PlotFun(sol_n)
@@ -1097,8 +1097,7 @@ function [z, nIters, flag] = CouplingConditions(z0, t, ...
             model_g.ftilde1(model_g, t, xmesh_g(1), uwR, duwR_dx, ...
                     (xmesh_g(2)-xmesh_g(1))/fes_g.p, ComputeJ);
 
-        %Flux balance for the differential variables: NOTE: To be modified
-        %when the number of species is different for liquid and gas.
+        %Flux balance for the differential variables:
         nDiff_lg        = model_g.nDiff;
         fL              = [zeros(model_g.nInerts,1); CellToVector(fL)];
         r(1:nDiff_lg)   = fL-CellToVector(fR); %nDAE_l=nDAE_g equations
