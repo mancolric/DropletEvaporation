@@ -329,8 +329,12 @@ function [save_vars, model_l, model_g] = ...
     %Normalization factors for differential and algebraic variables: 
     NF_l        = max(1e-6, Lqmean(sol_n.ul, sol_n.fesl, 2));
     NF_g        = max(1e-6, Lqmean(sol_n.ug, sol_n.fesg, 2));
-    NF_l(end)   = 1e0;  %Set here characteristic value for liquid velocity!!
-    NF_g(end)   = 1e0;  %Set here characteristic value for gas velocity!!
+    NF_l(end)   = 1e-4;  %Set here characteristic value for liquid velocity!!
+    NF_g(end)   = 1e-4;  %Set here characteristic value for gas velocity!!
+    NF_tau      = 1e-2;  %Characteristic time. High NF_tau: less iterations, less accuracy in the velocity
+    %Set same NF for all densities:
+    NF_l(1:model_l.nSpecies)    = max(NF_l(1:model_l.nSpecies));
+    NF_g(1:model_g.nSpecies)    = max(NF_g(1:model_g.nSpecies));
     
     %First Save:
     if Save
@@ -475,7 +479,7 @@ function [save_vars, model_l, model_g] = ...
                     title_main = sprintf('%s %s %.2f%%', title_main, fuel_names{i}, percentage);
                 end
             end
-            sgtitle(title_main);
+%             sgtitle(title_main);
         end
     end
     PlotFun(sol_n)
@@ -684,8 +688,10 @@ function [save_vars, model_l, model_g] = ...
             Deltat_n    = t_np1-sol_n.t;
 
             %Scaling matrices for all unkwowns:
-            [Sr_l,Sy_l]     = ScalMatrices0(model_l, NF_l, sol_n.fesl, Deltat_n);
-            [Sr_g,Sy_g]     = ScalMatrices0(model_g, NF_g, sol_n.fesg, Deltat_n);
+%             [Sr_l,Sy_l]     = ScalMatrices0(model_l, NF_l, sol_n.fesl, Deltat_n);
+%             [Sr_g,Sy_g]     = ScalMatrices0(model_g, NF_g, sol_n.fesg, Deltat_n);
+            [Sr_l,Sy_l]     = ScalMatrices1(model_l, NF_l, NF_tau, sol_n.fesl, Deltat_n);
+            [Sr_g,Sy_g]     = ScalMatrices1(model_g, NF_g, NF_tau, sol_n.fesg, Deltat_n);
             
             %Initialize stage variables:
             ii              = 1;
@@ -960,7 +966,8 @@ end
 %   HbarR-HbarL     = H_g - H_r     (equil of chemical potential)
 %   rhobarL         = rho(HbarL)
 %   rhobarR         = rho(HbarR)
-function [r,J]  = EquilibriumConditions(model_l, model_g, y_eq, ComputeJ)
+function [r,J]  = EquilibriumConditions(model_l, model_g, y_eq, ...
+    NF_l, NF_g, ComputeJ)
 
     rhoy_l        = cell(model_l.nSpecies,1);
     rhoy_g        = cell(model_g.nSpecies,1);
@@ -989,20 +996,20 @@ function [r,J]  = EquilibriumConditions(model_l, model_g, y_eq, ComputeJ)
                       ec;
                       rho_l - rho_bar_l;
                       rho_g - rho_bar_g ];
-
-    order         = floor(log10(abs(y_eq)));
-    correct_delta = 10.^order;
     if ComputeJ
-         J                   = zeros(length(r),length(y_eq));
-         delta               = 1e-8*correct_delta;
-            for jj=1:length(y_eq)
-                ypert           = y_eq;
-                ypert(jj)       = y_eq(jj)-delta(jj);
-                [f1,~]          = EquilibriumConditions(model_l, model_g, ypert, false);
-                ypert(jj)       = y_eq(jj)+delta(jj);
-                [f2,~]          = EquilibriumConditions(model_l, model_g, ypert, false);
-                J(:,jj)         = (f2-f1)/(2*delta(jj));
-            end
+        J                   = zeros(length(r),length(y_eq));
+        NF_l                = NF_l(:);
+        NF_g                = NF_g(:);
+        NFv                 = cat(1, NF_l(1:model_l.nDiff), NF_g(1:model_g.nDiff));
+        for jj=1:length(y_eq)
+            delta           = NFv(jj)*1e-6;
+            ypert           = y_eq;
+            ypert(jj)       = y_eq(jj)-delta;
+            [f1,~]          = EquilibriumConditions(model_l, model_g, ypert, NF_l, NF_g, false);
+            ypert(jj)       = y_eq(jj)+delta;
+            [f2,~]          = EquilibriumConditions(model_l, model_g, ypert, NF_l, NF_g, false);
+            J(:,jj)         = (f2-f1)/(2*delta);
+        end
     else
         J       = NaN;
     end
@@ -1042,10 +1049,26 @@ function [Sr, Sy]   = ScalMatrices0(model, NF, fes, Deltat)
     Sy      = ScalingMatrix(    cat(1,  NF(1:end-1), ...
                                         NF(end) ), ...
                                 cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
+%     Sy      = ScalingMatrix(    cat(1,  NF(1:end-1), ...
+%                                         NF(end)/Deltat ), ...
+%                                 cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
     Sr      = ScalingMatrix(    cat(1,  1.0./NF(1:end-1), ...
                                         1.0/NF(1)/Deltat), ...
                                 cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
+                            
+end
+function [Sr, Sy]   = ScalMatrices1(model, NF, NF_tau, fes, Deltat)
+
+    NF          = NF(:);
     
+    %Scale v with NF, multiply algebraic eq. by 1.0/Deltat
+    Sy      = ScalingMatrix(    cat(1,  NF(1:end-1), ...
+                                        NF(end)*NF_tau/Deltat ), ...
+                                cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
+    Sr      = ScalingMatrix(    cat(1,  1.0./NF(1:end-1), ...
+                                        1.0/NF(1)/Deltat), ...
+                                cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
+                            
 end
 
 %Here the vector z=[qL; qR; wdroplet]:
@@ -1174,7 +1197,7 @@ function [z, nIters, flag] = CouplingConditions(z0, t, ...
  
         %Equilibrium conditions:
         y_eq                    = [qL; qR(1:model_g.nDiff)];
-        [rEq, JEq]              = EquilibriumConditions(model_l, model_g, y_eq, ComputeJ);
+        [rEq, JEq]              = EquilibriumConditions(model_l, model_g, y_eq, NF_l, NF_g, ComputeJ);
         r(nDiff_lg+1:end)       = rEq;
         JEq                     = sparse(JEq);
         [iv,jv,sv]              = find(JEq);

@@ -50,7 +50,7 @@ switch upper(MethodName)
         method.bI       = method.aI(end,:).';
         method.bE       = method.aE(end,:).';
         
-        if t_evap<1
+        if false && t_evap<1
         % SHORT SIMULATION
             method.bhatI    = [ 0.0    1.0    0.0     0.0     0.0 ].';
             method.bhatE    = [ 0.0     1.0     0.0     0.0     0.0 ].';
