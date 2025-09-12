@@ -475,7 +475,7 @@ function [save_vars, model_l, model_g] = ...
                     title_main = sprintf('%s %s %.2f%%', title_main, fuel_names{i}, percentage);
                 end
             end
-%             sgtitle(title_main);
+            sgtitle(title_main);
         end
     end
     PlotFun(sol_n)
