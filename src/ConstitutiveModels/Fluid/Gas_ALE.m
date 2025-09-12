@@ -42,7 +42,8 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
     model.fQg         = @fQg;              %Function to compute flux, source terms and restriction
     model.ftilde      = @ftilde;           %Function to compute numerical flux at the internal faces
     model.ftilde1     = @ftilde1;          %Function to compute numerical flux at face 1, i.e., impose bondary condition
-    model.ftildeN     = @ftildeN;          %Function to compute numerical flux at last face, i.e., impose bondary condition
+    model.ftildeN     = @ftildeN_Dirichlet;%Function to compute numerical flux at last face, i.e., impose bondary condition
+%     model.ftildeN     = @ftildeN_NoFlux;    %Function to compute numerical flux at last face, i.e., impose bondary condition
     model.f_diffusive = @f_diffusive;
     
 end
@@ -57,10 +58,10 @@ function [  f, df_du, df_du_dx, ...
     fQg(model, t, x, u, du_dx, ComputeJ)
 
     %Extract variables:
-    [rhoy, ~, rho, ~, y] = aux_rho(model, u, du_dx);
-    H           = u{model.nDiff};
-    v           = u{end-1};
-    w           = u{end};
+    [rhoy, ~, rho, ~, y]    = aux_rho(model, u, du_dx);
+    H                       = u{model.nDiff};
+    v                       = u{end-1};
+    w                       = u{end};
     
     %Diffusive flux: 
     [f, df_du, df_du_dx]    = f_diffusive(model, u, du_dx, ComputeJ);
@@ -103,7 +104,7 @@ function [rhoy, drhoy_dx, rho, sum_drhoy_dx, y] = aux_rho(model, u, du_dx)
         drhoy_dx{II} = du_dx{II};
     end
    
-    rho          = zeros(size(rhoy{1})); % Mezcla
+    rho          = zeros(size(rhoy{1})); % Density of the mixture
     sum_drhoy_dx = zeros(size(rhoy{1}));
     for II=1:model.nSpecies
         rho          = rho + rhoy{II};
@@ -332,7 +333,7 @@ function [f, df_du, df_du_dx, df_dq] = ...
     
     %Derivatives w.r.t. u and q. Recall that 
     %   d/du = d/duL * duL/du + d/duR * duR/du
-    %   d/du = d/duq * duL/dq + d/duR * duR/dq
+    %   d/dq = d/duL * duL/dq + d/duR * duR/dq
     df_du           = cell(model.nDiff, model.nVars);
     df_du_dx        = cell(model.nDiff, model.nVars);
     df_dq           = cell(model.nDiff, model.nDiff+model.nAlg);  %Derivatives w.r.t. rhobarY_i, Hbar, vbar
@@ -340,7 +341,7 @@ function [f, df_du, df_du_dx, df_dq] = ...
         for II=1:model.nDiff
             for JJ=1:model.nVars
                 df_du{II,JJ}    = df_duL{II,JJ}*(JJ==model.nVars) + df_duR{II,JJ}*1.0;
-                df_du_dx{II,JJ} = 0.0*1.0 + df_duR_dx{II,JJ}*1.0;
+                df_du_dx{II,JJ} = 0.0 + df_duR_dx{II,JJ}*1.0;
             end
             for JJ=1:model.nDiff+model.nAlg %derivative w.r.t. diff vars and velocity
                 df_dq{II,JJ}     = df_duL{II,JJ};
@@ -353,7 +354,7 @@ end
 %df_dq means derivatives of flux w.r.t. the parameters that define the
 %boundary condition (rhobar, Hbar in this case)
 function [f, df_du, df_du_dx, df_dq] = ...
-    ftildeN(model, t, x, u, du_dx, hp, ComputeJ)
+    ftildeN_Dirichlet(model, t, x, u, du_dx, hp, ComputeJ)
     
     %Left state is the numerical solution:
     uL              = u;
@@ -363,7 +364,7 @@ function [f, df_du, df_du_dx, df_dq] = ...
     %   -Differential variables are imposed from boundary conditions.
     %   -Velocity is extrapolated
     %   -Mesh velocity is extrapolated from solution
-    %   -Derivatives are extrapolated
+    %Diffusive flux is extrapolated:
     uN              = model.uN(t);                      
     uR              = cell(model.nVars,1);
     for II=1:model.nDiff
@@ -371,10 +372,34 @@ function [f, df_du, df_du_dx, df_dq] = ...
     end
     uR{model.nDiff+1}   = u{model.nDiff+1};
     uR{model.nVars}     = u{model.nVars};
-    duR_dx              = du_dx; 
     
-    %Evaluate numerical flux:
-    [f, df_duL, df_duL_dx, df_duR, df_duR_dx]  = ftilde(model, t, x, uL, duL_dx, uR, duR_dx, hp, ComputeJ);
+    %Evaluate convective, diffusive and penalty fluxes:
+    [fc, dfc_duL, dfc_duR]      = f_Rusanov(model, uL, uR, ComputeJ);
+    [fL, dfL_duL, dfL_duL_dx]   = f_diffusive(model, uL, duL_dx, ComputeJ);
+    [fp, dfp_duL, dfp_duR]      = f_penalty(model, uL, uR, hp, ComputeJ);
+    
+    %Compute total flux:
+    f           = cell(model.nDiff, 1);
+    df_duL      = cell(model.nDiff, model.nVars);
+    df_duL_dx   = cell(model.nDiff, model.nVars);
+    df_duR      = cell(model.nDiff, model.nVars);
+    %df_duR_dx  = 0.0
+    for II=1:model.nDiff
+        f{II}   = fc{II} + fL{II} + fp{II};
+    end
+    if ComputeJ
+       for II=1:model.nDiff
+           for JJ=1:model.nVars
+               df_duL{II,JJ}    = dfc_duL{II,JJ} + dfL_duL{II,JJ} +  dfp_duL{II,JJ};
+               df_duR{II,JJ}    = dfc_duR{II,JJ} + dfp_duR{II,JJ};
+               df_duL_dx{II,JJ} = dfL_duL_dx{II,JJ};
+           end
+       end
+    end
+    
+    %Derivatives w.r.t. u and q. Recall that 
+    %   d/du = d/duL * duL/du + d/duR * duR/du
+    %   d/dq = d/duL * duL/dq + d/duR * duR/dq
     df_du           = cell(model.nDiff, model.nVars);
     df_du_dx        = cell(model.nDiff, model.nVars);
     df_dq           = cell(model.nDiff, model.nDiff);  %Derivatives w.r.t. rhobarY_i, Hbar
@@ -382,12 +407,25 @@ function [f, df_du, df_du_dx, df_dq] = ...
         for II=1:model.nDiff
             for JJ=1:model.nVars
                 df_du{II,JJ}    = df_duL{II,JJ}*1.0 + df_duR{II,JJ}*(JJ==model.nVars-1) + df_duR{II,JJ}*(JJ==model.nVars);
-                df_du_dx{II,JJ} = df_duL_dx{II,JJ}*1.0 + df_duR_dx{II,JJ}*1.0;
+                df_du_dx{II,JJ} = df_duL_dx{II,JJ}*1.0 + 0.0;
             end
-            for JJ=1:model.nDiff
-                df_dq{II,JJ}     = df_duR{II,JJ};
+            for JJ=1:model.nDiff %derivative w.r.t. diff vars
+                df_dq{II,JJ}    = df_duR{II,JJ};
             end
         end
     end
     
 end
+
+%df_dq means derivatives of flux w.r.t. the parameters that define the
+%boundary condition (rhobar, Hbar in this case)
+function [f, df_du, df_du_dx, df_dq] = ...
+    ftildeN_NoFlux(model, t, x, u, du_dx, hp, ComputeJ)
+    
+    f       = Cells_Allocate(model.nDiff, 1, true, u{1});
+    df_du   = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, u{1});
+    df_du_dx= Cells_Allocate(model.nDiff, model.nVars, ComputeJ, u{1});
+    df_dq   = Cells_Allocate(model.nDiff, 0, ComputeJ, u{1});
+    
+end
+
