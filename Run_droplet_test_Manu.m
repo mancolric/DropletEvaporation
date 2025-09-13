@@ -27,11 +27,11 @@ t_final           = 1e-4;  % Final simulation time
                            % set a value larger than the expected final time
 
 TimeAdapt         = true;  % Enable adaptive time-stepping (true/false)
-TolT              = 1e-4;  % Tolerance for temporal error (≥1e-3) (used if TimeAdapt = true)
+TolT              = 1e-3;  % Tolerance for temporal error (≥1e-3) (used if TimeAdapt = true)
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = true;   % Plot intermediate results (true/false)
+PlotRes           = false;   % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
 Save              = false;  % Save results to file (true/false)
