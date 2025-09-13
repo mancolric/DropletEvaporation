@@ -816,7 +816,8 @@ function [save_vars, model_l, model_g] = ...
                 end
                 etaT_g          = LqNorm(err_np1, NF_g(1:model_g.nDiff), sol_np1.fesg, 2);
                 %Total error:
-                etaT            = sqrt(etaT_l^2+etaT_g^2);
+%                 etaT            = sqrt(etaT_l^2+etaT_g^2);
+                etaT            = max(etaT_l, etaT_g);
                 
                 %Apply controler:
                 if etaT<=TolT
