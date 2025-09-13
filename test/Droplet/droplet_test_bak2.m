@@ -1,3 +1,4 @@
+%BACKUP with computation of CFL, previous nonlinear solution scheme:
 function [save_vars, model_l, model_g] = ...
     droplet_test(nElems_l, nElems_g, p, ...
         Deltat0, t_final, TimeAdapt, TolT, ...
@@ -490,26 +491,22 @@ function [save_vars, model_l, model_g] = ...
     %The solution at each stage and at t^(n+1) is to be stored in sol_np1:
     sol_np1     = sol_n;
     
-    %The unknown is y, which contains the d.o.f. of [rho, H, v, R] at the liquid,
-    %[rho, H, v, R] at the gas:
+    %The unknown is y, which contains the d.o.f. of [rho, H, v] at the liquid,
+    %[rho, H, v] at the gas:
     
     %Number of variables of the blocks in y:
-    N_l             = nDAE_l*sol_n.fesl.nDof;
-    N_g             = nDAE_g*sol_n.fesg.nDof;
-    N_L             = model_l.nDiff;
-    N_R             = nDAE_g;
-    block_l         = 1:N_l;
-    block_g         = N_l+1:N_l+N_g;
-    block_mesh_l    = block_g(end)+1:block_g(end)+mesh_l.nElems+1;
-    block_mesh_g    = block_mesh_l(end)+1:block_mesh_l(end)+mesh_g.nElems+1;
+    N_l         = nDAE_l*sol_n.fesl.nDof;
+    N_g         = nDAE_g*sol_n.fesg.nDof;
+    N_L         = model_l.nDiff;
+    N_R         = nDAE_g;
+    N_y         = N_l+N_g;
     
     %Function that evaluates the residual and the Jacobian of the full
     %system of nonlinear equations at each Runge--Kutta stage. 
     %
     %The equations are:
-    %   M_f*u_a - b_f_ii - Deltat_n * a_ii * b_f(y_f)       = 0
-    %   R_f     - bmesh_f_ii - Deltat_n * a_ii Rdof_f(y_f)  = 0 
-    %for each phase f.
+    %   M_l*u_l - b_l_ii - Deltat_n * a_ii * b_l(u_l) = 0 for the liquid
+    %   M_g*u_g - b_g_ii - Deltat_n * a_ii * b_g(u_g) = 0 for the gas
     %
     %CAREFUL: This function modifies the variable sol_np1. The values in
     %sol_np1 correspond to the values of y in the last function call.
@@ -517,27 +514,16 @@ function [save_vars, model_l, model_g] = ...
         
         %Extract variables: 
         y_l                 = y{1};
-        y_g                 = y{2};
         sol_np1.ul          = VectorToCell(y_l, nDAE_l);
-        sol_np1.ug          = VectorToCell(y_g, nDAE_g);
-        xmesh_l_np1         = y{3};
-        xmesh_g_np1         = y{4};
-        
-        %Update matrices for new mesh:
-        mesh_l_np1          = Mesh_Spheric_Create(xmesh_l_np1);
-        sol_np1.fesl        = FES_QX_Create(mesh_l_np1, p);
-        Mm_l_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesl), model_l.nDiff, model_l.nAlg);
         %
-        mesh_g_np1          = Mesh_Spheric_Create(xmesh_g_np1);
-        sol_np1.fesg        = FES_QX_Create(mesh_g_np1, p);
-        Mm_g_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesg), model_g.nDiff, model_g.nAlg);
+        y_g                 = y{2};
+        sol_np1.ug          = VectorToCell(y_g, nDAE_g);
         
 %         PlotFun(sol_np1)
         
         %------------------------------------------------------------------
         %Solve coupling conditions:
         
-        %Solve equations:
         z0                  = cat(1, sol_np1.qL, sol_np1.qR, sol_np1.w);
         [z, nIters, flag]   = CouplingConditions(z0, sol_np1.t, ...
                                 model_l, sol_np1.fesl, sol_np1.ul, NF_l, ...
@@ -546,7 +532,7 @@ function [save_vars, model_l, model_g] = ...
             warning('Unable to solve coupling conditions')
             r               = { NaN, NaN };
             if ComputeJ
-                J           = sparse(N_l+N_g, N_l+N_g);
+                J           = sparse(N_y, N_y);
             else
                 J           = NaN;
             end
@@ -556,26 +542,32 @@ function [save_vars, model_l, model_g] = ...
         sol_np1.qR          = z(N_L+1:N_L+N_R);
         sol_np1.w           = z(end);
         
+        %------------------------------------------------------------------
+        %Move mesh:
+        
+        %Compute mesh velocity for current solution:
+        [~, wmesh_l_np1, ~, wmesh_g_np1] = MeshVelocities(sol_np1);
+        uw_l                = [ sol_np1.ul; {P1ToQX(wmesh_l_np1, sol_np1.fesl)} ];
+        uw_g                = [ sol_np1.ug; {P1ToQX(wmesh_g_np1, sol_np1.fesg)} ];
+        kmesh_l_RK(:,ii)    = wmesh_l_np1;
+        kmesh_g_RK(:,ii)    = wmesh_g_np1;
+        
+        %Move meshes implicitly:
+        xmesh_l_np1         = bmesh_l_ii + Deltat_n*RKmethod.aI(ii,ii)*kmesh_l_RK(:,ii);
+        mesh_l_np1          = Mesh_Spheric_Create(xmesh_l_np1);
+        sol_np1.fesl        = FES_QX_Create(mesh_l_np1, p);
+        Mm_l_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesl), model_l.nDiff, model_l.nAlg);
+        
+        xmesh_g_np1         = bmesh_g_ii + Deltat_n*RKmethod.aI(ii,ii)*kmesh_g_RK(:,ii);
+        mesh_g_np1          = Mesh_Spheric_Create(xmesh_g_np1);
+        sol_np1.fesg        = FES_QX_Create(mesh_g_np1, p);
+        Mm_g_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesg), model_g.nDiff, model_g.nAlg);
+        
         %Update boundary conditions. MATLAB works with copies, not pointers, 
         %so this is not already done in CouplingConditions:
         %left bc for liquid cannot be applied 
         model_l.uN          = @(t) cat(1, VectorToCell(sol_np1.qL, model_l.nDiff));
         model_g.u1          = @(t) cat(1, VectorToCell(sol_np1.qR, nDAE_g));
-        
-        %------------------------------------------------------------------
-        %Update mesh velocity for current solution:
-        
-        [~, wmesh_l_np1, ~, wmesh_g_np1] = MeshVelocities(sol_np1);
-        uw_l                = [ sol_np1.ul; {P1ToQX(wmesh_l_np1, sol_np1.fesl)} ];
-        uw_g                = [ sol_np1.ug; {P1ToQX(wmesh_g_np1, sol_np1.fesg)} ];
-        
-        %------------------------------------------------------------------
-        %Residual of mesh motion equation:
-        
-        kmesh_l_RK(:,ii)    = wmesh_l_np1;
-        kmesh_g_RK(:,ii)    = wmesh_g_np1;
-        r_mesh_l            = xmesh_l_np1 - bmesh_l_ii - Deltat_n*RKmethod.aI(ii,ii)*kmesh_l_RK(:,ii);
-        r_mesh_g            = xmesh_g_np1 - bmesh_g_ii - Deltat_n*RKmethod.aI(ii,ii)*kmesh_g_RK(:,ii);
                         
         %------------------------------------------------------------------
         %IMPOSE DAE FOR LIQUID:
@@ -621,12 +613,10 @@ function [save_vars, model_l, model_g] = ...
         %OUTPUT:
         
         %Pack variables:
-        r       = { r_l, r_g, r_mesh_l, r_mesh_g };
+        r       = { r_l, r_g };
         if ComputeJ
             J   = { sparse( J_l.iv, J_l.jv, J_l.sv ), ...
-                    sparse( J_g.iv, J_g.jv, J_g.sv ), ...
-                    1.0, ...    
-                    1.0 };
+                    sparse( J_g.iv, J_g.jv, J_g.sv ) };
         else 
             J   = NaN;
         end
@@ -647,24 +637,20 @@ function [save_vars, model_l, model_g] = ...
     function gscaled = PrecResidualFun(yscaled)
         
         %Extract solution at liquid and gas:
-        y_l         = Sy_l*yscaled(block_l);
-        y_g         = Sy_g*yscaled(block_g);
-        y_mesh_l    = Sy_mesh_l*yscaled(block_mesh_l);
-        y_mesh_g    = Sy_mesh_g*yscaled(block_mesh_g);
+        y_l     = Sy_l*yscaled(1:N_l);
+        y_g     = Sy_g*yscaled(N_l+1:N_l+N_g);
         
         %Compute residual:
-        [r,~]   = ResidualFun({y_l, y_g, y_mesh_l, y_mesh_g}, false);   %r={r_l, r_g}
+        [r,~]   = ResidualFun({y_l, y_g}, false);   %r={r_l, r_g}
         if any(isnan(r{1})) || any(isnan(r{2}))
             gscaled     = NaN;
             return
         end
         
         %Compute preconditioned residual:
-        g_l         = LUSolve(A_n_fact{1},Sr_l*r{1});
-        g_g         = LUSolve(A_n_fact{2},Sr_g*r{2});
-        g_mesh_l    = Sy_mesh_l\r{3};     %g_mesh = Jhat^{-1} fhat = (Sr I Sy)^{-1} Sr f = Sy^{-1} f
-        g_mesh_g    = Sy_mesh_g\r{4};     %g_mesh is dimensionless
-        gscaled     = cat(1, g_l, g_g, g_mesh_l, g_mesh_g);
+        g_l     = LUSolve(A_n_fact{1},Sr_l*r{1});
+        g_g     = LUSolve(A_n_fact{2},Sr_g*r{2});
+        gscaled = cat(1, g_l, g_g);
  
     end
 
@@ -679,9 +665,7 @@ function [save_vars, model_l, model_g] = ...
     save_vars       = cell(10,4000);
     Nt              = 0;
     yv_n            = cat(1,    CellToVector(sol_n.ul), ...
-                                CellToVector(sol_n.ug), ...
-                                sol_n.fesl.mesh.x_faces, ...
-                                sol_n.fesg.mesh.x_faces ) ;
+                            CellToVector(sol_n.ug) );
     Deltat_n        = Deltat0;
     Deltat_CFL_n    = NaN;
     while sol_n.t<t_final
@@ -716,8 +700,6 @@ function [save_vars, model_l, model_g] = ...
 %             [Sr_g,Sy_g]     = ScalMatrices0(model_g, NF_g, sol_n.fesg, Deltat_n);
             [Sr_l,Sy_l]     = ScalMatrices1(model_l, NF_l, NF_tau, sol_n.fesl, Deltat_n);
             [Sr_g,Sy_g]     = ScalMatrices1(model_g, NF_g, NF_tau, sol_n.fesg, Deltat_n);
-            Sy_mesh_l       = sol_n.fesg.mesh.x_faces(end) * speye(mesh_l.nElems+1);
-            Sy_mesh_g       = sol_n.fesg.mesh.x_faces(end) * speye(mesh_g.nElems+1);
             
             %Initialize stage variables:
             ii              = 1;
@@ -728,22 +710,18 @@ function [save_vars, model_l, model_g] = ...
             %we need this step to compute the Jacobian:
             bmesh_l_ii      = sol_n.fesl.mesh.x_faces;
             Mm_l_ii         = MassMatrixExpand(MassMatrix(sol_n.fesl), model_l.nDiff, model_l.nAlg);
-            My1_l           = Mm_l_ii*yv_n(block_l);
+            My1_l           = Mm_l_ii*yv_n(1:N_l);
             bDAE_l_ii       = My1_l;
             %
             bmesh_g_ii      = sol_n.fesg.mesh.x_faces;
             Mm_g_ii         = MassMatrixExpand(MassMatrix(sol_n.fesg), model_g.nDiff, model_g.nAlg);
-            My1_g           = Mm_g_ii*yv_n(block_g);
+            My1_g           = Mm_g_ii*yv_n(N_l+1:N_l+N_g);
             bDAE_g_ii       = My1_g;
         
             %Save derivatives k(:,1) and Jacobian for first stage:
-            [~,A_n]         = ResidualFun({yv_np1(block_l), yv_np1(block_g), ...
-                                            yv_np1(block_mesh_l), yv_np1(block_mesh_g)}, ...
-                                        true);
+            [~,A_n]         = ResidualFun({yv_np1(1:N_l), yv_np1(N_l+1:N_l+N_g)}, true);
             A_n_fact        = { LUFactorization(Sr_l*A_n{1}*Sy_l); 
-                                LUFactorization(Sr_g*A_n{2}*Sy_g); 
-                                1.0; 
-                                1.0 };
+                                LUFactorization(Sr_g*A_n{2}*Sy_g); };
                                 
             %Loop stages:
             NLS_iters       = 0;
@@ -762,22 +740,17 @@ function [save_vars, model_l, model_g] = ...
                 %and kmesh. Variables xmesh_ii, wmesh_ii, ..., Mm_ii are also
                 %modified according to the values of y. Deltat_CFL_n is
                 %also modified when solving the last stage:
-                if TimeAdapt && sol_n.t>0
-                    TolA            = max(1e-8, 0.01*etaT_nm1);
+                if TimeAdapt
+                    TolA            = 0.01*TolT;
                 else
                     TolA            = 1e-8;
                 end
                 NDOF                            = nDAE_l*fes_l.nDof + nDAE_g*fes_g.nDof; 
                 [yscaled_np1, nIters, NLSFlag]  = Anderson(@PrecResidualFun, ...
-                                                        cat(1,  Sy_l\yv_np1(block_l), ...
-                                                                Sy_g\yv_np1(block_g), ...
-                                                                Sy_mesh_l\yv_np1(block_mesh_l), ...
-                                                                Sy_mesh_g\yv_np1(block_mesh_g)), ...
+                                                        cat(1, Sy_l\yv_np1(1:N_l), Sy_g\yv_np1(N_l+1:N_l+N_g)), ...
                                                         sqrt(NDOF)*TolA, NLS_MaxIter, 50);
-                yv_np1                           = cat(1,   Sy_l*yscaled_np1(block_l), ...
-                                                            Sy_g*yscaled_np1(block_g), ...
-                                                            Sy_mesh_l*yscaled_np1(block_mesh_l), ...
-                                                            Sy_mesh_g*yscaled_np1(block_mesh_g) );
+                yv_np1                           = cat(1, Sy_l*yscaled_np1(1:N_l), ...
+                                                        Sy_g*yscaled_np1(N_l+1:N_l+N_g));
                 if NLSFlag<0
                     break
                 end
@@ -865,8 +838,7 @@ function [save_vars, model_l, model_g] = ...
                 ', tau=', sprintf('%.2E',Deltat_n), ...
                 ', CFL=', sprintf('%.2E',CFL_n), ...
                 ', errT=', sprintf('%.2E',etaT), ...
-                ', NLSiters/stage=', sprintf('%.1f',NLS_iters), ...
-                ', tCPU=', sprintf('%.2E', toc(tStart)) ])
+                ', NLSiters/stage=', num2str(NLS_iters) ])
 %         disp([  't=', sprintf('%.2E',sol_n.t),...
 %                 ', tau=', sprintf('%.2E',Deltat_n), ...
 %                 ', NLSiters/stage=', num2str(NLS_iters) ])
@@ -876,7 +848,6 @@ function [save_vars, model_l, model_g] = ...
         Deltat_n    = Deltat_np1;
         sol_n       = sol_np1;
         yv_n        = yv_np1;
-        etaT_nm1    = etaT;
         
         %Plot results:
         PlotFun(sol_n)
