@@ -1,4 +1,4 @@
-function [F, dF_dU, dF_dq1, dF_dqN] = FEM_fgQ(model, t, usol, fes, ComputeJ)
+function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ(model, t, usol, fes, ComputeJ)
 
     mesh        = fes.mesh;
     p           = fes.p;
@@ -26,7 +26,8 @@ function [F, dF_dU, dF_dq1, dF_dqN] = FEM_fgQ(model, t, usol, fes, ComputeJ)
     %Evaluate flux and source terms at quadrature points:
     [f_qp, df_du_qp, df_dgradu_qp, ...
         Q_qp, dQ_du_qp, dQ_dgradu_qp, ...
-        g_qp, dg_du_qp, dg_dgradu_qp]   = model.fQg(model, t, x_qp, u_qp, du_dx_qp, ComputeJ);
+        g_qp, dg_du_qp, dg_dgradu_qp, lambdav] ...
+                = model.fQg(model, t, x_qp, u_qp, du_dx_qp, ComputeJ);
     
     %Load shape functions in reference element at quadrature nodes:
     %Matrix is of size (#quadrature nodes, p+1):
@@ -77,14 +78,6 @@ function [F, dF_dU, dF_dq1, dF_dqN] = FEM_fgQ(model, t, usol, fes, ComputeJ)
         end
         
     end
-    
-%     if ComputeJ
-%         J       = sparse(iv(:), jv(:), sv(:));
-%     else
-%         J       = zeros(0,0);
-%     end
-%     
-%     return
     
     %----------------------------------------------------------------------
     %FLUXES AT INTERNAL FACES:
@@ -350,6 +343,21 @@ function [F, dF_dU, dF_dq1, dF_dqN] = FEM_fgQ(model, t, usol, fes, ComputeJ)
         dF_dU.iv    = zeros(0,0);
         dF_dU.jv    = zeros(0,0);
         dF_dU.sv    = zeros(0,0);
+    end
+    
+    %----------------------------------------------------------------------
+    %Deltat for CFL=1:
+    
+    %DEBUG:
+%     lambdav{1}      = 0.0*lambdav{1};   %Disable mesh distortion
+%     lambdav{2}      = 0.0*lambdav{2};   %Disable convection
+%     lambdav{3}      = 0.0*lambdav{3};   %Disable diffusion
+    
+    Deltat_CFL      = Inf;
+    for jj=1:length(lambdav)
+        %Take Linf norm of lambda at each element:
+        lambdav_elems   = max(lambdav{jj}, [], 2);
+        Deltat_CFL      = min(Deltat_CFL, min(hp_elems(:).^(jj-1)./lambdav_elems));
     end
     
 end

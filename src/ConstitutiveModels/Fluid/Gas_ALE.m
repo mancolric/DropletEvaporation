@@ -54,7 +54,8 @@ end
 %Convection-diffusion flux and source terms:
 function [  f, df_du, df_du_dx, ...
             Q, dQ_du, dQ_du_dx, ...
-            g, dg_du, dg_du_dx ] = ...
+            g, dg_du, dg_du_dx, ...
+            lambdav                 ] = ...
     fQg(model, t, x, u, du_dx, ComputeJ)
 
     %Extract variables:
@@ -64,7 +65,9 @@ function [  f, df_du, df_du_dx, ...
     w                       = u{end};
     
     %Diffusive flux: 
-    [f, df_du, df_du_dx]    = f_diffusive(model, u, du_dx, ComputeJ);
+    [f, df_du, df_du_dx, ...
+        Dmax]               = f_diffusive(model, u, du_dx, ComputeJ);
+    
     %Add convective terms:
     for II=1:model.nDiff
         f{II}               = f{II} + (v-w).*u{II};
@@ -91,6 +94,19 @@ function [  f, df_du, df_du_dx, ...
         end
         
     end
+    
+    %Maximum Deltat for CFL=1 is of the form:
+    %   min ( 1/a0, (h/p)/a1, (h/p)^2/a2 , ...)
+    %In particular,
+    %   a0  = |dv/dx-dw/dx|,    (mesh distortion)
+    %   a1  = |v-w|,            (convection)
+    %   a2  = Dmax.             (diffusion)
+    %This coefficients are stored in lambdav:
+    %Note: a0 could be replaced by |div(v-w)|. However, the latter is
+    %slightly more difficult to compute.
+    %Vector with maximum characteristic speed and maximum diffusion:
+    lambdav                 = { abs(du_dx{end-1}-du_dx{end}), abs(v-w), Dmax };
+    
 end
 
 %Auxiliary function:
@@ -162,7 +178,7 @@ function [f, df_duL, df_duR] = f_Rusanov(model, uL, uR, ComputeJ)
 end
 
 %Diffusive flux:
-function [f, df_du, df_du_dx] = ...
+function [f, df_du, df_du_dx, Dmax] = ...
     f_diffusive(model, u, du_dx, ComputeJ)
     
     %Extract variables:
@@ -215,6 +231,9 @@ function [f, df_du, df_du_dx] = ...
 
     end
 
+    %Maximum diffusion coefficient:
+    Dmax        = max( D_rho, D_T );
+    
 end
 
 %Penalty flux:
