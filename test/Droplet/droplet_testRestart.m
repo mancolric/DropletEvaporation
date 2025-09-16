@@ -537,11 +537,6 @@ function [save_vars, model_l, model_g] = ...
         
             %The considered methods are stiffly accurate, so the
             %solution _ii is the solution at _np1.
-        
-            if Deltat_n>=2e-3
-                TimeAdapt=false;
-                Deltat_n=2e-3;
-            end
 
             %If NLS has converged, estimate time error and adapt time step
             if NLSFlag>0 && TimeAdapt
@@ -583,24 +578,19 @@ function [save_vars, model_l, model_g] = ...
                     % and many temporary or convergence errors appear in the console, X should be a value around 26.
                     % It is recommended to adjust this value based on the reported NLSiters/stage results
                     % in the simulation to avoid time steps that are too large or too small.
-                    Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(30/NLS_iters), 2.0]); 
+                    Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(27/NLS_iters), 2.0]); 
                     RepeatT     = false;
                 else
-                    if Deltat_n>2e-3
-                        Deltat_n    = 2e-3;
-                    else
-                        rDeltat     = max(0.5, min((0.8*TolT/etaT)^(1.0/RKmethod.order), ...
-                                                        (0.5*NLS_MaxIter/NLS_iters)^0.5));
-                        Deltat_n    = Deltat_n * rDeltat;
-                        RepeatT     = true;
-                        disp(['Time error (', num2str(etaT), ') too large. ', ...
-                            'Multiplying time step by a factor ', num2str(rDeltat)])
-                    end
+                    rDeltat     = max(0.5, min((0.8*TolT/etaT)^(1.0/RKmethod.order), ...
+                                                    (0.5*NLS_MaxIter/NLS_iters)^0.5));
+                    Deltat_n    = Deltat_n * rDeltat;
+                    RepeatT     = true;
+                    disp(['Time error (', num2str(etaT), ') too large. ', ...
+                        'Multiplying time step by a factor ', num2str(rDeltat)])
                 end
                 
             elseif NLSFlag>0 %&&!TimeAdapt
-                Deltat_np1 = 2e-3;
-                % Deltat_np1      = min(1.2*Deltat_n, Deltat0);
+                Deltat_np1      = min(1.2*Deltat_n, Deltat0);
                 RepeatT         = false;
                 
             else %decrease time step and try again
