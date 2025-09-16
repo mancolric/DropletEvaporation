@@ -15,14 +15,14 @@ close all              % Close all figure windows
 
 % List of filenames to load (including the .mat extension)
 % You must manually ENTER THE NAMES OF THE saved result FILES in the correct order
-file_ids_sol  = {'Saved_solutions2_52.mat', 'Saved_solutions8_58.mat', 'Saved_solutions15_8.mat', 'Saved_solutions30_9.mat'};
+file_ids_sol  = {'Saved_solutions0.00399.mat', 'Saved_solutions0.341.mat', 'Saved_solutionsEnd.mat'};
 N_parts       = numel(file_ids_sol);
 
 % If you want to COMBINE THE "Saved_vars" FILES too, you must manually ENTER THE NAMES OF THE
 % FILES in the correct order.
 % If you want to merge the files, set Combine_vars=1; otherwise, set Combine_vars=0.
-Combine_vars  = 0;
-file_ids_vars = {'Saved_vars5.mat', 'Saved_vars25.mat'};
+Combine_vars  = 1;
+file_ids_vars = {'Saved_vars0.00399.mat', 'Saved_vars0.341.mat', 'Saved_varsEnd.mat'};
 N_parts_vars  = numel(file_ids_vars);
 
 folderName    = 'results';
@@ -36,11 +36,11 @@ if N_parts==1
 elseif N_parts>1 
     %Case 2: Load solution in many parts:
     sol_n_save = {};
-    
+
     for k = 1:N_parts
         filename    = file_ids_sol{k};
         aux         = load(filename);
-    
+
         current_sol = aux.sol_n_save;
         if k ~= 1
             current_sol = current_sol(3:end, :);
@@ -56,15 +56,16 @@ elseif N_parts>1
         for k = 1:N_parts
             filename_vars    = file_ids_vars{k};
             aux_vars         = load(filename_vars);
+            if k == 1
+                Guide = aux_vars.Guide;
+            end
         
             current_vars = aux_vars.save_vars;
-            if k ~= 1
-                current_vars = current_vars(3:end, :);
-            end
-            current_vars = current_vars(~cellfun('isempty', current_vars));
-            save_vars  = [save_vars; current_vars];
+            cols_with_data = any(~cellfun(@isempty, current_vars), 1);
+            current_vars = current_vars(:, cols_with_data);
+            save_vars  = [save_vars, current_vars];
         end
-        save(fullfile(folderName, 'Saved_varsFull.mat'),'save_vars')
+        save(fullfile(folderName, 'Saved_varsFull.mat'),'save_vars','Guide')
     end
 end
 
@@ -252,4 +253,4 @@ end
 %----------------------- SAVE SPECIFIC RESULTS ----------------------------
 
 %Save specific results in a .mat file to make them more manageable:
-save(fullfile(folderName, 'Octano0.75+Eicosano.mat'),'t_n','m_l','m_g','d','T_ql','T_l_0', 'T_l', 'y_l', 'xplot_l')
+save(fullfile(folderName, 'HubbardVar.mat'),'t_n','m_l','m_g','d','T_ql','T_l_0')

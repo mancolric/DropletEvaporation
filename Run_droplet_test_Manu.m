@@ -13,7 +13,7 @@ nElems_l          = 25;    % Number of elements in the liquid phase
 nElems_g          = 50;    % Number of elements in the gas phase (first part)
 p                 = 5;     % Degree of the polynomial basis functions
 
-Deltat0           = 1e-10;  % Initial time step
+Deltat0           = 1e-6;  % Initial time step
                            % If you get warnings like:
                            %   “Nonlinear solver did not converge at stage 2. Reducing time step”
                            %   or
@@ -21,7 +21,7 @@ Deltat0           = 1e-10;  % Initial time step
                            % you may reduce Deltat0 to avoid them
                            % However, this is optional — time step control will automatically handle it
 
-t_final           = 1e-4;  % Final simulation time
+t_final           = 100;  % Final simulation time
                            % Use the actual time you want the simulation to stop at
                            % If you want the simulation to continue until the droplet disappears, 
                            % set a value larger than the expected final time
@@ -34,7 +34,7 @@ TolT              = 1e-3;  % Tolerance for temporal error (≥1e-3) (used if Tim
 PlotRes           = false;   % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
-Save              = false;  % Save results to file (true/false)
+Save              = true;  % Save results to file (true/false)
                            % NOTE: if true, PlotRes must be false
                            
 n_saved_solutions = 500;   % Number of solution snapshots to save throughout simulation
@@ -42,24 +42,24 @@ n_saves           = 5;    % Number of intermediate "safety saves" during simulat
 
 % ---------------------- INITIAL AND BOUNDARY CONDITIONS ------------------
 
-R_0               = (150e-6)/2; % Initial droplet radius [m]
+R_0               = (500e-6)/2; % Initial droplet radius [m]
 XRad              = 150;        % Domain size (in gas phase) as a multiple of the initial radius
-R_end_percent     = 0.15;       % Final droplet size as a fraction of initial radius (when Save = true)
+R_end_percent     = 0.05;       % Final droplet size as a fraction of initial radius (when Save = true)
 
-T_0               = 310;        % Initial temperature at the center of the droplet [K]
-T_inf             = 1730;       % Ambient (far-field) temperature [K]
+T_0               = 300;        % Initial temperature at the center of the droplet [K]
+T_inf             = 2000;       % Ambient (far-field) temperature [K]
 
 % --------------------------- SPECIES DEFINITION --------------------------
 
-fuel_names        = {'Octano', 'Eicosano'};     % Fuel components
-mass_fracL        = {0.75, 0.25};                    % Mass fraction of each fuel component (same order as above)
+fuel_names        = {'Octano'};     % Fuel components
+mass_fracL        = {1.00};                    % Mass fraction of each fuel component (same order as above)
 inert_comps       = {'N2', 'O2', 'CO2', 'H2O'};    % Inert gas species (DO NOT MODIFY)
-mass_fracG        = {0.7248, 0.0, 0.1513, 0.1239}; % Mass fraction of each inert species in the gas phase (same order as above)
+mass_fracG        = {0.79, 0.21, 0.00, 0.00}; % Mass fraction of each inert species in the gas phase (same order as above)
 
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 
 % Run the full droplet evaporation simulation from t = 0
-[save_vars] = droplet_test_Manu(nElems_l, nElems_g, p, Deltat0, t_final, ...
+[save_vars] = droplet_testOLD(nElems_l, nElems_g, p, Deltat0, t_final, ...
     TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
     n_saves);
