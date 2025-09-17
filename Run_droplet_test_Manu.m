@@ -21,7 +21,7 @@ Deltat0           = 1e-6;  % Initial time step
                            % you may reduce Deltat0 to avoid them
                            % However, this is optional — time step control will automatically handle it
 
-t_final           = 100;  % Final simulation time
+t_final           = 2e-4;  % Final simulation time
                            % Use the actual time you want the simulation to stop at
                            % If you want the simulation to continue until the droplet disappears, 
                            % set a value larger than the expected final time
@@ -31,10 +31,10 @@ TolT              = 1e-3;  % Tolerance for temporal error (≥1e-3) (used if Tim
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = false;   % Plot intermediate results (true/false)
+PlotRes           = true;   % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
-Save              = true;  % Save results to file (true/false)
+Save              = false;  % Save results to file (true/false)
                            % NOTE: if true, PlotRes must be false
                            
 n_saved_solutions = 500;   % Number of solution snapshots to save throughout simulation
@@ -59,7 +59,7 @@ mass_fracG        = {0.79, 0.21, 0.00, 0.00}; % Mass fraction of each inert spec
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 
 % Run the full droplet evaporation simulation from t = 0
-[save_vars] = droplet_testOLD(nElems_l, nElems_g, p, Deltat0, t_final, ...
+[save_vars] = droplet_test(nElems_l, nElems_g, p, Deltat0, t_final, ...
     TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
     n_saves);

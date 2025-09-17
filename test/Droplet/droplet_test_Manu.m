@@ -16,8 +16,7 @@ function [save_vars, model_l, model_g] = ...
     x_gII       = XRad*x_lg;
 
     %Initial mesh coordinates:
-%     x_liq          = linspace(0, 1, nElems_l);
-    x_liq          = [0.0, linspace(1e-4, 1, nElems_l)];
+    x_liq          = linspace(0, 1, nElems_l);
     xmesh_l        = x_lg * sqrt(x_liq);
     xmesh_gI       = linspace(x_lg, x_gI, nElems_g+1);
     alpha_g        = 1.035;
@@ -216,7 +215,8 @@ function [save_vars, model_l, model_g] = ...
     Deltat_min  = 1e-12;
     
     %Maximum nb of iterations in nonlinear solver:
-    NLS_MaxIter = 50;
+    NLS_MaxIter     = 80;
+    NLS_IterTarget  = 60;
     
     %----------------------------------------------------------------------
     %INITIAL CONDITION (EXACT FOR DIFFERENTIAL VARIABLES, GUESS FOR ALGEBRAIC ONES):
@@ -349,7 +349,7 @@ function [save_vars, model_l, model_g] = ...
         end
     end
     
-    %Plot during simulation (modifiable):
+    %Plot during simulation (modificable):
     if PlotRes
         fig1                = figure();
         fig1.Units          = 'normalized';
@@ -844,11 +844,9 @@ function [save_vars, model_l, model_g] = ...
                     % and many temporary or convergence errors appear in the console, X should be a value around 26.
                     % It is recommended to adjust this value based on the reported NLSiters/stage results
                     % in the simulation to avoid time steps that are too large or too small.
-                    Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(30/NLS_iters), 2.0]);
+                    Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(NLS_IterTarget/NLS_iters), 2.0]);
                     RepeatT     = false;
                 else
-%                     rDeltat     = max(0.5, min((0.8*TolT/etaT)^(1.0/RKmethod.order), ...
-%                                                     (0.5*NLS_MaxIter/NLS_iters)^0.5));
                     rDeltat     = max(0.5, min((0.8*TolT/etaT)^(1.0/RKmethod.order)));
                     Deltat_n    = Deltat_n * rDeltat;
                     RepeatT     = true;

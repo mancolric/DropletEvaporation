@@ -10,6 +10,20 @@ function [save_vars, model_l, model_g] = ...
     %----------------------------------------------------------------------
     %DATA:
     
+    %Maximum and target nb of iterations in nonlinear solver:
+    NLS_MaxIter     = 80;
+    NLS_IterTarget  = 60;
+    % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
+    % where NLS_iters is the mean number of nonlinear solver iterations at 
+    % each Runge--Kutta stage. 
+    % The value NLS_IterTarget should be adjusted according to the simulation if adaptive
+    % time stepping is enabled.
+    % This constant controls the update of the number of nonlinear iterations (NLSiters)
+    % based on the average value of NLSiters per stage, which is displayed on the results screen,
+    % to achieve a stable time step.
+    % For example, if it is observed that NLSiters/stage varies approximately between 27 and 30,
+    % and many temporary or convergence errors appear in the console, NLS_IterTarget should be a value around 26.
+    
     %Domain limits:
     x_l         = 0.0;
     x_gI        = 5*x_lg;
@@ -213,10 +227,7 @@ function [save_vars, model_l, model_g] = ...
 
     %Minimum time step:
     Deltat_min  = 1e-12;
-    
-    %Maximum nb of iterations in nonlinear solver:
-    NLS_MaxIter = 50;
-    
+                    
     %----------------------------------------------------------------------
     %INITIAL CONDITION (EXACT FOR DIFFERENTIAL VARIABLES, GUESS FOR ALGEBRAIC ONES):
 
@@ -348,7 +359,7 @@ function [save_vars, model_l, model_g] = ...
         end
     end
     
-    %Plot during simulation (modifiable):
+    %Plot during simulation (modificable):
     if PlotRes
         fig1                = figure();
         fig1.Units          = 'normalized';
@@ -821,21 +832,9 @@ function [save_vars, model_l, model_g] = ...
                 
                 %Apply controler:
                 if etaT<=TolT
-                    % NOTE: sqrt(X/NLS_iters) -> Value depending on the simulation
-                    % The value X should be adjusted according to the simulation if adaptive
-                    % time stepping is enabled.
-                    % This constant controls the update of the number of nonlinear iterations (NLSiters)
-                    % based on the average value of NLSiters per stage, which is displayed on the results screen,
-                    % to achieve a stable time step.
-                    % For example, if it is observed that NLSiters/stage varies approximately between 27 and 30,
-                    % and many temporary or convergence errors appear in the console, X should be a value around 26.
-                    % It is recommended to adjust this value based on the reported NLSiters/stage results
-                    % in the simulation to avoid time steps that are too large or too small.
-                    Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(30/NLS_iters), 2.0]);
+                    Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(NLS_IterTarget/NLS_iters), 2.0]);
                     RepeatT     = false;
                 else
-%                     rDeltat     = max(0.5, min((0.8*TolT/etaT)^(1.0/RKmethod.order), ...
-%                                                     (0.5*NLS_MaxIter/NLS_iters)^0.5));
                     rDeltat     = max(0.5, min((0.8*TolT/etaT)^(1.0/RKmethod.order)));
                     Deltat_n    = Deltat_n * rDeltat;
                     RepeatT     = true;
