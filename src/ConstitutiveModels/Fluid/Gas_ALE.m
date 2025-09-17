@@ -98,14 +98,14 @@ function [  f, df_du, df_du_dx, ...
     %Maximum Deltat for CFL=1 is of the form:
     %   min ( 1/a0, (h/p)/a1, (h/p)^2/a2 , ...)
     %In particular,
-    %   a0  = |dv/dx-dw/dx|,    (mesh distortion)
+    %   a0  = |dw/dx|,          (mesh distortion)
     %   a1  = |v-w|,            (convection)
     %   a2  = Dmax.             (diffusion)
     %This coefficients are stored in lambdav:
     %Note: a0 could be replaced by |div(v-w)|. However, the latter is
     %slightly more difficult to compute.
     %Vector with maximum characteristic speed and maximum diffusion:
-    lambdav                 = { abs(du_dx{end-1}-du_dx{end}), abs(v-w), Dmax };
+    lambdav                 = { abs(du_dx{end}), abs(v-w), Dmax };
     
 end
 
