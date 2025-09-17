@@ -1,4 +1,4 @@
-function method = calcRKmethod_imex(MethodName, t_evap)
+function method = calcRKmethod_imex(MethodName)
 
 switch upper(MethodName)
     
@@ -59,9 +59,8 @@ switch upper(MethodName)
             method.bhatI    = [ 5/18    -1/9    0.5     0.0     0.0 ].';
             method.bhatE    = [ 4/9     2/9     0.0     0.0     0.0 ].';
         end
-
-        method.order    = 3;  
-        method.GSA      = true;
+  
+        method.GSA          = true;
         method.const_diag   = true;
         method.c            = sum(method.aI,2);
         method.s            = length(method.c);
@@ -126,8 +125,40 @@ switch upper(MethodName)
         method.bE   = aE(end,1:end-1).';
         method.GSA  = false;
         
-    case 'KC4I'
+    case 'KC35'
         
+        Am          = zeros(5,5);
+        sq2         = sqrt(2.0);
+        for ii=2:5
+            Am(ii,ii)   = 9/40;
+        end
+        Am(2,1)     = 9/40;
+        Am(3,1)     = 9*(1+sq2)/80;
+        Am(3,2)     = 9*(1+sq2)/80;
+        Am(4,1)     = (22+15*sq2)/(80*(1+sq2));
+        Am(4,2)     = (22+15*sq2)/(80*(1+sq2));
+        Am(4,3)     = -7/(40*(1+sq2));
+        Am(5,1)     = (2398+1205*sq2)/(2835*(4+3*sq2));
+        Am(5,2)     = (2398+1205*sq2)/(2835*(4+3*sq2));
+        Am(5,3)     = -2374*(1+2*sq2)/(2835*(5+3*sq2));
+        Am(5,4)     = 5827/7560;
+
+        bhat        = zeros(5,1);
+        bhat(1)     = 4555948517383/24713416420891;
+        bhat(2)     = 4555948517383/24713416420891;
+        bhat(3)     = -7107561914881/25547637784726;
+        bhat(4)     = 30698249/44052120;
+        bhat(5)     = 49563/233080;
+        
+        method.GSA          = true;
+        method.const_diag   = true;
+        method.aI           = Am;
+        method.bI           = Am(end,:).';
+        method.bhatI        = bhat;
+        method.c            = sum(method.aI,2);
+        method.s            = length(method.c);
+        method.order        = 3;
+
     otherwise
         error(['Unknown method ', MethodName])
 end

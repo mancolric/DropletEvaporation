@@ -11,8 +11,11 @@ function [save_vars, model_l, model_g] = ...
     %DATA:
     
     %Maximum and target nb of iterations in nonlinear solver:
-    NLS_MaxIter     = 80;
-    NLS_IterTarget  = 60;
+%     NLS_MaxIter     = 200;  %for KC35 method
+%     NLS_IterTarget  = 200;  %for KC35 method
+    NLS_MaxIter     = 200;   %for BPR3 method
+    NLS_IterTarget  = 200;   %for BPR3 method
+    
     % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
     % where NLS_iters is the mean number of nonlinear solver iterations at 
     % each Runge--Kutta stage. 
@@ -699,10 +702,10 @@ function [save_vars, model_l, model_g] = ...
         
         %Load RK coefficients:
         if sol_n.t==0.0
-            RKmethod    = calcRKmethod_imex('ARS443', t_evap);
-%             RKmethod    = calcRKmethod_imex('EULER');
+            RKmethod    = calcRKmethod_imex('ARS443');
         else
-            RKmethod    = calcRKmethod_imex('BPR3', t_evap);
+            RKmethod    = calcRKmethod_imex('BPR3');
+%             RKmethod    = calcRKmethod_imex('KC35');
         end
         
         %Allocate derivatives:
@@ -846,6 +849,7 @@ function [save_vars, model_l, model_g] = ...
                 
                 Deltat_np1      = min(1.2*Deltat_n, Deltat0);
                 RepeatT         = false;
+                etaT            = NaN;
                 
             else %decrease time step and try again
                 
@@ -999,8 +1003,10 @@ function [save_vars, model_l, model_g] = ...
                 t_prev = t;
             end
         end
-    clearvars sol_np1 RKmethod kDAE_l_RK kmesh_l_RK kDAE_g_RK kmesh_g_RK RepeatT t_np1 Sr_l Sr_g Sy_l Sy_g A_n A_n_fact bmesh_l_ii Mm_l_ii My1_l bDAE_l_ii bmesh_g_ii Mm_g_ii My1_g bDAE_g_ii Deltat_np1 yv_np1 
+        clearvars sol_np1 RKmethod kDAE_l_RK kmesh_l_RK kDAE_g_RK kmesh_g_RK RepeatT t_np1 Sr_l Sr_g Sy_l Sy_g A_n A_n_fact bmesh_l_ii Mm_l_ii My1_l bDAE_l_ii bmesh_g_ii Mm_g_ii My1_g bDAE_g_ii Deltat_np1 yv_np1 
     end
+    
+    disp(['Simulation finished, tCPU=', sprintf('%.2E', toc(tStart))])
     
 end
 

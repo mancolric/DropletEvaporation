@@ -21,7 +21,7 @@ Deltat0           = 1e-6;  % Initial time step
                            % you may reduce Deltat0 to avoid them
                            % However, this is optional — time step control will automatically handle it
 
-t_final           = 2e-4;  % Final simulation time
+t_final           = 20;     % Final simulation time
                            % Use the actual time you want the simulation to stop at
                            % If you want the simulation to continue until the droplet disappears, 
                            % set a value larger than the expected final time
@@ -31,7 +31,7 @@ TolT              = 1e-3;  % Tolerance for temporal error (≥1e-3) (used if Tim
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = true;   % Plot intermediate results (true/false)
+PlotRes           = false;   % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
 Save              = false;  % Save results to file (true/false)
