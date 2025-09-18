@@ -11,10 +11,10 @@ function [save_vars, model_l, model_g] = ...
     %DATA:
     
     %Maximum and target nb of iterations in nonlinear solver:
-%     NLS_MaxIter     = 200;  %for KC35 method
-%     NLS_IterTarget  = 200;  %for KC35 method
-    NLS_MaxIter     = 200;   %for BPR3 method
-    NLS_IterTarget  = 200;   %for BPR3 method
+    NLS_MaxIter     = 200;  %for KC35 method
+    NLS_IterTarget  = 200;  %for KC35 method
+%     NLS_MaxIter     = 200;   %for BPR3 method
+%     NLS_IterTarget  = 200;   %for BPR3 method
     
     % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
     % where NLS_iters is the mean number of nonlinear solver iterations at 
@@ -26,6 +26,12 @@ function [save_vars, model_l, model_g] = ...
     % to achieve a stable time step.
     % For example, if it is observed that NLSiters/stage varies approximately between 27 and 30,
     % and many temporary or convergence errors appear in the console, NLS_IterTarget should be a value around 26.
+    
+    %Characteristic velocities and time:
+    NF_vl       = 1e-4;  %Characteristic value for liquid velocity
+    NF_vg       = 1e-4;  %Characteristic value for gas velocity
+    NF_tau      = 1e-2;  %Characteristic time
+    %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
     
     %Domain limits:
     x_l         = 0.0;
@@ -343,9 +349,9 @@ function [save_vars, model_l, model_g] = ...
     %Normalization factors for differential and algebraic variables: 
     NF_l        = max(1e-6, Lqmean(sol_n.ul, sol_n.fesl, 2));
     NF_g        = max(1e-6, Lqmean(sol_n.ug, sol_n.fesg, 2));
-    NF_l(end)   = 1e-4;  %Set here characteristic value for liquid velocity!!
-    NF_g(end)   = 1e-4;  %Set here characteristic value for gas velocity!!
-    NF_tau      = 1e-2;  %Characteristic time. High NF_tau: less iterations, less accuracy in the velocity
+    NF_l(end)   = NF_vl;
+    NF_g(end)   = NF_vg;
+    
     %Set same NF for all densities:
     NF_l(1:model_l.nSpecies)    = max(NF_l(1:model_l.nSpecies));
     NF_g(1:model_g.nSpecies)    = max(NF_g(1:model_g.nSpecies));
