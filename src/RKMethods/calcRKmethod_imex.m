@@ -56,8 +56,8 @@ switch upper(MethodName)
             method.bhatE    = [ 0.0     1.0     0.0     0.0     0.0 ].';
         else
         % LONG SIMULATION (+-100s)
-            method.bhatI    = [ 5/18    -1/9    0.5     0.0     0.0 ].';
-            method.bhatE    = [ 4/9     2/9     0.0     0.0     0.0 ].';
+            method.bhatI    = [ 0.5     0.0     0.0     0.5     0.0 ].';
+            method.bhatE    = [ 0.25    0.0     0.75    0.0     0.0 ].';
         end
   
         method.GSA          = true;

@@ -26,7 +26,7 @@ t_final           = 20;     % Final simulation time
                            % set a value larger than the expected final time
 
 TimeAdapt         = true;  % Enable adaptive time-stepping (true/false)
-TolT              = 1e-3;  % Tolerance for temporal error (≥1e-3) (used if TimeAdapt = true)
+TolT              = 1e-4;  % Tolerance for temporal error (≥1e-3) (used if TimeAdapt = true)
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
@@ -58,7 +58,7 @@ mass_fracG        = {0.79, 0.21, 0.00, 0.00}; % Mass fraction of each inert spec
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 
 % Run the full droplet evaporation simulation from t = 0
-[save_vars] = droplet_test(nElems_l, nElems_g, p, Deltat0, t_final, ...
+[save_vars] = droplet_test(nElems_l, p, Deltat0, t_final, ...
     TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
     n_saves);
