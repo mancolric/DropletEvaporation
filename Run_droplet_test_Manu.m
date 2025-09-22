@@ -9,11 +9,10 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
-nElems_l          = 25;    % Number of elements in the liquid phase
-nElems_g          = 50;    % Number of elements in the gas phase (first part)
+nElems_l          = 40;    % Number of elements in the liquid phase
 p                 = 5;     % Degree of the polynomial basis functions
 
-Deltat0           = 1e-6;  % Initial time step
+Deltat0           = 1e-7;  % Initial time step
                            % If you get warnings like:
                            %   “Nonlinear solver did not converge at stage 2. Reducing time step”
                            %   or
@@ -31,7 +30,7 @@ TolT              = 1e-3;  % Tolerance for temporal error (≥1e-3) (used if Tim
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = false;   % Plot intermediate results (true/false)
+PlotRes           = true;   % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
 Save              = false;  % Save results to file (true/false)
@@ -51,7 +50,7 @@ T_inf             = 2000;       % Ambient (far-field) temperature [K]
 
 % --------------------------- SPECIES DEFINITION --------------------------
 
-fuel_names        = {'Octano'};     % Fuel components
+fuel_names        = {'Hexadecano'};     % Fuel components
 mass_fracL        = {1.00};                    % Mass fraction of each fuel component (same order as above)
 inert_comps       = {'N2', 'O2', 'CO2', 'H2O'};    % Inert gas species (DO NOT MODIFY)
 mass_fracG        = {0.79, 0.21, 0.00, 0.00}; % Mass fraction of each inert species in the gas phase (same order as above)
