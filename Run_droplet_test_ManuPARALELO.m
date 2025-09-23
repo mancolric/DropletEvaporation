@@ -7,10 +7,14 @@ clear                  % Clear all variables from workspace
 
 addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATLAB path
 
-Tab = readtable('Droplet Evaporation.xlsx', 'Sheet', 'Run Sim');
-nSims = height(Tab.Numero);
+Tab      = readtable('Droplet Evaporation.xlsx', 'Sheet', 'Run Sim');
+nSims    = height(Tab.Numero);
 
 for i=1:nSims
+
+FolderName = num2str(Tab.Numero(i));
+mkdir(FolderName);
+addpath(FolderName);
 
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
@@ -30,15 +34,15 @@ t_final           = Tab.t_final(i);     % Final simulation time
                            % If you want the simulation to continue until the droplet disappears, 
                            % set a value larger than the expected final time
 
-TimeAdapt         = Tab.TimeAdapt{i};  % Enable adaptive time-stepping (true/false)
+TimeAdapt         = logical(Tab.TimeAdapt(i));  % Enable adaptive time-stepping (true/false)
 TolT              = Tab.TolT(i);  % Tolerance for temporal error (≥1e-3) (used if TimeAdapt = true)
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = Tab.PlotRes{i};   % Plot intermediate results (true/false)
+PlotRes           = logical(Tab.PlotRes(i));   % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
-Save              = Tab.Save{i};  % Save results to file (true/false)
+Save              = logical(Tab.Save(i));  % Save results to file (true/false)
                            % NOTE: if true, PlotRes must be false
                            
 n_saved_solutions = Tab.n_saved_solutions(i);   % Number of solution snapshots to save throughout simulation
@@ -56,13 +60,14 @@ T_inf             = Tab.T_inf(i);       % Ambient (far-field) temperature [K]
 % --------------------------- SPECIES DEFINITION --------------------------
 
 fuel_names        = strsplit(Tab.fuel_names{i},';');     % Fuel components
-frac_strL         = strsplit(Tab.mass_fracL{i},';');                    % Mass fraction of each fuel component (same order as above)
+frac_strL         = strsplit(Tab.mass_fracL{i},';');
 mass_fracL        = cellfun(@(x) str2double(strrep(x, ',', '.')), frac_strL);
 mass_fracL        = num2cell(mass_fracL);
-inert_comps       = {strsplit(Tab.inert_comps{i},';')};    % Inert gas species (DO NOT MODIFY)
-frac_strG         = {strsplit(Tab.mass_fracG{i},';')}; % Mass fraction of each inert species in the gas phase (same order as above)
+mass_fracL        = mass_fracL(~cellfun(@(x) all(isnan(x)), mass_fracL));   % Mass fraction of each fuel in the liquid phase (same order as above)
+inert_comps       = strsplit(Tab.inert_comps{i},';');    % Inert gas species (DO NOT MODIFY)
+frac_strG         = strsplit(Tab.mass_fracG{i},';'); 
 mass_fracG        = cellfun(@(x) str2double(strrep(x, ',', '.')), frac_strG);
-mass_fracG        = num2cell(mass_fracG);
+mass_fracG        = num2cell(mass_fracG);   % Mass fraction of each inert species in the gas phase (same order as above)
 
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 
@@ -70,6 +75,6 @@ mass_fracG        = num2cell(mass_fracG);
 [save_vars] = droplet_testPARALELO(nElems_l, nElems_g, p, Deltat0, t_final, ...
     TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
-    n_saves);
+    n_saves, FolderName);
 
 end

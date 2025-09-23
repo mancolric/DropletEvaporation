@@ -3,7 +3,7 @@ function [save_vars, model_l, model_g] = ...
         Deltat0, t_final, TimeAdapt, TolT, ...
         PlotRes, Save, fuel_names, mass_fracL, ...
         inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, ...
-        x_lg, XRad, R_end_percent, n_saves)
+        x_lg, XRad, R_end_percent, n_saves, FolderName)
 
     tStart = tic;
 
@@ -367,13 +367,12 @@ function [save_vars, model_l, model_g] = ...
     
     %First Save:
     if Save
-        folderName = 'results';
         t = sol_n.t;
         if t==0
             sol_n_save    = cell(round((t_evap*earlyTimePortion)/DeltaSaveI+1)+round((t_evap*lateTimePortion*1.3)/DeltaSaveII+1),1);
             sol_n_save{1} = sol_n;
 
-            save(fullfile(folderName,'Model.mat'),'model_l','model_g', 'p', 't_evap')
+            save(fullfile(FolderName,'Model.mat'),'model_l','model_g', 'p', 't_evap')
         end
     end
     
@@ -977,16 +976,16 @@ function [save_vars, model_l, model_g] = ...
                 sol_n_save{N_save+1} = sol_n;
                 disp('t has arrived to t_final')
                 simulationTime       = toc(tStart);
-                save(fullfile(folderName, 'Saved_solutionsEnd.mat'),'sol_n_save','simulationTime')
-                save(fullfile(folderName, 'Saved_varsEnd.mat'),'save_vars','Guide','simulationTime')
+                save(fullfile(FolderName, 'Saved_solutionsEnd.mat'),'sol_n_save','simulationTime')
+                save(fullfile(FolderName, 'Saved_varsEnd.mat'),'save_vars','Guide','simulationTime')
                 disp("Simulation Time: " + simulationTime + " [s]")
                 return
             elseif sol_n.fesl.mesh.x_faces(end,end)<=x_lg*R_end_percent
                 sol_n_save{N_save+1} = sol_n;
                 disp(['The surface of the droplet is less than ', sprintf('%.0f', R_end_percent * 100), '% of the surface of the initial one'])
                 simulationTime       = toc(tStart);
-                save(fullfile(folderName, 'Saved_solutionsEnd.mat'),'sol_n_save','simulationTime')
-                save(fullfile(folderName, 'Saved_varsEnd.mat'),'save_vars','Guide','simulationTime')
+                save(fullfile(FolderName, 'Saved_solutionsEnd.mat'),'sol_n_save','simulationTime')
+                save(fullfile(FolderName, 'Saved_varsEnd.mat'),'save_vars','Guide','simulationTime')
                 disp("Simulation Time: " + simulationTime + " [s]")
                 return
             else
@@ -1004,8 +1003,8 @@ function [save_vars, model_l, model_g] = ...
                         
                         simulationTime = toc(tStart);
 
-                        save(fullfile(folderName, Sol_name), 'sol_n_save','simulationTime');
-                        save(fullfile(folderName, Vars_name), 'save_vars','Guide','simulationTime');
+                        save(fullfile(FolderName, Sol_name), 'sol_n_save','simulationTime');
+                        save(fullfile(FolderName, Vars_name), 'save_vars','Guide','simulationTime');
 
                         times_triggered(ii) = true;
                     end
