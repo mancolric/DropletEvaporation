@@ -11,10 +11,8 @@ function [save_vars, model_l, model_g] = ...
     %DATA:
     
     %Maximum and target nb of iterations in nonlinear solver:
-    NLS_MaxIter     = 200;  %for KC35 method
-    NLS_IterTarget  = 200;  %for KC35 method
-%     NLS_MaxIter     = 200;   %for BPR3 method
-%     NLS_IterTarget  = 200;   %for BPR3 method
+    NLS_MaxIter     = 200;   %for BPR3 method
+    NLS_IterTarget  = 200;   %for BPR3 method
     
     % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
     % where NLS_iters is the mean number of nonlinear solver iterations at 

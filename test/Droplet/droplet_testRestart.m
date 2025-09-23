@@ -203,9 +203,26 @@ function [save_vars, model_l, model_g] = ...
     Deltat_min  = 1e-12;
     
     %Maximum nb of iterations in nonlinear solver:
-    NLS_MaxIter     = 80;
-    NLS_IterTarget  = 60;
+    NLS_MaxIter     = 200;
+    NLS_IterTarget  = 200;
     
+    % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
+    % where NLS_iters is the mean number of nonlinear solver iterations at 
+    % each Runge--Kutta stage. 
+    % The value NLS_IterTarget should be adjusted according to the simulation if adaptive
+    % time stepping is enabled.
+    % This constant controls the update of the number of nonlinear iterations (NLSiters)
+    % based on the average value of NLSiters per stage, which is displayed on the results screen,
+    % to achieve a stable time step.
+    % For example, if it is observed that NLSiters/stage varies approximately between 27 and 30,
+    % and many temporary or convergence errors appear in the console, NLS_IterTarget should be a value around 26.
+
+    %Characteristic velocities and time:
+    NF_vl       = 1e-4;  %Characteristic value for liquid velocity
+    NF_vg       = 1e-1;  %Characteristic value for gas velocity
+    NF_tau      = 1e-3;  %Characteristic time
+    %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
+
     %----------------------------------------------------------------------
     %INITIAL CONDITION (EXACT FOR DIFFERENTIAL VARIABLES, GUESS FOR ALGEBRAIC ONES):
 
@@ -260,9 +277,8 @@ function [save_vars, model_l, model_g] = ...
     %Normalization factors for differential and algebraic variables: 
     NF_l        = max(1e-6, Lqmean(sol_n.ul, sol_n.fesl, 2));
     NF_g        = max(1e-6, Lqmean(sol_n.ug, sol_n.fesg, 2));
-    NF_l(end)   = 1e0;  %Set here characteristic value for liquid velocity!!
-    NF_g(end)   = 1e0;  %Set here characteristic value for gas velocity!!
-    NF_tau      = 1e-2;  %Characteristic time. High NF_tau: less iterations, less accuracy in the velocity
+    NF_l(end)   = NF_vl;
+    NF_g(end)   = NF_vg;
     %Set same NF for all densities:
     NF_l(1:model_l.nSpecies)    = max(NF_l(1:model_l.nSpecies));
     NF_g(1:model_g.nSpecies)    = max(NF_g(1:model_g.nSpecies));
