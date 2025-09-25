@@ -8,7 +8,7 @@ function T_i = calc_T_i(T_inf,y_inf,model_l,model_g,fuel_names,frac_masL)
                 - (2 * rho_g(i, Ti, T_inf, Y_vi(i, Ti, model_g, fuel_names, frac_masL), y_inf, model_g, fuel_names)  ...
                 * D_g(i, Ti, T_inf, Y_vi(i, Ti, model_g, fuel_names, frac_masL), y_inf, model_g, fuel_names) * Lv_evap(i, Ti, T_inf, fuel_names) ...
                 * Y_vi_fuel(i, Ti, model_g, fuel_names, frac_masL) / (1 - Y_vi_fuel(i, Ti, model_g, fuel_names, frac_masL)));
-        options = optimoptions('fsolve','Display','off','TolFun', 1e-6);
-        T_i(i)  = fsolve(eq_Ti,T_ini,options);
+        options = optimset('Display','off','TolX',1e-6);
+        T_i(i)  = fzero(eq_Ti, T_ini, options);
     end
 end
