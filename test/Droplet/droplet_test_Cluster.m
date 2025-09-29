@@ -1,11 +1,16 @@
 function [save_vars, model_l, model_g] = ...
-    droplet_testPARALELO(nElems_l, p, ...
+    droplet_test_Cluster(nElems_l, p, ...
         Deltat0, t_final, TimeAdapt, TolT, ...
         PlotRes, Save, fuel_names, mass_fracL, ...
         inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, ...
         x_lg, XRad, R_end_percent, n_saves, FolderName)
 
-    tStart = tic;
+    tStart       = tic;
+    tJacobTotal  = 0;
+    tMFactTotal  = 0;
+    tSolNLSTotal = 0;
+    tPropsTotal  = 0;
+    NLSiterTotal = 0;
 
     %----------------------------------------------------------------------
     %DATA:
@@ -33,8 +38,7 @@ function [save_vars, model_l, model_g] = ...
     
     %Domain limits:
     x_l         = 0.0;
-    x_gI        = 5*x_lg;
-    x_gII       = XRad*x_lg;
+    x_g         = XRad*x_lg;
 
     %Initial mesh coordinates:
     x_liq          = linspace(0, 1, nElems_l);
@@ -42,7 +46,7 @@ function [save_vars, model_l, model_g] = ...
     xmesh_l        = x_lg * (x_liq.^alpha_l);
     alpha_g        = 1.030;
     h_gas          = 5e-6;
-    L_g            = (x_gII-x_gI);
+    L_g            = (x_g-x_lg);
     N_gas          = log((alpha_g-1)*L_g/h_gas+1)/log(alpha_g);
     intervals_g    = h_gas*alpha_g.^(0:N_gas-1);
     total_length_g = sum(intervals_g);
@@ -239,7 +243,7 @@ function [save_vars, model_l, model_g] = ...
 
     %Boundary conditions:
     model_l.u1  = @(t) u0_l(x_l);
-    model_g.uN  = @(t) u0_g(x_gII);
+    model_g.uN  = @(t) u0_g(x_g);
 
     %Minimum time step:
     Deltat_min  = 1e-12;
@@ -607,9 +611,11 @@ function [save_vars, model_l, model_g] = ...
         %IMPOSE DAE FOR LIQUID:
         
         %Compute term due to fluxes and restriction:
+        tPropsL = tic;
         [kDAE_l_RK(:,ii),dfDAE_duw_l,~,~,Deltat_CFL_g]   = ...
             FEM_fgQ(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ);
-        
+        tPropsTotal = tPropsTotal + toc(tPropsL);
+
         %Residuals and Jacobians:
         r_l                             = Mm_l_np1*y_l - bDAE_l_ii - RKmethod.aI(ii,ii)*Deltat_n * kDAE_l_RK(:,ii);
         if ComputeJ
@@ -627,8 +633,10 @@ function [save_vars, model_l, model_g] = ...
         %IMPOSE DAE FOR GAS:
         
         %Compute term due to fluxes and restriction:
+        tPropsG = tic;
         [kDAE_g_RK(:,ii),dfDAE_duw_g,~,~,Deltat_CFL_l]   = ...
             FEM_fgQ(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ);
+        tPropsTotal = tPropsTotal + toc(tPropsG);
         
         %Residuals and Jacobians:
         r_g                             = Mm_g_np1*y_g - bDAE_g_ii - RKmethod.aI(ii,ii)*Deltat_n * kDAE_g_RK(:,ii);
@@ -763,13 +771,18 @@ function [save_vars, model_l, model_g] = ...
             bDAE_g_ii       = My1_g;
         
             %Save derivatives k(:,1) and Jacobian for first stage:
+            tJacob = tic;
             [~,A_n]         = ResidualFun({yv_np1(block_l), yv_np1(block_g), ...
                                             yv_np1(block_mesh_l), yv_np1(block_mesh_g)}, ...
                                         true);
+            tJacobTotal = tJacobTotal + toc(tJacob);
+
+            tMFact = tic;
             A_n_fact        = { LUFactorization(Sr_l*A_n{1}*Sy_l); 
                                 LUFactorization(Sr_g*A_n{2}*Sy_g); 
                                 1.0; 
                                 1.0 };
+            tMFactTotal = tMFactTotal + toc(tMFact);
                                 
             %Loop stages:
             NLS_iters       = 0;
@@ -794,12 +807,15 @@ function [save_vars, model_l, model_g] = ...
                     TolA            = 1e-8;
                 end
                 NDOF                            = nDAE_l*fes_l.nDof + nDAE_g*fes_g.nDof; 
+                tSolNLS= tic;
                 [yscaled_np1, nIters, NLSFlag]  = Anderson(@PrecResidualFun, ...
                                                         cat(1,  Sy_l\yv_np1(block_l), ...
                                                                 Sy_g\yv_np1(block_g), ...
                                                                 Sy_mesh_l\yv_np1(block_mesh_l), ...
                                                                 Sy_mesh_g\yv_np1(block_mesh_g)), ...
                                                         sqrt(NDOF)*TolA, NLS_MaxIter, 50);
+                tSolNLSTotal = tSolNLSTotal + toc(tSolNLS);
+
                 yv_np1                           = cat(1,   Sy_l*yscaled_np1(block_l), ...
                                                             Sy_g*yscaled_np1(block_g), ...
                                                             Sy_mesh_l*yscaled_np1(block_mesh_l), ...
@@ -895,6 +911,9 @@ function [save_vars, model_l, model_g] = ...
         yv_n        = yv_np1;
         etaT_nm1    = etaT;
         
+        NLSiterTotal = NLSiterTotal + NLS_iters;
+        NLSiterMean = NLSiterTotal/Nt;
+
         %Plot results:
         PlotFun(sol_n)
         drawnow()
@@ -974,7 +993,7 @@ function [save_vars, model_l, model_g] = ...
                 sol_n_save{N_save+1} = sol_n;
                 disp('t has arrived to t_final')
                 simulationTime       = toc(tStart);
-                save(fullfile(FolderName, 'Saved_solutionsEnd.mat'),'sol_n_save','simulationTime')
+                save(fullfile(FolderName, 'Saved_solutionsEnd.mat'),'sol_n_save','simulationTime','NLSiterMean','tJacobTotal','tMFactTotal','tSolNLSTotal','tPropsTotal')
                 save(fullfile(FolderName, 'Saved_varsEnd.mat'),'save_vars','Guide','simulationTime')
                 disp("Simulation Time: " + simulationTime + " [s]")
                 return
@@ -982,7 +1001,7 @@ function [save_vars, model_l, model_g] = ...
                 sol_n_save{N_save+1} = sol_n;
                 disp(['The surface of the droplet is less than ', sprintf('%.0f', R_end_percent * 100), '% of the surface of the initial one'])
                 simulationTime       = toc(tStart);
-                save(fullfile(FolderName, 'Saved_solutionsEnd.mat'),'sol_n_save','simulationTime')
+                save(fullfile(FolderName, 'Saved_solutionsEnd.mat'),'sol_n_save','simulationTime','NLSiterMean','tJacobTotal','tMFactTotal','tSolNLSTotal','tPropsTotal')
                 save(fullfile(FolderName, 'Saved_varsEnd.mat'),'save_vars','Guide','simulationTime')
                 disp("Simulation Time: " + simulationTime + " [s]")
                 return
@@ -1001,7 +1020,7 @@ function [save_vars, model_l, model_g] = ...
                         
                         simulationTime = toc(tStart);
 
-                        save(fullfile(FolderName, Sol_name), 'sol_n_save','simulationTime');
+                        save(fullfile(FolderName, Sol_name), 'sol_n_save','simulationTime','NLSiterMean','tJacobTotal','tMFactTotal','tSolNLSTotal','tPropsTotal');
                         save(fullfile(FolderName, Vars_name), 'save_vars','Guide','simulationTime');
 
                         times_triggered(ii) = true;
