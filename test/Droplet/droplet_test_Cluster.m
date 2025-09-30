@@ -17,7 +17,7 @@ function [save_vars, model_l, model_g] = ...
     
     %Maximum and target nb of iterations in nonlinear solver:
     NLS_MaxIter     = 200;   %for BPR3 method
-    NLS_IterTarget  = 200;   %for BPR3 method
+    NLS_IterTarget  = 120;   %for BPR3 method
     
     % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
     % where NLS_iters is the mean number of nonlinear solver iterations at 
@@ -33,7 +33,7 @@ function [save_vars, model_l, model_g] = ...
     %Characteristic velocities and time:
     NF_vl       = 1e-4;  %Characteristic value for liquid velocity
     NF_vg       = 1e-1;  %Characteristic value for gas velocity
-    NF_tau      = 1e-3;  %Characteristic time
+    NF_tau      = 1e-4;  %Characteristic time
     %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
     
     %Domain limits:
@@ -184,10 +184,10 @@ function [save_vars, model_l, model_g] = ...
          
         %Initial Condition (A.Millan):
         D_T         = calc_D_T(T_inf,y_inf,model_g);
-        T_g         = T_inf+(x_lg./x).*(T_R-T_inf).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
+        T_g         = T_inf+(x_lg./x).*(T_R-T_inf).*erfc((x-x_lg)./(2*sqrt(D_T*1e-3)));
         y_g         = cell(model_g.nSpecies,1);
         for i=1:model_g.nSpecies
-            y_g{i}  = y_inf{i}+(x_lg./x).*(y_R{i}-y_inf{i}).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
+            y_g{i}  = y_inf{i}+(x_lg./x).*(y_R{i}-y_inf{i}).*erfc((x-x_lg)./(2*sqrt(D_T*1e-3)));
         end
 
         %Ensure the sum of all species mass fractions equals 1 (sanity check)

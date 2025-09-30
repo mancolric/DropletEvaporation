@@ -8,7 +8,7 @@ close all
 aux1 = load('Octano0.7+Eicosano.mat');
 
 %CALCULATE EVAPORATED MASS FLOW:
-m_g_1 = 4*pi().*((cell2mat(aux1.d)./2).^2).*cell2mat(aux1.m_g);     
+m_l_1 = 4*pi().*((cell2mat(aux1.d)./2).^2).*cell2mat(aux1.m_l);     
 
 % CELL2MAT t:
 t_n = cell2mat(aux1.t_n);
@@ -16,7 +16,7 @@ t_n = cell2mat(aux1.t_n);
 %PLOT EVAPORATED MASS FLOW:
 subplot(1,3,1)
 hold off
-plot(t_n, m_g_1, 'r--', 'LineWidth', 1.5)
+plot(t_n, m_l_1, 'r--', 'LineWidth', 1.5)
 hold on
 set(gca, 'FontSize', 15)
 ylabel('$\dot{m}$ [kg/s]', 'Interpreter', 'latex', 'FontSize', 18, 'FontWeight', 'bold')
