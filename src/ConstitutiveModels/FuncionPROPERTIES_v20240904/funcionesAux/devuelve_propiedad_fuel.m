@@ -98,7 +98,7 @@ if strcmpi(comb,'heptano')
             % rho_l [kg/m3]
             % Perrys Handbook
             C1=0.61259; C2=0.26211; C3=540.2;C4=0.28141;
-            if (182.57 <= T_saved)&&(T_saved <= 510)
+            if (182.57 <= T_saved)&&(T_saved <= 550)
                 value=(C1/C2^(1+(1-T_saved/C3)^C4))*MW;
             else 
                 % Poco probable que T<182 K... 

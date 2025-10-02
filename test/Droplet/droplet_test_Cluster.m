@@ -3,7 +3,7 @@ function [save_vars, model_l, model_g] = ...
         Deltat0, t_final, TimeAdapt, TolT, ...
         PlotRes, Save, fuel_names, mass_fracL, ...
         inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, ...
-        x_lg, XRad, R_end_percent, n_saves, FolderName)
+        x_lg, XRad, R_end_percent, n_saves, FolderName, N)
 
     tStart       = tic;
     tJacobTotal  = 0;
@@ -44,17 +44,21 @@ function [save_vars, model_l, model_g] = ...
     x_liq          = linspace(0, 1, nElems_l);
     alpha_l        = 0.7;
     xmesh_l        = x_lg * (x_liq.^alpha_l);
-    alpha_g        = 1.030;
-    h_gas          = 5e-6;
+    alpha_g        = 1.025;
+    h_gas          = 2e-6;
     L_g            = (x_g-x_lg);
     N_gas          = log((alpha_g-1)*L_g/h_gas+1)/log(alpha_g);
-    intervals_g    = h_gas*alpha_g.^(0:N_gas-1);
-    total_length_g = sum(intervals_g);
-    if total_length_g > L_g
-        warning('The sum of the intervals exceeds L. Adjusting...');
-        intervals_g = intervals_g * (L_g / total_length_g);
-    end
-    xmesh_g      = cumsum(intervals_g)+x_lg;
+    N_gas_new = round(N_gas / N);
+    func = @(alpha) sum(h_gas * alpha.^(0:N_gas_new-1)) - L_g;
+    alpha_g_new = fzero(func, [1.0001, 10]);
+    intervals_g_new = h_gas * alpha_g_new.^(0:N_gas_new-1);
+    % intervals_g    = h_gas*alpha_g.^(0:N_gas-1);
+    % total_length_g = sum(intervals_g);
+    % if total_length_g > L_g
+    %     warning('The sum of the intervals exceeds L. Adjusting...');
+    %     intervals_g = intervals_g * (L_g / total_length_g);
+    % end
+    xmesh_g      = cumsum(intervals_g_new)+x_lg;
 
     % figure;
     % hold on;
@@ -309,8 +313,9 @@ function [save_vars, model_l, model_g] = ...
     end
 
     %Calculate estimated evaporation time (if known, add manually):
-    t_evap      = calc_t_evap(T_inf,y_inf,model_l,model_g,mass_fracL,fuel_names,x_lg);
-    t_evap      = real(t_evap);
+    % t_evap      = calc_t_evap(T_inf,y_inf,model_l,model_g,mass_fracL,fuel_names,x_lg);
+    % t_evap      = real(t_evap);
+    t_evap      = 0.042;
 
     %Distribution of the saved time instants: 55% are saved in the first 20% of the 
     %simulation and the remaining 45% in the final 80% of the simulation (MODIFIABLE)
