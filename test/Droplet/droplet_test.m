@@ -12,7 +12,7 @@ function [save_vars, model_l, model_g] = ...
     
     %Maximum and target nb of iterations in nonlinear solver:
     NLS_MaxIter     = 200;   %for BPR3 method
-    NLS_IterTarget  = 200;   %for BPR3 method
+    NLS_IterTarget  = 120;   %for BPR3 method
     
     % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
     % where NLS_iters is the mean number of nonlinear solver iterations at 
@@ -28,21 +28,20 @@ function [save_vars, model_l, model_g] = ...
     %Characteristic velocities and time:
     NF_vl       = 1e-4;  %Characteristic value for liquid velocity
     NF_vg       = 1e-1;  %Characteristic value for gas velocity
-    NF_tau      = 1e-3;  %Characteristic time
+    NF_tau      = 1e-4;  %Characteristic time
     %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
     
     %Domain limits:
     x_l         = 0.0;
-    x_gI        = 5*x_lg;
-    x_gII       = XRad*x_lg;
+    x_g         = XRad*x_lg;
 
     %Initial mesh coordinates:
     x_liq          = linspace(0, 1, nElems_l);
     alpha_l        = 0.7;
     xmesh_l        = x_lg * (x_liq.^alpha_l);
     alpha_g        = 1.030;
-    h_gas          = 5e-6;
-    L_g            = (x_gII-x_gI);
+    h_gas          = 2e-6;
+    L_g            = (x_g-x_lg);
     N_gas          = log((alpha_g-1)*L_g/h_gas+1)/log(alpha_g);
     intervals_g    = h_gas*alpha_g.^(0:N_gas-1);
     total_length_g = sum(intervals_g);
