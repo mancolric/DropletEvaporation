@@ -238,7 +238,7 @@ function [save_vars, model_l, model_g] = ...
 
     %Boundary conditions:
     model_l.u1  = @(t) u0_l(x_l);
-    model_g.uN  = @(t) u0_g(x_gII);
+    model_g.uN  = @(t) u0_g(x_g);
 
     %Minimum time step:
     Deltat_min  = 1e-12;

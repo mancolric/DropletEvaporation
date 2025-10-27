@@ -10,12 +10,5 @@ function T_i = calc_T_i(T_inf,y_inf,model_l,model_g,fuel_names,frac_masL)
                 * Y_vi_fuel(i, Ti, model_g, fuel_names, frac_masL) / (1 - Y_vi_fuel(i, Ti, model_g, fuel_names, frac_masL)));
         options = optimoptions('fsolve','Display','off','TolFun', 1e-6);
         T_i(i) = fsolve(eq_Ti,T_ini,options);
-
-        [T_i2(i), Iteration, flag]    = NewtonRaphson(@eq_Ti, T_ini, 0.0, 1e-8, 100);
-        if flag==-2
-            error("Error en el cálculo de T Máximo iteraciones LS")
-        elseif flag==-1
-            error("Error en el cálculo de T, Máximo iteraciones Newton-Raphson")
-        end
     end
 end
