@@ -31,10 +31,10 @@ TolT              = 1e-3;  % Tolerance for temporal error (≥1e-3) (used if Tim
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = false; % Plot intermediate results (true/false)
+PlotRes           = true; % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
-Save              = true;  % Save results to file (true/false)
+Save              = false;  % Save results to file (true/false)
                            % NOTE: if true, PlotRes must be false
                            
 n_saved_solutions = 500;   % Number of solution snapshots to save throughout simulation

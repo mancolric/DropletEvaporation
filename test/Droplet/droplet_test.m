@@ -31,6 +31,9 @@ function [save_vars, model_l, model_g] = ...
     NF_tau      = 1e-4;  %Characteristic time
     %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
     
+    %Relaxation time:
+    tau_relax   = NF_tau;
+    
     %Domain limits:
     x_l         = 0.0;
     x_g         = XRad*x_lg;
@@ -118,85 +121,17 @@ function [save_vars, model_l, model_g] = ...
         H_g         = cell(1,1);
         rhoy_g      = cell(model_g.nSpecies,1);
         
-        T_R         = T_0;
-
-        y_L         = y0_l(x_lg);
-        y_R         = calc_y_gInter(y_L,model_l,model_g,T_R);
-        y_R_fuels   = 0;
-        for i=model_g.nInerts+1:model_g.nSpecies
-            y_R_fuels = y_R_fuels + y_R{i};
-        end
         y_gas_inf   = cell(model_g.nInerts,1);
         for i=1:model_g.nInerts
-            y_gas_inf{i}   = (mass_fracG{i}*0.99999999)';
+            y_gas_inf{i}   = mass_fracG{i};
         end
-        y_fuel_inf  = repmat({(1-0.99999999)/model_l.nSpecies}, model_l.nSpecies, 1);
+        y_fuel_inf  = repmat({0.0}, model_l.nSpecies, 1);
         y_inf       = [y_gas_inf; y_fuel_inf];
-         
-        %Initial Condition (D.Betran) [valid ONLY for droplets with up to 2 components]:
-        % T_ref       = (2/3)*T_0 + (1/3)*T_inf;
-        % y_ref       = cell(model_g.nSpecies,1);
-        % for i=1:model_g.nSpecies
-        %     y_ref{i} = (2/3)*y_R{i} + (1/3)*y_inf{i};
-        % end
-        % Dif_g       = calc_D_rho(T_ref,y_ref,model_g);
-        % rho_gas     = calc_rho(model_g,y_ref,T_ref);
-        % Cp          = calc_Cp(T_ref,y_ref,model_g);
-        % Lv_i        = calcula_Lv_fuel(model_l.gota,[],T_ref,[]);
-        % Lv          = 0;
-        % for i=1:model_l.nSpecies
-        %     Lv = Lv + Lv_i(1,i)*y_ref{i+model_g.nInerts};
-        % end
-        % T_refv      = T_ref(:)';
-        % Yi_eval     = zeros(model_g.nInerts, size(T_refv,2)); 
-        % for i=1:model_g.nInerts
-        % Yi_eval(i,:) = y_ref{i}(:)';
-        % end
-        % Yf_eval = zeros(model_g.nSpecies-model_g.nInerts, size(T_refv,2));
-        % for i=1:model_g.nSpecies-model_g.nInerts
-        %     Yf_eval(i,:) = y_ref{i+model_g.nInerts}(:)';
-        % end
-        % k_g         = MixtureRules('k_gas', T_refv, Yi_eval, Yf_eval, model_g.matrix, model_g.gota, model_g.comp_inerts, model_g.P);
-        % 
-        % mdot_i      = zeros(model_l.nSpecies,1);
-        % mdot        = 4*pi*x_lg*rho_gas*Dif_g.*log(1+y_R_fuels./(1-y_R_fuels));
-        % for i=model_g.nInerts+1:model_g.nSpecies
-        %     epsilon    = y_R{i}/y_R_fuels;
-        %     mdot_i(i-model_g.nInerts)  = mdot*epsilon;
-        % end
-        % q_sens      = mdot*((Cp*(T_inf-T_R))/(exp((mdot*Cp)/(4*pi()*x_lg*k_g))-1)-Lv);
-        % y_g         = cell(model_g.nSpecies,1);
-        % for i=1:model_g.nInerts
-        %     y_g{i} = (1-(1-exp(-(mdot/(4*pi))./(rho_gas.*Dif_g.*x)))).*mass_fracG{i};
-        % end
-        % for i=model_g.nInerts+1:model_g.nSpecies
-        %     y_g{i} = 1-exp(-(mdot_i(i-model_g.nInerts)/(4*pi))./(rho_gas.*Dif_g.*x));
-        % end
-        % 
-        % L_comilla  = Lv+q_sens/mdot;
-        % 
-        % T_g        = T_R-(L_comilla/Cp)+(T_inf-T_R+(L_comilla/Cp))*exp(-(mdot/(4*pi))*Cp./(k_g.*x));
-         
-        %Initial Condition (A.Millan):
-        D_T         = calc_D_T(T_inf,y_inf,model_g);
-        T_g         = T_inf+(x_lg./x).*(T_R-T_inf).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
+        
+        T_g         = T_inf + 0*x;
         y_g         = cell(model_g.nSpecies,1);
         for i=1:model_g.nSpecies
-            y_g{i}  = y_inf{i}+(x_lg./x).*(y_R{i}-y_inf{i}).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
-        end
-
-        %Ensure the sum of all species mass fractions equals 1 (sanity check)
-        sum_yG      = zeros(size(x));
-        sum_yL      = zeros(size(x));
-        for jj=1:model_g.nInerts
-            sum_yG  = sum_yG + y_g{jj};
-        end
-        for jj=model_g.nInerts+1:model_g.nSpecies
-            sum_yL  = sum_yL + y_g{jj};
-        end
-        if max(max(abs((sum_yG+sum_yL)-1)))>1e-6
-            disp('ERROR: Mass fractions not equal to 1!')
-            return
+            y_g{i}  = y_inf{i} + 0.0*x;
         end
 
         rho_g       = calc_rho(model_g,y_g,T_g);
@@ -206,7 +141,7 @@ function [save_vars, model_l, model_g] = ...
         h_g         = calc_h(T_g,y_g,model_g);
         H_g{1,1}    = h_g.*rho_g;
 
-        v_g         = 0.008286095019622.*((x_lg./x).^2);
+        v_g         = 0.0*x;
 
         %Final vector of initial gas fields
         %u = {ρY1, ..., ρYN, H, v}
@@ -275,34 +210,6 @@ function [save_vars, model_l, model_g] = ...
     [rho_l_ini,y_l_ini] = calc_rho_y(rhoy_l_ini,model_l);
     [rho_g_ini,y_g_ini] = calc_rho_y(rhoy_g_ini,model_g);
 
-    %Calculate a:
-    T_L       = T_l_ini(end,end);
-    y_L       = y0_l(x_lg);
-    y_gas_inf = cell(model_g.nInerts,1);
-    for ii=1:model_g.nInerts    
-        y_gas_inf{ii} = (mass_fracG{ii}*0.999999)';
-    end
-    y_fuel_inf = repmat({(1-0.999999)/model_l.nSpecies}, model_l.nSpecies, 1);
-    y_inf      = [y_gas_inf; y_fuel_inf];
-    rho_l_m    = calc_rho(model_l,y_L,T_L);
-    D_rho      = calc_D_rho(T_g_ini,y_g_ini,model_g);
-    y_l_ini_L  = cell(size(y_l_ini));
-    for II = 1:length(y_l_ini)
-        y_l_ini_L{II} = y_l_ini{II}(end,end);
-    end
-    y_g_ini_R  = cell(size(y_g_ini));
-    for II = 1:length(y_g_ini)
-        y_g_ini_R{II} = y_g_ini{II}(1,1);
-    end
-    m_R        = calc_m_ini(x_lg, rho_g_ini(1,1), D_rho(1,1), y_g_ini_R, y_inf, model_l);
-    a          = -m_R./rho_l_m;
-
-    %Verify initial condition:
-    if T_l_ini(end,end)-T_g_ini(1,1)>1e-6
-        disp('Different T in the interface in the initial condition')
-        return
-    end
-
     %Calculate estimated evaporation time (if known, add manually):
     t_evap      = calc_t_evap(T_inf,y_inf,model_l,model_g,mass_fracL,fuel_names,x_lg);
     t_evap      = real(t_evap);
@@ -349,8 +256,8 @@ function [save_vars, model_l, model_g] = ...
     sol_n.qL    = CellToVector(EvalSolution(sol_n.ul(1:model_l.nDiff), sol_n.fesl, sol_n.fesl.mesh.nElems, 1.0));
     sol_n.qR    = CellToVector(EvalSolution(sol_n.ug(1:model_g.nDiff+model_g.nAlg), sol_n.fesg, 1, -1.0));
     
-    %Initial value for droplet velocity:
-    sol_n.w     = a;
+    %Initial guess value for droplet velocity:
+    sol_n.w     = 0.0;
     
     %Normalization factors for differential and algebraic variables: 
     NF_l        = max(1e-6, Lqmean(sol_n.ul, sol_n.fesl, 2));
@@ -513,6 +420,14 @@ function [save_vars, model_l, model_g] = ...
     %----------------------------------------------------------------------
     %MARCH IN TIME:
     
+    %Compute initial residuals DeltaT and DeltaP in coupling conditions to
+    %not well-prepared initial conditions:
+    y_eq        = [sol_n.qL; sol_n.qR(1:model_g.nDiff)];
+    [r,~]       = EquilibriumConditions(model_l, model_g, y_eq, ...
+                        0.0, 0.0, NF_l, NF_g, false);
+    DeltaT_n    = r(1);
+    DeltaP_n    = r(2);
+
     %The solution at each stage and at t^(n+1) is to be stored in sol_np1:
     sol_np1     = sol_n;
     
@@ -535,7 +450,6 @@ function [save_vars, model_l, model_g] = ...
     %The equations are:
     %   M_f*u_a - b_f_ii - Deltat_n * a_ii * b_f(y_f)       = 0
     %   R_f     - bmesh_f_ii - Deltat_n * a_ii Rdof_f(y_f)  = 0 
-    %for each phase f.
     %
     %CAREFUL: This function modifies the variable sol_np1. The values in
     %sol_np1 correspond to the values of y in the last function call.
@@ -566,6 +480,7 @@ function [save_vars, model_l, model_g] = ...
         %Solve equations:
         z0                  = cat(1, sol_np1.qL, sol_np1.qR, sol_np1.w);
         [z, nIters, flag]   = CouplingConditions(z0, sol_np1.t, ...
+                                DeltaT_np1, DeltaP_np1, ...
                                 model_l, sol_np1.fesl, sol_np1.ul, NF_l, ...
                                 model_g, sol_np1.fesg, sol_np1.ug, NF_g);
         if flag<0
@@ -714,10 +629,11 @@ function [save_vars, model_l, model_g] = ...
         
         %Load RK coefficients:
         if sol_n.t==0.0
-            RKmethod    = calcRKmethod_imex('ARS443');
+%             RKmethod    = calcRKmethod_imex('ARS443');
+            RKmethod    = calcRKmethod_imex('KC35');
         else
-            RKmethod    = calcRKmethod_imex('BPR3');
-%             RKmethod    = calcRKmethod_imex('KC35');
+%             RKmethod    = calcRKmethod_imex('BPR3');
+            RKmethod    = calcRKmethod_imex('KC35');
         end
         
         %Allocate derivatives:
@@ -777,6 +693,9 @@ function [save_vars, model_l, model_g] = ...
 
                 %Update time:
                 sol_np1.t           = sol_n.t + Deltat_n*RKmethod.c(ii);
+                
+                %Compute DeltaT_np1 and DeltaP_np1:
+                HERE!!!
 
                 %Auxiliary vectors:
                 bmesh_l_ii          = sol_n.fesl.mesh.x_faces + Deltat_n * (kmesh_l_RK(:,1:ii-1)*RKmethod.aI(ii,1:ii-1).');
@@ -1023,12 +942,12 @@ function [save_vars, model_l, model_g] = ...
 end
 
 %u = [rhobarL, HbarL, rhobarR, HbarR]. We impose
-%   HbarL           = H_l           (equil of temperatures)
-%   HbarR-HbarL     = H_g - H_r     (equil of chemical potential)
-%   rhobarL         = rho(HbarL)
-%   rhobarR         = rho(HbarR)
+%   equil of temperatures
+%   equil of chemical potential
+%   density--enthalpy restriction at the liquid
+%   density--enthalpy restriction at the gas
 function [r,J]  = EquilibriumConditions(model_l, model_g, y_eq, ...
-    NF_l, NF_g, ComputeJ)
+    DeltaT, DeltaP, NF_l, NF_g, ComputeJ)
 
     rhoy_l        = cell(model_l.nSpecies,1);
     rhoy_g        = cell(model_g.nSpecies,1);
@@ -1053,8 +972,8 @@ function [r,J]  = EquilibriumConditions(model_l, model_g, y_eq, ...
     rho_bar_g     = calc_rho(model_g,y_g,T_g);
 
     %Residual and Jacobian:
-    r             = [ T_l - T_g;
-                      ec;
+    r             = [ T_l - T_g - DeltaT;
+                      ec - DeltaP;
                       rho_l - rho_bar_l;
                       rho_g - rho_bar_g ];
     if ComputeJ
@@ -1066,9 +985,9 @@ function [r,J]  = EquilibriumConditions(model_l, model_g, y_eq, ...
             delta           = NFv(jj)*1e-6;
             ypert           = y_eq;
             ypert(jj)       = y_eq(jj)-delta;
-            [f1,~]          = EquilibriumConditions(model_l, model_g, ypert, NF_l, NF_g, false);
+            [f1,~]          = EquilibriumConditions(model_l, model_g, ypert, DeltaT, DeltaP, NF_l, NF_g, false);
             ypert(jj)       = y_eq(jj)+delta;
-            [f2,~]          = EquilibriumConditions(model_l, model_g, ypert, NF_l, NF_g, false);
+            [f2,~]          = EquilibriumConditions(model_l, model_g, ypert, DeltaT, DeltaP, NF_l, NF_g, false);
             J(:,jj)         = (f2-f1)/(2*delta);
         end
     else
@@ -1133,7 +1052,7 @@ function [Sr, Sy]   = ScalMatrices1(model, NF, NF_tau, fes, Deltat)
 end
 
 %Here the vector z=[qL; qR; wdroplet]:
-function [z, nIters, flag] = CouplingConditions(z0, t, ...
+function [z, nIters, flag] = CouplingConditions(z0, t, DeltaT, DeltaP, ...
     model_l, fes_l, u_l, NF_l, ...,
     model_g, fes_g, u_g, NF_g)
 
@@ -1258,7 +1177,7 @@ function [z, nIters, flag] = CouplingConditions(z0, t, ...
  
         %Equilibrium conditions:
         y_eq                    = [qL; qR(1:model_g.nDiff)];
-        [rEq, JEq]              = EquilibriumConditions(model_l, model_g, y_eq, NF_l, NF_g, ComputeJ);
+        [rEq, JEq]              = EquilibriumConditions(model_l, model_g, y_eq, DeltaT, DeltaP, NF_l, NF_g, ComputeJ);
         r(nDiff_lg+1:end)       = rEq;
         JEq                     = sparse(JEq);
         [iv,jv,sv]              = find(JEq);
