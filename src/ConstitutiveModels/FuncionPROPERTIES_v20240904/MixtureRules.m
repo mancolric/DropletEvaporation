@@ -187,6 +187,7 @@ switch property
     % (averaged kinetic theory properties) and the 4 inert compounds.
     % Method: kinetic theory of gases detailed in (Kee et al. (2005)).
     [Xi_eval, Xf_eval] = calculate_moleFractions(comp_inerts,Yi_eval, gota, Yf_eval);
+    Xf_eval            = max(Xf_eval, 1e-12);
     if N_fuels>1
         epsilon_f_eval = Xf_eval./sum(Xf_eval);
     elseif N_fuels==1

@@ -32,7 +32,7 @@ function [save_vars, model_l, model_g] = ...
     %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
     
     %Relaxation time:
-    tau_relax   = NF_tau;
+    tau_relax   = 1e-6;
     
     %Domain limits:
     x_l         = 0.0;
@@ -116,17 +116,18 @@ function [save_vars, model_l, model_g] = ...
         % hold off
     end
 
+    %Composition at infinity:
+    y_gas_inf   = cell(model_g.nInerts,1);
+    for i=1:model_g.nInerts
+        y_gas_inf{i}   = mass_fracG{i};
+    end
+    y_fuel_inf  = repmat({0.0}, model_l.nSpecies, 1);
+    y_inf       = [y_gas_inf; y_fuel_inf];
+
     %Initial condition function for the GAS phase
     function u = u0_g(x)
         H_g         = cell(1,1);
         rhoy_g      = cell(model_g.nSpecies,1);
-        
-        y_gas_inf   = cell(model_g.nInerts,1);
-        for i=1:model_g.nInerts
-            y_gas_inf{i}   = mass_fracG{i};
-        end
-        y_fuel_inf  = repmat({0.0}, model_l.nSpecies, 1);
-        y_inf       = [y_gas_inf; y_fuel_inf];
         
         T_g         = T_inf + 0*x;
         y_g         = cell(model_g.nSpecies,1);
@@ -186,9 +187,9 @@ function [save_vars, model_l, model_g] = ...
     nDAE_g        = model_g.nDiff+model_g.nAlg;
     
     %Create meshes and finite element spaces:
-    mesh_l        = Mesh_Spheric_Create(xmesh_l);
+    mesh_l        = Mesh_Cartesian_Create(xmesh_l);
     fes_l         = FES_QX_Create(mesh_l, p);
-    mesh_g        = Mesh_Spheric_Create(xmesh_g);
+    mesh_g        = Mesh_Cartesian_Create(xmesh_g);
     fes_g         = FES_QX_Create(mesh_g, p);
     
     %Values for PlotFun:
@@ -264,6 +265,8 @@ function [save_vars, model_l, model_g] = ...
     NF_g        = max(1e-6, Lqmean(sol_n.ug, sol_n.fesg, 2));
     NF_l(end)   = NF_vl;
     NF_g(end)   = NF_vg;
+    %DEBUG:
+%     NF_l(model_l.nDiff)     = NF_l(model_l.nDiff)/100;
     
     %Set same NF for all densities:
     NF_l(1:model_l.nSpecies)    = max(NF_l(1:model_l.nSpecies));
@@ -387,6 +390,7 @@ function [save_vars, model_l, model_g] = ...
             H_qg       = sol.qR(model_g.nSpecies+1);
             T_ql       = calc_T(H_ql,rhoy_ql,model_l);
             T_qg       = calc_T(H_qg,rhoy_qg,model_g);
+            disp(['T_ql=', sprintf('%.8f', T_ql), ', T_qg=', sprintf('%.8f', T_qg)])
 
             uplot_ql   = [ {rho_ql}; {T_ql} ];
             uplot_qg   = [ {rho_qg}; {T_qg} ];
@@ -426,7 +430,7 @@ function [save_vars, model_l, model_g] = ...
     [r,~]       = EquilibriumConditions(model_l, model_g, y_eq, ...
                         0.0, 0.0, NF_l, NF_g, false);
     DeltaT_0    = r(1);
-    DeltaP_0    = r(2);
+    DeltaP_0    = r(2:1+model_l.nSpecies);
 
     %The solution at each stage and at t^(n+1) is to be stored in sol_np1:
     sol_np1     = sol_n;
@@ -464,11 +468,11 @@ function [save_vars, model_l, model_g] = ...
         xmesh_g_np1         = y{4};
         
         %Update matrices for new mesh:
-        mesh_l_np1          = Mesh_Spheric_Create(xmesh_l_np1);
+        mesh_l_np1          = Mesh_Cartesian_Create(xmesh_l_np1);
         sol_np1.fesl        = FES_QX_Create(mesh_l_np1, p);
         Mm_l_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesl), model_l.nDiff, model_l.nAlg);
         %
-        mesh_g_np1          = Mesh_Spheric_Create(xmesh_g_np1);
+        mesh_g_np1          = Mesh_Cartesian_Create(xmesh_g_np1);
         sol_np1.fesg        = FES_QX_Create(mesh_g_np1, p);
         Mm_g_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesg), model_g.nDiff, model_g.nAlg);
         
@@ -585,6 +589,7 @@ function [save_vars, model_l, model_g] = ...
     %Sr and Sy two scaling matrices:
     %The Jacobian is hence Jhat = Sr*df/dy*Sy and we solve
     %g:=Jhat\fhat(yhat)=0
+%     fig2    = figure();
     function gscaled = PrecResidualFun(yscaled)
         
         %Extract solution at liquid and gas:
@@ -606,7 +611,17 @@ function [save_vars, model_l, model_g] = ...
         g_mesh_l    = Sy_mesh_l\r{3};     %g_mesh = Jhat^{-1} fhat = (Sr I Sy)^{-1} Sr f = Sy^{-1} f
         g_mesh_g    = Sy_mesh_g\r{4};     %g_mesh is dimensionless
         gscaled     = cat(1, g_l, g_g, g_mesh_l, g_mesh_g);
- 
+        
+%         figure(fig2)
+%         semilogy(abs(g_l), "+-b")
+%         hold on
+%         block_v     = model_l.nDiff*fes_l.nDof+1:nDAE_l*fes_l.nDof;
+%         semilogy(block_v, abs(g_l(block_v)), "x-c")   
+%         semilogy(abs(g_g), "+-r")
+%         block_v     = model_g.nDiff*fes_g.nDof+1:nDAE_g*fes_g.nDof;
+%         semilogy(block_v, abs(g_g(block_v)), "x-m")
+%         hold off
+        
     end
 
     %March:
@@ -630,6 +645,7 @@ function [save_vars, model_l, model_g] = ...
         %Load RK coefficients:
         if sol_n.t==0.0
 %             RKmethod    = calcRKmethod_imex('ARS443');
+%             RKmethod    = calcRKmethod_imex('BPR3');
             RKmethod    = calcRKmethod_imex('KC35');
         else
 %             RKmethod    = calcRKmethod_imex('BPR3');
@@ -730,6 +746,11 @@ function [save_vars, model_l, model_g] = ...
                     break
                 end
                 NLS_iters           = NLS_iters + nIters/(RKmethod.s-1);
+                
+%                 %Plot results:
+%                 PlotFun(sol_np1)
+%                 drawnow()
+                
             end
         
             %Save CFL for present time step:

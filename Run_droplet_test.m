@@ -9,7 +9,7 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
-nElems_l          = 25;    % Number of elements in the liquid phase
+nElems_l          = 100;   % Number of elements in the liquid phase
 nElems_g          = 50;    % Number of elements in the gas phase (first part)
 p                 = 5;     % Degree of the polynomial basis functions
 
@@ -21,13 +21,13 @@ Deltat0           = 1e-10;  % Initial time step
                            % you may reduce Deltat0 to avoid them
                            % However, this is optional — time step control will automatically handle it
 
-t_final           = 1000;  % Final simulation time
+t_final           = 1e-5;  % Final simulation time
                            % Use the actual time you want the simulation to stop at
                            % If you want the simulation to continue until the droplet disappears, 
                            % set a value larger than the expected final time
 
 TimeAdapt         = true;  % Enable adaptive time-stepping (true/false)
-TolT              = 1e-3;  % Tolerance for temporal error (≥1e-3) (used if TimeAdapt = true)
+TolT              = 1e-6;  % Tolerance for temporal error (≥1e-3) (used if TimeAdapt = true)
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 

@@ -37,7 +37,19 @@ T = reshape(T,m,n); % T[nElems x (2*p+1)] = T_m
 if flag==-2
     error("Error en el cálculo de T Máximo iteraciones LS")
 elseif flag==-1
-    error("Error en el cálculo de T, Máximo iteraciones Newton-Raphson")
+%     error("Error en el cálculo de T, Máximo iteraciones Newton-Raphson")
+    Tv              = T(:);
+    [f,~]           = Residual(Tv, false);
+    [fmax,imax]     = max(f);
+    display(Tv(imax))
+    
+    %Plot h vs T:
+    Tv              = linspace(10.0, 4000, 1000);
+    [fv,~]          = Residual(Tv, false);
+    figure()
+    plot(Tv,fv)
+    
+    T       = T*NaN;
 end
 
 end
