@@ -425,8 +425,8 @@ function [save_vars, model_l, model_g] = ...
     y_eq        = [sol_n.qL; sol_n.qR(1:model_g.nDiff)];
     [r,~]       = EquilibriumConditions(model_l, model_g, y_eq, ...
                         0.0, 0.0, NF_l, NF_g, false);
-    DeltaT_n    = r(1);
-    DeltaP_n    = r(2);
+    DeltaT_0    = r(1);
+    DeltaP_0    = r(2);
 
     %The solution at each stage and at t^(n+1) is to be stored in sol_np1:
     sol_np1     = sol_n;
@@ -665,6 +665,8 @@ function [save_vars, model_l, model_g] = ...
             ii              = 1;
             yv_np1          = yv_n;
             sol_np1         = sol_n;
+            DeltaT_np1      = DeltaT_0*exp(-sol_np1.t/tau_relax);
+            DeltaP_np1      = DeltaP_0*exp(-sol_np1.t/tau_relax);
 
             %"Solve" first stage. Although the solution is clearly *_ii=*_n, 
             %we need this step to compute the Jacobian:
@@ -695,7 +697,8 @@ function [save_vars, model_l, model_g] = ...
                 sol_np1.t           = sol_n.t + Deltat_n*RKmethod.c(ii);
                 
                 %Compute DeltaT_np1 and DeltaP_np1:
-                HERE!!!
+                DeltaT_np1          = DeltaT_0*exp(-sol_np1.t/tau_relax);
+                DeltaP_np1          = DeltaP_0*exp(-sol_np1.t/tau_relax);
 
                 %Auxiliary vectors:
                 bmesh_l_ii          = sol_n.fesl.mesh.x_faces + Deltat_n * (kmesh_l_RK(:,1:ii-1)*RKmethod.aI(ii,1:ii-1).');
