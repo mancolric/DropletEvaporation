@@ -52,7 +52,7 @@ function [save_vars, model_l, model_g] = ...
         warning('The sum of the intervals exceeds L. Adjusting...');
         intervals_g = intervals_g * (L_g / total_length_g);
     end
-    xmesh_g      = cumsum(intervals_g)+x_lg;
+    xmesh_g      = [0.0, cumsum(intervals_g)] + x_lg;
 
     % figure;
     % hold on;
@@ -187,9 +187,9 @@ function [save_vars, model_l, model_g] = ...
     nDAE_g        = model_g.nDiff+model_g.nAlg;
     
     %Create meshes and finite element spaces:
-    mesh_l        = Mesh_Cartesian_Create(xmesh_l);
+    mesh_l        = Mesh_Spheric_Create(xmesh_l);
     fes_l         = FES_QX_Create(mesh_l, p);
-    mesh_g        = Mesh_Cartesian_Create(xmesh_g);
+    mesh_g        = Mesh_Spheric_Create(xmesh_g);
     fes_g         = FES_QX_Create(mesh_g, p);
     
     %Values for PlotFun:
@@ -468,11 +468,11 @@ function [save_vars, model_l, model_g] = ...
         xmesh_g_np1         = y{4};
         
         %Update matrices for new mesh:
-        mesh_l_np1          = Mesh_Cartesian_Create(xmesh_l_np1);
+        mesh_l_np1          = Mesh_Spheric_Create(xmesh_l_np1);
         sol_np1.fesl        = FES_QX_Create(mesh_l_np1, p);
         Mm_l_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesl), model_l.nDiff, model_l.nAlg);
         %
-        mesh_g_np1          = Mesh_Cartesian_Create(xmesh_g_np1);
+        mesh_g_np1          = Mesh_Spheric_Create(xmesh_g_np1);
         sol_np1.fesg        = FES_QX_Create(mesh_g_np1, p);
         Mm_g_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesg), model_g.nDiff, model_g.nAlg);
         
@@ -837,8 +837,12 @@ function [save_vars, model_l, model_g] = ...
 
         disp(sol_np1.qL)
         disp(sol_np1.qR)
+        disp(sol_np1.w)
+        disp(sol_np1.fesl.mesh.x_faces(end))
+        disp(sol_np1.fesg.mesh.x_faces(1))
 
         %Update solution:
+        sol_np1.t   = t_np1;    %Correct roundoff errors for last stage
         Nt          = Nt+1;
         Deltat_n    = Deltat_np1;
         sol_n       = sol_np1;
@@ -1237,7 +1241,7 @@ function [z, nIters, flag] = CouplingConditions(z0, t, DeltaT, DeltaP, ...
         [r,~]   = ResidualFun(z,false);
         gscaled = LUSolve(J_fact,r);
     end
-    [zscaled, nIters, flag]     = Anderson(@PrecondResidual, Sz\z0, 1e-8, 20, 50);
+    [zscaled, nIters, flag]     = Anderson(@PrecondResidual, Sz\z0, 1e-10, 20, 50);
     z                           = Sz*zscaled;
     
 end
