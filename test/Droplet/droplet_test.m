@@ -681,8 +681,10 @@ function [save_vars, model_l, model_g] = ...
             ii              = 1;
             yv_np1          = yv_n;
             sol_np1         = sol_n;
-            DeltaT_np1      = DeltaT_0*exp(-sol_np1.t/tau_relax);
-            DeltaP_np1      = DeltaP_0*exp(-sol_np1.t/tau_relax);
+%             DeltaT_np1      = DeltaT_0*exp(-sol_np1.t/tau_relax);
+%             DeltaP_np1      = DeltaP_0*exp(-sol_np1.t/tau_relax);
+            DeltaT_np1      = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
+            DeltaP_np1      = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
 
             %"Solve" first stage. Although the solution is clearly *_ii=*_n, 
             %we need this step to compute the Jacobian:
@@ -713,9 +715,11 @@ function [save_vars, model_l, model_g] = ...
                 sol_np1.t           = sol_n.t + Deltat_n*RKmethod.c(ii);
                 
                 %Compute DeltaT_np1 and DeltaP_np1:
-                DeltaT_np1          = DeltaT_0*exp(-sol_np1.t/tau_relax);
-                DeltaP_np1          = DeltaP_0*exp(-sol_np1.t/tau_relax);
-
+%                 DeltaT_np1          = DeltaT_0*exp(-sol_np1.t/tau_relax);
+%                 DeltaP_np1          = DeltaP_0*exp(-sol_np1.t/tau_relax);
+                DeltaT_np1          = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
+                DeltaP_np1          = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
+            
                 %Auxiliary vectors:
                 bmesh_l_ii          = sol_n.fesl.mesh.x_faces + Deltat_n * (kmesh_l_RK(:,1:ii-1)*RKmethod.aI(ii,1:ii-1).');
                 bDAE_l_ii           = My1_l + Deltat_n * (kDAE_l_RK(:,1:ii-1)*RKmethod.aI(ii,1:ii-1).');
@@ -790,7 +794,7 @@ function [save_vars, model_l, model_g] = ...
                 
                 %Apply controler:
                 if etaT<=TolT
-                    Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(NLS_IterTarget/NLS_iters), 2.0]);
+                    Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(NLS_IterTarget/NLS_iters), 1.2]);
                     RepeatT     = false;
                 else
                     rDeltat     = max(0.5, min((0.8*TolT/etaT)^(1.0/RKmethod.order)));
@@ -830,6 +834,9 @@ function [save_vars, model_l, model_g] = ...
 %         disp([  't=', sprintf('%.2E',sol_n.t),...
 %                 ', tau=', sprintf('%.2E',Deltat_n), ...
 %                 ', NLSiters/stage=', num2str(NLS_iters) ])
+
+        disp(sol_np1.qL)
+        disp(sol_np1.qR)
 
         %Update solution:
         Nt          = Nt+1;

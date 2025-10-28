@@ -9,9 +9,9 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
-nElems_l          = 100;   % Number of elements in the liquid phase
-nElems_g          = 50;    % Number of elements in the gas phase (first part)
-p                 = 5;     % Degree of the polynomial basis functions
+nElems_l          = 600;   % Number of elements in the liquid phase
+nElems_g          = 200;    % Number of elements in the gas phase (first part)
+p                 = 3;     % Degree of the polynomial basis functions
 
 Deltat0           = 1e-10;  % Initial time step
                            % If you get warnings like:
@@ -31,7 +31,7 @@ TolT              = 1e-6;  % Tolerance for temporal error (≥1e-3) (used if Tim
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = true; % Plot intermediate results (true/false)
+PlotRes           = false; % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
 Save              = false;  % Save results to file (true/false)
@@ -63,6 +63,7 @@ mass_fracG        = {0.7248, 0.0, 0.1513, 0.1239}; % Mass fraction of each inert
     TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
     n_saves);
+return
 
 % --------------------------- RESTART SIMULATION --------------------------
 
