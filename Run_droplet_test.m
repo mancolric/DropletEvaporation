@@ -9,8 +9,8 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
-nElems_l          = 200;    % Number of elements in the liquid phase
-nElems_g          = 200;    % Number of elements in the gas phase (first part)
+nElems_l          = 4000;    % Number of elements in the liquid phase
+nElems_g          = 4000;    % Number of elements in the gas phase (first part)
 p                 = 5;     % Degree of the polynomial basis functions
 
 Deltat0           = 1.01e-10;  % Initial time step
@@ -55,6 +55,7 @@ fuel_names        = {'Octano', 'Eicosano'};     % Fuel components
 mass_fracL        = {0.75, 0.25};                    % Mass fraction of each fuel component (same order as above)
 inert_comps       = {'N2', 'O2', 'CO2', 'H2O'};    % Inert gas species (DO NOT MODIFY)
 mass_fracG        = {0.7248, 0.0, 0.1513, 0.1239}; % Mass fraction of each inert species in the gas phase (same order as above)
+mass_fracG        = {0.7148, 0.01, 0.1513, 0.1239};
 
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 

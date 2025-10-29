@@ -491,7 +491,11 @@ function [save_vars, model_l, model_g] = ...
             warning('Unable to solve coupling conditions')
             r               = { NaN, NaN };
             if ComputeJ
-                J           = sparse(N_l+N_g, N_l+N_g);
+%                 J           = sparse(N_l+N_g, N_l+N_g);
+                J           = { sparse(1:N_l, 1:N_l, NaN(1,N_l)), ...
+                                sparse(1:N_g, 1:N_g, NaN(1,N_g)), ...
+                                1.0, ...    
+                                1.0 };
             else
                 J           = NaN;
             end
@@ -836,10 +840,11 @@ function [save_vars, model_l, model_g] = ...
 %                 ', NLSiters/stage=', num2str(NLS_iters) ])
 
         disp(sol_np1.qL)
-        disp(sol_np1.qR)
+        disp(sol_np1.qR(1:end-1))
+        disp(sol_np1.qR(end))
         disp(sol_np1.w)
-        disp(sol_np1.fesl.mesh.x_faces(end))
-        disp(sol_np1.fesg.mesh.x_faces(1))
+%         disp(sol_np1.fesl.mesh.x_faces(end))
+%         disp(sol_np1.fesg.mesh.x_faces(1))
 
         %Update solution:
         sol_np1.t   = t_np1;    %Correct roundoff errors for last stage
@@ -1118,10 +1123,13 @@ function [z, nIters, flag] = CouplingConditions(z0, t, DeltaT, DeltaP, ...
         duwL_dx     = [ EvalSolution_dx(u_l, fes_l, [fes_l.mesh.nElems], 1.0);
                         {w_droplet*(1.0/(xmesh_l(end)-xmesh_l(1)))} ];
         model_l.uN  = @(t) cat(1, VectorToCell(qL, N_L));
+%         CW0         = model_l.CW;
+%         model_l.CW  = 0.0;
         [fL, dfL_duwL, dfL_duwL_dx, dfL_dqL] = ...
             model_l.ftildeN(model_l, t, xmesh_l(end), uwL, duwL_dx, ...
                     (xmesh_l(end)-xmesh_l(end-1))/fes_l.p, ComputeJ);
-
+%         model_l.CW   = CW0;
+        
         %Mass and energy fluxes at the right:
         %"uwR" is the numerical solution for the gas, including
         %the velocity
@@ -1131,10 +1139,13 @@ function [z, nIters, flag] = CouplingConditions(z0, t, DeltaT, DeltaP, ...
         duwR_dx     = [ EvalSolution_dx(u_g, fes_g, 1, -1.0);
                         {w_droplet*(-1.0/(xmesh_g(end)-xmesh_g(1)))} ];
         model_g.u1  = @(t) cat(1, VectorToCell(qR, N_R));
+%         CW0         = model_g.CW;
+%         model_g.CW  = 0.0;
         [fR, dfR_duwR, dfR_duwR_dx, dfR_dqR] = ...
             model_g.ftilde1(model_g, t, xmesh_g(1), uwR, duwR_dx, ...
                     (xmesh_g(2)-xmesh_g(1))/fes_g.p, ComputeJ);
-
+%         model_g.CW  = CW0;
+        
         %Flux balance for the differential variables:
         nDiff_lg        = model_g.nDiff;
         fL              = [zeros(model_g.nInerts,1); CellToVector(fL)];
@@ -1225,6 +1236,23 @@ function [z, nIters, flag] = CouplingConditions(z0, t, DeltaT, DeltaP, ...
         %Construct Jacobian:
         if ComputeJ
             J                   = sparse(J.iv, J.jv, J.sv, N_z, N_z);
+%             figure()
+%             spy(J)
+%             error('eee')
+%             J2                  = zeros(size(J));
+%             delta               = 1e-6;
+%             for JJ=1:size(J2,2)
+%                 ypert           = y;
+%                 ypert(JJ)       = ypert(JJ)-delta;
+%                 [fpert1,~]      = ResidualFun(ypert, false);
+%                 ypert           = y;
+%                 ypert(JJ)       = ypert(JJ)+delta;
+%                 [fpert2,~]      = ResidualFun(ypert, false);
+%                 J2(:,JJ)        = (fpert2-fpert1)/(2*delta);
+%             end
+%             display(full(J))
+%             display(J2)
+%             error("eeeh")
         else
             J                   = NaN;
         end
