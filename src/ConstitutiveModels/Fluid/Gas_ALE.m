@@ -331,6 +331,11 @@ function [f, df_du, df_du_dx, df_dq] = ...
     [fR, dfR_duR, dfR_duR_dx]   = f_diffusive(model, uR, duR_dx, ComputeJ);
     [fp, dfp_duL, dfp_duR]      = f_penalty(model, uL, uR, hp, ComputeJ);
     
+    disp('gas-flux1')
+    disp(fc)
+    disp(fR)
+    disp(fp)
+    
     %Compute total flux:
     f           = cell(model.nDiff, 1);
     df_duL      = cell(model.nDiff, model.nVars);

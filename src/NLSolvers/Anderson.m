@@ -52,11 +52,10 @@ function [x_n, nIters, flag] = Anderson(fun, x0, TolG, MaxIter, m)
         Gm(:,2:mXG) = Gm(:,1:mXG-1);
         Gm(:,1)     = (g_np1 - g_n)/Deltag_norm;
         
-        %Update (x_n, g_n, p_n):
+        %Update (x_n, g_n):
         nIters      = nIters+1;
         x_n         = x_np1;
         g_n         = g_np1;
-%         p_n         = -g_n;
         
         %#Next step. Apply multisecant formula:
         %   pn  = - H g^n = - [I + (X-G) (G^T G)^{-1} G^T] g^n 

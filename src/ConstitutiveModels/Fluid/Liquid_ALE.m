@@ -394,6 +394,11 @@ function [f, df_du, df_du_dx, df_dq] = ...
     [fL, dfL_duL, dfL_duL_dx]   = f_diffusive(model, uL, duL_dx, ComputeJ);
     [fp, dfp_duL, dfp_duR]      = f_penalty(model, uL, uR, hp, ComputeJ);
     
+    disp('liquid-flux1')
+    disp(fc)
+    disp(fL)
+    disp(fp)
+    
     %Compute total flux:
     f           = cell(model.nDiff, 1);
     df_duL      = cell(model.nDiff, model.nVars);
