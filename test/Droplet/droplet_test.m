@@ -39,8 +39,8 @@ function [save_vars, model_l, model_g] = ...
     x_g         = XRad*x_lg;
 
     %Initial mesh coordinates:
-%     x_liq          = linspace(0, 1, nElems_l);
-    x_liq           = cat(2, linspace(0, 0.99, nElems_l-1), 1);
+    x_liq          = linspace(0, 1, nElems_l);
+%     x_liq           = cat(2, linspace(0, 0.99, nElems_l-1), 1);
     alpha_l        = 0.7;
     xmesh_l        = x_lg * (x_liq.^alpha_l);
     alpha_g        = 1.030;
@@ -847,8 +847,8 @@ function [save_vars, model_l, model_g] = ...
         uR                  = EvalSolution(sol_np1.ug, sol_n.fesg, [sol_n.fesg.mesh.nElems], [-1.0]);
         disp('aaa')
         
-        disp(sol_np1.qL(end)-uL{end-1})
-        disp(uR{end-1}-sol_np1.qR(end-1))
+        disp(sol_np1.qL(end))
+        disp(sol_np1.qR(end-1))
         
         disp((sol_np1.qL(end)-uL{end-1})/norm(uL{end-1}))
         disp((uR{end-1}-sol_np1.qR(end-1))/norm(uR{end-1}))
