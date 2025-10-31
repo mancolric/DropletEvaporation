@@ -41,24 +41,24 @@ function [save_vars, model_l, model_g] = ...
     x_g         = XRad*x_lg;
 
     %Initial mesh coordinates:
-    x_liq          = linspace(0, 1, nElems_l);
-    alpha_l        = 0.7;
-    xmesh_l        = x_lg * (x_liq.^alpha_l);
-    alpha_g        = 1.025;
-    h_gas          = 2e-6;
-    L_g            = (x_g-x_lg);
-    N_gas          = log((alpha_g-1)*L_g/h_gas+1)/log(alpha_g);
-    N_gas_new = round(N_gas / N);
-    func = @(alpha) sum(h_gas * alpha.^(0:N_gas_new-1)) - L_g;
-    alpha_g_new = fzero(func, [1.0001, 10]);
+    x_liq           = linspace(0, 1, nElems_l);
+    alpha_l         = 0.7;
+    xmesh_l         = x_lg * (x_liq.^alpha_l);
+    alpha_g         = 1.025;
+    h_gas           = 2e-6;
+    L_g             = (x_g-x_lg);
+    N_gas           = log((alpha_g-1)*L_g/h_gas+1)/log(alpha_g);
+    % intervals_g     = h_gas*alpha_g.^(0:N_gas-1);
+    N_gas_new       = round(N_gas / N);
+    func            = @(alpha) sum(h_gas * alpha.^(0:N_gas_new-1)) - L_g;
+    alpha_g_new     = fzero(func, [1.0001, 10]);
     intervals_g_new = h_gas * alpha_g_new.^(0:N_gas_new-1);
-    % intervals_g    = h_gas*alpha_g.^(0:N_gas-1);
     % total_length_g = sum(intervals_g);
     % if total_length_g > L_g
     %     warning('The sum of the intervals exceeds L. Adjusting...');
     %     intervals_g = intervals_g * (L_g / total_length_g);
     % end
-    xmesh_g      = cumsum(intervals_g_new)+x_lg;
+    xmesh_g         = [0,cumsum(intervals_g_new)]+x_lg;
 
     % figure;
     % hold on;
@@ -307,7 +307,7 @@ function [save_vars, model_l, model_g] = ...
     a          = -m_R./rho_l_m;
 
     %Verify initial condition:
-    if T_l_ini(end,end)-T_g_ini(1,1)>1e-6
+    if abs(T_l_ini(end,end)-T_g_ini(1,1))>1e-6
         disp('Different T in the interface in the initial condition')
         return
     end

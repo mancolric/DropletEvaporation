@@ -51,7 +51,7 @@ T_inf             = 1730;       % Ambient (far-field) temperature [K]
 
 % --------------------------- SPECIES DEFINITION --------------------------
 
-fuel_names        = {'Octano', 'Eicosano'};     % Fuel components
+fuel_names        = {'Glicerina', 'Metanol'};     % Fuel components
 mass_fracL        = {0.75, 0.25};                    % Mass fraction of each fuel component (same order as above)
 inert_comps       = {'N2', 'O2', 'CO2', 'H2O'};    % Inert gas species (DO NOT MODIFY)
 mass_fracG        = {0.7248, 0.0, 0.1513, 0.1239}; % Mass fraction of each inert species in the gas phase (same order as above)
