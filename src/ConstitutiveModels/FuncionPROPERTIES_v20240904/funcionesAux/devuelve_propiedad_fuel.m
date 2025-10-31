@@ -130,7 +130,8 @@ if strcmpi(comb,'heptano')
                 % Nota: Para el heptano, ec. 2, para el resto, ec. 1.
                 value=((C1^2)/a + C2 - 2*C1*C3*a - C1*C4*a^2 - (C3^2)*(a^3)/3 - C3*C4*(a^4)/2 - (C4^2)*(a^5)/5)/MW;
             else
-                value=((C1^2)/a + C2 - 2*C1*C3*a - C1*C4*a^2 - (C3^2)*(a^3)/3 - C3*C4*(a^4)/2 - (C4^2)*(a^5)/5)/MW;
+                C1 = 18313143.336457685; C2 = -72997.88453983126; C3 = 74.14574127249222;
+                value = (C1 + C2*T + C3*T^2) / MW;
                 % Poco probable que T<182 K..
                 if muestra_aviso==1
                     disp('### AVISO: Se extrapolará ###')
