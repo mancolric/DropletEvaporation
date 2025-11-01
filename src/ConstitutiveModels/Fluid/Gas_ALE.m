@@ -324,10 +324,23 @@ function [f, df_du, df_du_dx, df_dq] = ...
     
     %Right state is the numerical solution:
     uR              = u;
-    duR_dx          = du_dx;    
+    duR_dx          = du_dx; 
+    
+    %Convection based on left state:
+    fc              = cell(model.nDiff,1);
+    dfc_duL         = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uL{1});
+    dfc_duR         = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uR{1});
+    for II=1:model.nDiff
+        fc{II}                  = (uL{end-1}-uL{end}).*uL{II};
+        if ComputeJ
+            dfc_duL{II,II}      = uL{end-1}-uL{end};
+            dfc_duL{II,end-1}   = uL{II};
+            dfc_duL{II,end}     = -uL{II};
+        end
+    end
     
     %Evaluate convective, diffusive and penalty fluxes:
-    [fc, dfc_duL, dfc_duR]      = f_Rusanov(model, uL, uR, ComputeJ);
+%     [fc, dfc_duL, dfc_duR]      = f_Rusanov(model, uL, uR, ComputeJ);
     [fR, dfR_duR, dfR_duR_dx]   = f_diffusive(model, uR, duR_dx, ComputeJ);
     [fp, dfp_duL, dfp_duR]      = f_penalty(model, uL, uR, hp, ComputeJ);
     
