@@ -401,16 +401,29 @@ function [f, df_du, df_du_dx, df_dq] = ...
             dfc_duL{II,end}     = -uL{II};
         end
     end
+
+%     %Convection based on right state:
+%     fc              = cell(model.nDiff,1);
+%     dfc_duL         = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uL{1});
+%     dfc_duR         = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uR{1});
+%     for II=1:model.nDiff
+%         fc{II}                  = (uR{end-1}-uR{end}).*uR{II};
+%         if ComputeJ
+%             dfc_duR{II,II}      = uR{end-1}-uR{end};
+%             dfc_duR{II,end-1}   = uR{II};
+%             dfc_duR{II,end}     = -uR{II};
+%         end
+%     end
     
     %Evaluate convective, diffusive and penalty fluxes:
 %     [fc, dfc_duL, dfc_duR]      = f_Rusanov(model, uL, uR, ComputeJ);
     [fL, dfL_duL, dfL_duL_dx]   = f_diffusive(model, uL, duL_dx, ComputeJ);
     [fp, dfp_duL, dfp_duR]      = f_penalty(model, uL, uR, hp, ComputeJ);
     
-    disp('liquid-flux1')
-    disp(fc)
-    disp(fL)
-    disp(fp)
+%     disp('liquid-flux1')
+%     disp(fc)
+%     disp(fL)
+%     disp(fp)
     
     %Compute total flux:
     f           = cell(model.nDiff, 1);

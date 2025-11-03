@@ -3,7 +3,7 @@
 format long            % Display numerical results with high precision
 clear                  % Clear all variables from workspace
 % clc                    % Clear command window
-close all              % Close all figure windows
+% close all              % Close all figure windows
 
 addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATLAB path
 
@@ -11,7 +11,7 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 
 nElems_l          = 200;   % Number of elements in the liquid phase
 nElems_g          = 200;   % Number of elements in the gas phase (first part)
-p                 = 2;     % Degree of the polynomial basis functions
+p                 = 5;     % Degree of the polynomial basis functions
 
 Deltat0           = 1.01e-10;  % Initial time step
                            % If you get warnings like:
@@ -21,7 +21,7 @@ Deltat0           = 1.01e-10;  % Initial time step
                            % you may reduce Deltat0 to avoid them
                            % However, this is optional — time step control will automatically handle it
 
-t_final           = 1e-10;  % Final simulation time
+t_final           = 1e-5;  % Final simulation time
                            % Use the actual time you want the simulation to stop at
                            % If you want the simulation to continue until the droplet disappears, 
                            % set a value larger than the expected final time
@@ -31,7 +31,7 @@ TolT              = 1e-6;  % Tolerance for temporal error (≥1e-3) (used if Tim
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = false; % Plot intermediate results (true/false)
+PlotRes           = true; % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
 Save              = false;  % Save results to file (true/false)
@@ -55,7 +55,7 @@ fuel_names        = {'Octano', 'Eicosano'};     % Fuel components
 mass_fracL        = {0.75, 0.25};                    % Mass fraction of each fuel component (same order as above)
 inert_comps       = {'N2', 'O2', 'CO2', 'H2O'};    % Inert gas species (DO NOT MODIFY)
 mass_fracG        = {0.7248, 0.0, 0.1513, 0.1239}; % Mass fraction of each inert species in the gas phase (same order as above)
-mass_fracG        = {0.7148, 0.01, 0.1513, 0.1239};
+% mass_fracG        = {0.7148, 0.01, 0.1513, 0.1239};
 
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 

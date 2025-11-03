@@ -95,7 +95,9 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ(model, t, usol, fes, C
     omega_faces = mesh.omega(mesh.x_faces(2:end-1));
     hp_elems    = diff(mesh.x_faces)/fes.p;
     hp_faces    = 2.0./(1.0./hp_elems(1:nElems-1)+1.0./hp_elems(2:nElems));
-    
+%     hp_faces    = sqrt(omega_faces)/fes.p;
+%     hp_elems    = cat(1, hp_faces(1), 0.5*(hp_faces(1:end-1)+hp_faces(2:end)), hp_faces(end));
+
     %Fluxes at the nElems-1 internal faces:
     [fhat, dfhat_du_e, dfhat_dgradu_e, ...
         dfhat_du_w, dfhat_dgradu_w]     = model.ftilde(model, t, mesh.x_faces(2:end-1), ...

@@ -40,7 +40,7 @@ function [save_vars, model_l, model_g] = ...
 
     %Initial mesh coordinates:
     x_liq          = linspace(0, 1, nElems_l);
-%     x_liq           = cat(2, linspace(0, 0.99, nElems_l-1), 1);
+%     x_liq          = cat(2, linspace(0, 0.99999, nElems_l-1), 1.0);
     alpha_l        = 0.7;
     xmesh_l        = x_lg * (x_liq.^alpha_l);
     alpha_g        = 1.030;
@@ -54,20 +54,23 @@ function [save_vars, model_l, model_g] = ...
         intervals_g = intervals_g * (L_g / total_length_g);
     end
     xmesh_g      = [0.0, cumsum(intervals_g)] + x_lg;
-
-    % figure;
-    % hold on;
-    % plot(xmesh_l, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
-    % plot(xmesh_g, zeros(size(xmesh_g)), 'r*', 'MarkerSize', 6, 'LineWidth', 1.5, 'DisplayName', 'Gas'); 
-    % plot(x_lg, 0, 'go', 'MarkerSize', 10, 'LineWidth', 2, 'DisplayName', 'Interface');
-    % xlabel('x [m]');
-    % title('Point distribution in liquid and gas');
-    % legend('Location', 'best');
-    % grid on;
+    warning('nElems_g')
+    
+%     figure;
+%     hold on;
+%     plot(xmesh_l, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
+%     plot(xmesh_g, zeros(size(xmesh_g)), 'r*', 'MarkerSize', 6, 'LineWidth', 1.5, 'DisplayName', 'Gas'); 
+%     plot(x_lg, 0, 'go', 'MarkerSize', 10, 'LineWidth', 2, 'DisplayName', 'Interface');
+%     xlabel('x [m]');
+%     title('Point distribution in liquid and gas');
+%     legend('Location', 'best');
+%     grid on;
 
     %Load models:
     model_l        = Liquid_ALE(fuel_names,mass_fracL, inert_comps, mass_fracG);
     model_g        = Gas_ALE(fuel_names, inert_comps, mass_fracG);
+%     model_l.CW     = 500;
+%     model_g.CW     = 500;
     
     %INITIAL CONDITION:
     %Initial mass fraction in the liquid phase
@@ -174,6 +177,57 @@ function [save_vars, model_l, model_g] = ...
         % legend('Location', 'best')
     end
 
+    function u = u0_g_old(x)
+        
+        H_g         = cell(1,1);
+        rhoy_g      = cell(model_g.nSpecies,1);
+        
+        T_R         = T_0;
+        
+        y_L         = y0_l(x_lg);
+        y_R         = calc_y_gInter(y_L,model_l,model_g,T_R);
+        y_R_fuels   = 0;
+        for i=model_g.nInerts+1:model_g.nSpecies
+            y_R_fuels = y_R_fuels + y_R{i};
+        end
+        
+        %Initial Condition (A.Millan):
+        D_T         = calc_D_T(T_inf,y_inf,model_g);
+        T_g         = T_inf+(x_lg./x).*(T_R-T_inf).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
+        y_g         = cell(model_g.nSpecies,1);
+        for i=1:model_g.nSpecies
+            y_g{i}  = y_inf{i}+(x_lg./x).*(y_R{i}-y_inf{i}).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
+        end
+
+        %Ensure the sum of all species mass fractions equals 1 (sanity check)
+        sum_yG      = zeros(size(x));
+        sum_yL      = zeros(size(x));
+        for jj=1:model_g.nInerts
+            sum_yG  = sum_yG + y_g{jj};
+        end
+        for jj=model_g.nInerts+1:model_g.nSpecies
+            sum_yL  = sum_yL + y_g{jj};
+        end
+        if max(max(abs((sum_yG+sum_yL)-1)))>1e-6
+            disp('ERROR: Mass fractions not equal to 1!')
+            return
+        end
+
+        rho_g       = calc_rho(model_g,y_g,T_g);
+        for i=1:model_g.nSpecies
+            rhoy_g{i} = rho_g.*y_g{i};
+        end
+        h_g         = calc_h(T_g,y_g,model_g);
+        H_g{1,1}    = h_g.*rho_g;
+
+        v_g         = 0.008286095019622.*((x_lg./x).^2);
+
+        %Final vector of initial gas fields
+        %u = {ρY1, ..., ρYN, H, v}
+        u           = [ rhoy_g; H_g; {v_g} ];
+        
+    end
+
     %Boundary conditions:
     model_l.u1  = @(t) u0_l(x_l);
     model_g.uN  = @(t) u0_g(x_g);
@@ -260,16 +314,14 @@ function [save_vars, model_l, model_g] = ...
     sol_n.qR    = CellToVector(EvalSolution(sol_n.ug(1:model_g.nDiff+model_g.nAlg), sol_n.fesg, 1, -1.0));
     
     %Initial guess value for droplet velocity:
-    sol_n.w     = NF_vg;
-%     sol_n.w     = 0.0;
+%     sol_n.w     = NF_vg;
+    sol_n.w     = 0.0;
     
     %Normalization factors for differential and algebraic variables: 
     NF_l        = max(1e-6, Lqmean(sol_n.ul, sol_n.fesl, 2));
     NF_g        = max(1e-6, Lqmean(sol_n.ug, sol_n.fesg, 2));
     NF_l(end)   = NF_vl;
     NF_g(end)   = NF_vg;
-    %DEBUG:
-%     NF_l(model_l.nDiff)     = NF_l(model_l.nDiff)/100;
     
     %Set same NF for all densities:
     NF_l(1:model_l.nSpecies)    = max(NF_l(1:model_l.nSpecies));
@@ -427,7 +479,7 @@ function [save_vars, model_l, model_g] = ...
     %----------------------------------------------------------------------
     %MARCH IN TIME:
     
-    %Compute initial residuals DeltaT and DeltaP in coupling conditions to
+    %Compute initial residuals DeltaT and DeltaP in coupling conditions for
     %not well-prepared initial conditions:
     y_eq        = [sol_n.qL; sol_n.qR(1:model_g.nDiff)];
     [r,~]       = EquilibriumConditions(model_l, model_g, y_eq, ...
@@ -485,7 +537,11 @@ function [save_vars, model_l, model_g] = ...
         %Solve coupling conditions:
         
         %Solve equations:
-        z0                  = cat(1, sol_np1.qL, sol_np1.qR, sol_np1.w);
+        w0                  = sol_np1.w;
+%         if abs(w0)<NF_g(model_g.nDiff+1)
+%             w0              = -NF_g(model_g.nDiff+1);
+%         end 
+        z0                  = cat(1, sol_np1.qL, sol_np1.qR, w0);
         [z, nIters, flag]   = CouplingConditions(z0, sol_np1.t, ...
                                 DeltaT_np1, DeltaP_np1, ...
                                 model_l, sol_np1.fesl, sol_np1.ul, NF_l, ...
@@ -761,10 +817,10 @@ function [save_vars, model_l, model_g] = ...
                 end
                 NDOF                            = nDAE_l*fes_l.nDof + nDAE_g*fes_g.nDof; 
                 [yscaled_np1, nIters, NLSFlag]  = Anderson(@PrecResidualFun, ...
-                                                        cat(1,  Sy_l\yv_np1(block_l), ...
-                                                                Sy_g\yv_np1(block_g), ...
-                                                                Sy_mesh_l\yv_np1(block_mesh_l), ...
-                                                                Sy_mesh_g\yv_np1(block_mesh_g)), ...
+                                                        cat(1,  Sy_l\yv_n(block_l), ...
+                                                                Sy_g\yv_n(block_g), ...
+                                                                Sy_mesh_l\yv_n(block_mesh_l), ...
+                                                                Sy_mesh_g\yv_n(block_mesh_g)), ...
                                                         sqrt(NDOF)*TolA, NLS_MaxIter, 50);
                 yv_np1                           = cat(1,   Sy_l*yscaled_np1(block_l), ...
                                                             Sy_g*yscaled_np1(block_g), ...
@@ -863,7 +919,7 @@ function [save_vars, model_l, model_g] = ...
                                 model_l, sol_np1.fesl, sol_np1.ul, NF_l, ...
                                 model_g, sol_np1.fesg, sol_np1.ug, NF_g);
         uL                  = EvalSolution(sol_np1.ul, sol_n.fesl, [sol_n.fesl.mesh.nElems], [1.0]);
-        uR                  = EvalSolution(sol_np1.ug, sol_n.fesg, [sol_n.fesg.mesh.nElems], [-1.0]);
+        uR                  = EvalSolution(sol_np1.ug, sol_n.fesg, [1], [-1.0]);
         disp('aaa')        
         disp(sol_np1.qL(1:end-1))
         disp(sol_np1.qL(end))
@@ -874,10 +930,16 @@ function [save_vars, model_l, model_g] = ...
         disp('Temperatures')
         rhoy_ql          = VectorToCell(sol_np1.qL(1:end-1), model_l.nSpecies);
         rhoy_qg          = VectorToCell(sol_np1.qR(1:end-2), model_g.nSpecies);
-%         [~,y_ql]         = calc_rho_y(rhoy_ql, model_l);
-%         [~,y_qg]         = calc_rho_y(rhoy_qg, model_g);
-        H_ql             = sol_n.qL(model_l.nSpecies+1);
-        H_qg             = sol_n.qR(model_g.nSpecies+1);
+        H_ql             = sol_np1.qL(model_l.nSpecies+1);
+        H_qg             = sol_np1.qR(model_g.nSpecies+1);
+        T_ql             = calc_T(H_ql,rhoy_ql,model_l);
+        T_qg             = calc_T(H_qg,rhoy_qg,model_g);
+        display(T_ql)
+        display(T_qg)
+        rhoy_ql          = uL(1:model_l.nSpecies);
+        rhoy_qg          = uR(1:model_g.nSpecies);
+        H_ql             = uL{model_l.nSpecies+1};
+        H_qg             = uR{model_g.nSpecies+1};
         T_ql             = calc_T(H_ql,rhoy_ql,model_l);
         T_qg             = calc_T(H_qg,rhoy_qg,model_g);
         display(T_ql)
@@ -1128,7 +1190,6 @@ function [Sr, Sy]   = ScalMatrices1(model, NF, NF_tau, fes, Deltat)
                             
 end
 
-%Here the vector z=[qL; qR; wdroplet]:
 function [z, nIters, flag] = CouplingConditions(z0, t, DeltaT, DeltaP, ...
     model_l, fes_l, u_l, NF_l, ...,
     model_g, fes_g, u_g, NF_g)
@@ -1153,226 +1214,6 @@ function [z, nIters, flag] = CouplingConditions(z0, t, DeltaT, DeltaP, ...
 %         disp(qR(end))
 %         display(w_droplet)
 
-        %Allocate r:
-        r           = zeros(N_L+N_R+1, 1);
-
-        %Mass and energy fluxes at the left:
-        %NOTE: "uwL" is the numerical solution for the liquid, including
-        %the mesh velocity
-        %"qL" is the Dirichlet condition at the boundary,
-        uwL         = [ EvalSolution(u_l, fes_l, [fes_l.mesh.nElems], 1.0); 
-                        {w_droplet} ];
-        duwL_dx     = [ EvalSolution_dx(u_l, fes_l, [fes_l.mesh.nElems], 1.0);
-                        {w_droplet*(1.0/(xmesh_l(end)-xmesh_l(1)))} ];
-        model_l.uN  = @(t) cat(1, VectorToCell(qL, N_L));
-        CW0         = model_l.CW;
-        model_l.CW  = 0.0;
-        [fL, dfL_duwL, dfL_duwL_dx, dfL_dqL] = ...
-            model_l.ftildeN(model_l, t, xmesh_l(end), uwL, duwL_dx, ...
-                    (xmesh_l(end)-xmesh_l(end-1))/fes_l.p, ComputeJ);
-        model_l.CW   = CW0;
-        
-        %Mass and energy fluxes at the right:
-        %"uwR" is the numerical solution for the gas, including
-        %the velocity
-        %"qR" is the Dirichlet condition at the boundary,
-        uwR         = [ EvalSolution(u_g, fes_g, 1, -1.0);
-                        {w_droplet} ];
-        duwR_dx     = [ EvalSolution_dx(u_g, fes_g, 1, -1.0);
-                        {w_droplet*(-1.0/(xmesh_g(end)-xmesh_g(1)))} ];
-        model_g.u1  = @(t) cat(1, VectorToCell(qR, N_R));
-        CW0         = model_g.CW;
-        model_g.CW  = 0.0;
-        [fR, dfR_duwR, dfR_duwR_dx, dfR_dqR] = ...
-            model_g.ftilde1(model_g, t, xmesh_g(1), uwR, duwR_dx, ...
-                    (xmesh_g(2)-xmesh_g(1))/fes_g.p, ComputeJ);
-        model_g.CW  = CW0;
-        
-        %Flux balance for the differential variables:
-        nDiff_lg        = model_g.nDiff;
-        fL              = [zeros(model_g.nInerts,1); CellToVector(fL)];
-        r(1:nDiff_lg)   = fL-CellToVector(fR); %nDAE_l=nDAE_g equations
-        if ComputeJ
-
-            %Allocate:
-            J.iv        = zeros(0,1);
-            J.jv        = zeros(0,1);
-            J.sv        = zeros(0,1);
-
-            %Derivatives w.r.t. qL (Dirichlet conditions at the left of the droplet):
-            iv_aux      = zeros(N_L, N_L);
-            jv_aux      = zeros(size(iv_aux));
-            sv_aux      = zeros(size(iv_aux));
-            for II=1:N_L
-                for JJ=1:N_L
-                    iv_aux(II,JJ)       = model_g.nInerts+II;
-                    jv_aux(II,JJ)       = JJ;
-                    sv_aux(II,JJ)       = dfL_dqL{II,JJ};
-                end
-            end
-            J.iv        = cat(1, J.iv, iv_aux(:));
-            J.jv        = cat(1, J.jv, jv_aux(:));
-            J.sv        = cat(1, J.sv, sv_aux(:));
-
-            %Derivatives w.r.t. qR (Dirichlet conditions at the right of the droplet):
-            iv_aux      = zeros(model_g.nDiff, N_R);
-            jv_aux      = zeros(size(iv_aux));
-            sv_aux      = zeros(size(iv_aux));
-            for II=1:model_g.nDiff
-                for JJ=1:N_R
-                    iv_aux(II,JJ)       = II;
-                    jv_aux(II,JJ)       = N_L + JJ;
-                    sv_aux(II,JJ)       = -dfR_dqR{II,JJ}; %+ ...
-%                                             (II==JJ)*NF_g(model_g.nDiff+1);  %Avoid singular Jacobian if v-w=0
-                end
-            end
-            J.iv        = cat(1, J.iv, iv_aux(:));
-            J.jv        = cat(1, J.jv, jv_aux(:));
-            J.sv        = cat(1, J.sv, sv_aux(:));
-
-            %Derivatives w.r.t. w_droplet are the derivatives w.r.t. w:
-            iv_aux      = zeros(N_L, 1);
-            jv_aux      = zeros(size(iv_aux));
-            sv_aux      = zeros(size(iv_aux));
-            for II=1:N_L
-                for JJ=1:1
-                    iv_aux(II,JJ)       = model_g.nInerts+II;
-                    jv_aux(II,JJ)       = N_L + N_R + JJ;
-                    sv_aux(II,JJ)       = dfL_duwL{II,end}*1.0 + ...
-                                            dfL_duwL_dx{II,end}*(1.0/(xmesh_l(end)-xmesh_l(1)));
-                end
-            end
-            J.iv        = cat(1, J.iv, iv_aux(:));
-            J.jv        = cat(1, J.jv, jv_aux(:));
-            J.sv        = cat(1, J.sv, sv_aux(:));
-            
-            %Derivatives w.r.t. w_droplet are the derivatives w.r.t. w:
-            iv_aux      = zeros(model_g.nDiff, 1);
-            jv_aux      = zeros(size(iv_aux));
-            sv_aux      = zeros(size(iv_aux));
-            for II=1:model_g.nDiff
-                for JJ=1:1
-                    iv_aux(II,JJ)       = II;
-                    jv_aux(II,JJ)       = N_L + N_R + JJ;
-                    sv_aux(II,JJ)       = -dfR_duwR{II,end}*1.0 - ...
-                                            dfR_duwR_dx{II,end}*(-1.0/(xmesh_g(end)-xmesh_g(1)));
-                end
-            end
-            J.iv        = cat(1, J.iv, iv_aux(:));
-            J.jv        = cat(1, J.jv, jv_aux(:));
-            J.sv        = cat(1, J.sv, sv_aux(:));
-
-        end
- 
-        %Equilibrium conditions:
-        y_eq                    = [qL; qR(1:model_g.nDiff)];
-        [rEq, JEq]              = EquilibriumConditions(model_l, model_g, y_eq, DeltaT, DeltaP, NF_l, NF_g, ComputeJ);
-        r(nDiff_lg+1:end)       = rEq;
-        JEq                     = sparse(JEq);
-        [iv,jv,sv]              = find(JEq);
-        if ComputeJ
-            J.iv                = cat(1, J.iv, nDiff_lg + iv);
-            J.jv                = cat(1, J.jv, jv);
-            J.sv                = cat(1, J.sv, sv);
-        end
-
-        %Construct Jacobian:
-        if ComputeJ
-            J                   = sparse(J.iv, J.jv, J.sv, N_z, N_z);
-        else
-            J                   = NaN;
-        end
-        
-        display(r)
-        
-    end
-    
-    %Scaling matrix:
-    Sz      = spdiags( cat(1, NF_l(1:N_L), NF_g(1:N_R), 0.5*(NF_l(N_L+1)+NF_g(N_R))), 0, N_z, N_z);
-%     Sz      = spdiags( cat(1, NF_l(1:N_L), NF_g(1:N_R-1), ...
-%                         NF_g(N_R)/hLmesh, 0.5*(NF_l(N_L+1)+NF_g(N_R))/hLmesh), 0, N_z, N_z);
-%     Sz      = spdiags( cat(1, NF_l(1:N_L)*hLmesh, NF_g(1:N_R-1)*hLmesh, ...
-%                         NF_g(N_R), 0.5*(NF_l(N_L+1)+NF_g(N_R))), 0, N_z, N_z);
-%     Sz      = speye(N_z);
-%     Sr      = spdiags( 1.0./cat(1, NF_g(N_R)*NF_g(1:N_R-1), ...
-%                                 DeltaT, DeltaP, NF_l(1), NF_g(1)), ... 
-%                                 0, N_z, N_z);
-    Sr      = speye(N_z);
-
-%     warning('DeltaT and DeltaP')
-    
-    %Solve coupling conditions:
-    [~, J]  = ResidualFun(z0, true);
-    J_fact  = LUFactorization(Sr*J*Sz);
-    function gscaled=PrecondResidual1(zscaled)
-        z       = Sz*zscaled;
-        [r,~]   = ResidualFun(z,false);
-        gscaled = LUSolve(J_fact,Sr*r);
-        display(Sr*r)
-        display(z-z0)
-        display(gscaled)
-    end
-    function gscaled=PrecondResidual2(zscaled)
-        z       = Sz*zscaled;
-        [r,~]   = ResidualFun(z,false);
-        %Solve J*g=r:
-        gscaled = LUSolve(J_fact,Sr*r);
-        display(Sr*r)
-        display(z-z0)
-        display(gscaled)
-    end
-    [zscaled, nIters, flag]     = Anderson(@PrecondResidual1, Sz\z0, 1e-10, 20, 50);
-    z                           = Sz*zscaled;
-    
-end
-function [z, nIters, flag] = CouplingConditions_test(z0, t, DeltaT, DeltaP, ...
-    model_l, fes_l, u_l, NF_l, ...,
-    model_g, fes_g, u_g, NF_g)
-
-    %Extract variables:
-    xmesh_l         = fes_l.mesh.x_faces;
-    xmesh_g         = fes_g.mesh.x_faces;
-    N_L             = model_l.nDiff;
-    N_R             = model_g.nDiff+1;
-    N_z             = N_L+N_R+1;
-    hLmesh          = min(xmesh_l(end)-xmesh_l(end-1), xmesh_g(2)-xmesh_g(1))/xmesh_g(end);
-    
-    %Evaluate numerical solution:
-    uL              = EvalSolution(u_l, fes_l, [fes_l.mesh.nElems], [1.0]);
-    uR              = EvalSolution(u_g, fes_g, [fes_g.mesh.nElems], [-1.0]);
-        
-    %Define zhat = zbar - znum:
-    zhat0           = zeros(N_z,1);
-    for II=1:N_L
-        zhat0(II)       = z0(II)-uL{II};
-    end
-    for II=1:N_R
-        zhat0(N_L+II)   = z0(N_L+II)-uR{II};
-    end
-    zhat0(N_z)          = z0(N_z);
-    
-    %Function with residual and jacobian of restrictions:
-    function [r,J]  = ResidualFun(zhat, ComputeJ)
-        
-        %Define z = zhat + znum:
-        z                   = zeros(N_z,1);
-        for II=1:N_L
-            z(II)           = zhat(II)+uL{II};
-        end
-        for II=1:N_R
-            z(N_L+II)       = zhat(N_L+II)+uR{II};
-        end
-        z(N_z)              = zhat(N_z);
-        
-        %Extract variables:
-        qL          = z(1:N_L);
-        qR          = z(N_L+1:N_L+N_R);
-        w_droplet   = z(end);
-%         display(qL)
-%         display(qR(1:end-1))
-%         disp(qR(end))
-%         display(w_droplet)
-    
         %Allocate r:
         r           = zeros(N_L+N_R+1, 1);
 
@@ -1442,7 +1283,8 @@ function [z, nIters, flag] = CouplingConditions_test(z0, t, DeltaT, DeltaP, ...
                 for JJ=1:N_R
                     iv_aux(II,JJ)       = II;
                     jv_aux(II,JJ)       = N_L + JJ;
-                    sv_aux(II,JJ)       = -dfR_dqR{II,JJ};
+                    sv_aux(II,JJ)       = -dfR_dqR{II,JJ};% + ...
+%                                             (II==JJ)*NF_g(model_g.nDiff+1);  %Avoid singular Jacobian if v-w=0
                 end
             end
             J.iv        = cat(1, J.iv, iv_aux(:));
@@ -1494,39 +1336,54 @@ function [z, nIters, flag] = CouplingConditions_test(z0, t, DeltaT, DeltaP, ...
             J.jv                = cat(1, J.jv, jv);
             J.sv                = cat(1, J.sv, sv);
         end
-        
+
         %Construct Jacobian:
         if ComputeJ
             J                   = sparse(J.iv, J.jv, J.sv, N_z, N_z);
         else
             J                   = NaN;
         end
+        
+%         display(r)
+        
     end
     
     %Scaling matrix:
-    Sz      = spdiags( cat(1, NF_l(1:N_L)*hLmesh, NF_g(1:N_R-1)*hLmesh, ...
-                        NF_g(N_R), 0.5*(NF_l(N_L+1)+NF_g(N_R))), 0, N_z, N_z);
-                    
-    %Solve coupling conditions:
-    [~, J]  = ResidualFun(zhat0, true);
-    J_fact  = LUFactorization(J*Sz);
-    function gscaled=PrecondResidual(zscaled)
-        zhat    = Sz*zscaled;
-        [r,~]   = ResidualFun(zhat,false);
-        gscaled = LUSolve(J_fact,r);
-    end
-    display('solving coupling conditions')
-    [zscaled, nIters, flag]     = Anderson(@PrecondResidual, Sz\zhat0, 1e-10, 20, 50);
-    zhat                        = Sz*zscaled;
+    Sz      = spdiags( cat(1, NF_l(1:N_L), NF_g(1:N_R), 0.5*(NF_l(N_L+1)+NF_g(N_R))), 0, N_z, N_z);
+%     Sz      = spdiags( cat(1, NF_l(1:N_L), NF_g(1:N_R-1), ...
+%                         NF_g(N_R)/hLmesh, 0.5*(NF_l(N_L+1)+NF_g(N_R))/hLmesh), 0, N_z, N_z);
+%     Sz      = spdiags( cat(1, NF_l(1:N_L)*hLmesh, NF_g(1:N_R-1)*hLmesh, ...
+%                         NF_g(N_R), 0.5*(NF_l(N_L+1)+NF_g(N_R))), 0, N_z, N_z);
+%     Sz      = speye(N_z);
+%     Sr      = spdiags( 1.0./cat(1, NF_g(N_R)*NF_g(1:N_R-1), ...
+%                                 DeltaT, DeltaP, NF_l(1), NF_g(1)), ... 
+%                                 0, N_z, N_z);
+    Sr      = speye(N_z);
+
+%     warning('DeltaT and DeltaP')
     
-    %Compute z = zhat + znum:
-    z                   = zeros(N_z,1);
-    for II=1:N_L
-        z(II)           = zhat(II)+uL{II};
+    %Solve coupling conditions:
+    [~, J]          = ResidualFun(z0, true);
+    J_fact  = LUFactorization(Sr*J*Sz);
+%     [U,Sigma,V]     = svd(full(Sr*J*Sz));
+%     UT              = transpose(U);
+%     Sigma_diag      = diag(Sigma);
+%     aux             = (Sigma_diag<1e-9*Sigma_diag(1));
+%     Sigma_diag(aux) = +Inf;
+%     Sigma_inv       = 1.0./Sigma_diag;
+    function gscaled=PrecondResidual(zscaled)
+        z       = Sz*zscaled;
+        [r,~]   = ResidualFun(z,false);
+        gscaled = LUSolve(J_fact,Sr*r);
+%         gscaled = V*(Sigma_inv.*(UT*(Sr*r)));
+%         display(Sr*r)
+%         display(z-z0)
+%         display(gscaled)
+%         if norm(gscaled)>1e-2
+%             disp('eeeh')
+%         end
     end
-    for II=1:N_R
-        z(N_L+II)       = zhat(N_L+II)+uR{II};
-    end
-    z(N_z)              = zhat(N_z);
-        
+    [zscaled, nIters, flag]     = Anderson(@PrecondResidual, Sz\z0, 1e-10, 100, 50);
+    z                           = Sz*zscaled;
+    
 end
