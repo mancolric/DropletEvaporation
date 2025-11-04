@@ -1,5 +1,5 @@
 function [save_vars, model_l, model_g] = ...
-    droplet_test(nElems_l, p, ...
+    droplet_test(nElems_l, nElems_g, p, ...
         Deltat0, t_final, TimeAdapt, TolT, ...
         PlotRes, Save, fuel_names, mass_fracL, ...
         inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, ...
@@ -32,7 +32,7 @@ function [save_vars, model_l, model_g] = ...
     %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
     
     %Relaxation time:
-    tau_relax   = 1e-6;
+    tau_relax   = 1e-14;
     
     %Domain limits:
     x_l         = 0.0;
@@ -40,21 +40,19 @@ function [save_vars, model_l, model_g] = ...
 
     %Initial mesh coordinates:
     x_liq          = linspace(0, 1, nElems_l);
-%     x_liq          = cat(2, linspace(0, 0.99999, nElems_l-1), 1.0);
     alpha_l        = 0.7;
     xmesh_l        = x_lg * (x_liq.^alpha_l);
-    alpha_g        = 1.030;
-    h_gas          = 2e-6;
-    L_g            = (x_g-x_lg);
-    N_gas          = log((alpha_g-1)*L_g/h_gas+1)/log(alpha_g);
-    intervals_g    = h_gas*alpha_g.^(0:N_gas-1);
-    total_length_g = sum(intervals_g);
-    if total_length_g > L_g
-        warning('The sum of the intervals exceeds L. Adjusting...');
-        intervals_g = intervals_g * (L_g / total_length_g);
-    end
-    xmesh_g      = [0.0, cumsum(intervals_g)] + x_lg;
-    warning('nElems_g')
+%     alpha_l        = -2.0;
+%     xmesh_l        = x_lg*(exp(alpha_l*x_liq)-1)/(exp(alpha_l)-1);
+    %
+    x_gas          = linspace(0, 1, nElems_g);
+    alpha_g        = 1/alpha_l;
+    xmesh_g        = x_lg + (x_g-x_lg)*(x_gas.^alpha_g);
+%     alpha_g        = -alpha_l;
+%     xmesh_g        = x_lg + (x_g-x_lg)*(exp(alpha_g*x_gas)-1)/(exp(alpha_g)-1);
+    %Correct roundoff errrors:
+    xmesh_l(end)   = x_lg;
+    xmesh_g(1)     = x_lg;
     
 %     figure;
 %     hold on;
@@ -71,53 +69,34 @@ function [save_vars, model_l, model_g] = ...
     model_g        = Gas_ALE(fuel_names, inert_comps, mass_fracG);
 %     model_l.CW     = 500;
 %     model_g.CW     = 500;
-    
-    %INITIAL CONDITION:
-    %Initial mass fraction in the liquid phase
-    function y_l = y0_l(~)
-        y_l         = cell(model_l.nSpecies,1);
-        for i=1:model_l.nSpecies
-            y_l{i}  = mass_fracL{i};
-        end
-    end
 
+    %Initial gas and droplet velocity:
+    vR_0           = 8e-3;
+    w_0            = NaN;   %To be initialized in u0_g
+    
     %Initial condition function for the LIQUID phase
     function u = u0_l(x)
-        H_l         = cell(1,1);
-        rhoy_l      = cell(model_l.nSpecies,1);
-
+              
         T_l         = T_0.*ones(size(x));
-        
-        y_l         = y0_l(x);
+        y_l         = mass_fracL;
 
         rho_l       = calc_rho(model_l,y_l,T_l);
+        rhoy_l      = cell(model_l.nSpecies,1);
         for i=1:model_l.nSpecies
             rhoy_l{i} = rho_l.*y_l{i}.*ones(size(x));
         end
 
         h_l         = calc_h(T_l,y_l,model_l);
-        H_l{1}      = h_l.*rho_l;
+        H_l         = rho_l.*h_l;
 
         v_l         = 0.0*x;
 
         %Pack all fields into cell arrays
         %u = {ρY1, ..., ρYN, H, v}
-        u           = [ rhoy_l; H_l; {v_l} ];
+        u           = [ rhoy_l; {H_l}; {v_l} ];
         %Each profile is defined as a function of x to match the expected shape 
         %required by the solver: matrices of size (nElems × (2p + 1))
 
-        %Plot initial condition LIQ:
-        % figure()
-        % plot(MatTranspVec(x),MatTranspVec(T_l), 'DisplayName', 'Temperatura Liq')
-        % legend('Location', 'best')
-
-        % figure()
-        % plot(MatTranspVec(x),MatTranspVec(y_l{1}), 'DisplayName', 'Heptano')
-        % hold on
-        % plot(MatTranspVec(x),MatTranspVec(y_l{2}), 'DisplayName', 'Hexadecano')
-        % hold on
-        % legend('Location', 'best')
-        % hold off
     end
 
     %Composition at infinity:
@@ -129,7 +108,7 @@ function [save_vars, model_l, model_g] = ...
     y_inf       = [y_gas_inf; y_fuel_inf];
 
     %Initial condition function for the GAS phase
-    function u = u0_g(x)
+    function u = u0_g_old(x)
         H_g         = cell(1,1);
         rhoy_g      = cell(model_g.nSpecies,1);
         
@@ -177,54 +156,123 @@ function [save_vars, model_l, model_g] = ...
         % legend('Location', 'best')
     end
 
-    function u = u0_g_old(x)
+    function u = u0_g(x)
         
-        H_g         = cell(1,1);
-        rhoy_g      = cell(model_g.nSpecies,1);
+        %Left state:
+        y_L         = mass_fracL;
+        T_L         = T_0;
+        rho_L       = calc_rho(model_l,y_L,T_L);
+        h_L         = calc_h(T_L,y_L,model_l);
+        H_L         = rho_L*h_L;
         
+        %Right state:
         T_R         = T_0;
-        
-        y_L         = y0_l(x_lg);
         y_R         = calc_y_gInter(y_L,model_l,model_g,T_R);
-        y_R_fuels   = 0;
-        for i=model_g.nInerts+1:model_g.nSpecies
-            y_R_fuels = y_R_fuels + y_R{i};
+        rho_R       = calc_rho(model_g,y_R,T_R);
+        [h_R,hi_R]  = calc_h(T_R,y_R,model_g);
+        H_R         = rho_R*h_R;
+        
+        %Mass and thermal diffusion coefficients at the droplet surface (gas side):
+        D_T         = calc_D_T(T_R,y_R,model_g);
+        D_rho       = calc_D_rho(T_R,y_R,model_g);
+        cp_R        = calc_Cp(T_R,y_R,model_g);
+        k_R         = rho_R*cp_R*D_T;
+        
+        %Initial droplet velocity:
+        w_0         = -rho_R/(rho_L-rho_R) * vR_0;
+        
+        %Compute slopes:
+        dYR_dx      = zeros(model_g.nSpecies,1);
+        sum_Jh      = 0.0;      %Summatory of J_i h_i:
+        for ii=1:model_g.nInerts
+            fmassR          = 0.0 + 0.0 - rho_R*y_R{ii}*(vR_0-w_0);
+            dYR_dx(ii)      = -fmassR/(rho_R*D_rho);
+            sum_Jh          = sum_Jh + fmassR*hi_R{ii};
+        end
+        for ii=model_g.nInerts+1:model_g.nSpecies
+            fmassR          = rho_L*y_L{ii-model_g.nInerts}*(0.0-w_0) + ...
+                                0.0 - rho_R*y_R{ii}*(vR_0-w_0);
+            dYR_dx(ii)      = -fmassR/(rho_R*D_rho);
+            sum_Jh          = sum_Jh + fmassR*hi_R{ii};
+        end
+        fheatR      = H_L*(0.0-w_0) + 0.0 - H_R*(vR_0-w_0);
+        dTR_dx      = -(fheatR-sum_Jh)/k_R;
+        
+        %Create profiles for y_g. Initially, we think on profiles of
+        %the form
+        %   u = uR + (uinf-uR)*tanh((x-x_lg)/delta)
+        %where delta is chosen so that du_dx matches the desired value,
+        %i.e.,
+        %   (uinf-uR)/delta = du_dx_target
+        %If delta>0, i.e., (uinf-uR) and the desired slope have the same
+        %sign, the profile goes from uR to uinf. However, if delta<0, the
+        %profile will evolve from uR to 2*uR-uinf. Hence, we add a
+        %correction term of the form:
+        %   (uinf-uR)*(1-sign(delta))*1/2*(tanh((x-x_lg-delta')/delta')+1)
+        %with delta' = |delta|.
+        y_g         = cell(model_g.nSpecies,1);
+        deltav      = zeros(model_g.nSpecies,1);
+        for i=1:model_g.nSpecies
+            if dYR_dx(i)==0
+                delta   = 1.0; %just a random nonzero finite number
+                deltap  = 1.0;
+            else
+                delta   = (y_inf{i}-y_R{i})/dYR_dx(i);
+                deltap  = abs(delta);
+            end
+            y_g{i}      = y_R{i} + (y_inf{i}-y_R{i})*tanh((x-x_lg)/delta) + ...
+                            (y_inf{i}-y_R{i})*(1-sign(delta))*...
+                            0.5*(tanh((x-x_lg-20*deltap)/deltap)+1);
+            deltav(i)   = delta;
+        end
+        %Exit if any delta is too small:
+        if any(abs(deltav)<1e-6)
+            display(deltav)
+            error(['delta for specie ', num2str(i), ' too small'])
+            delta   = sign(delta)*1e-6;
         end
         
-        %Initial Condition (A.Millan):
-        D_T         = calc_D_T(T_inf,y_inf,model_g);
-        T_g         = T_inf+(x_lg./x).*(T_R-T_inf).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
-        y_g         = cell(model_g.nSpecies,1);
-        for i=1:model_g.nSpecies
-            y_g{i}  = y_inf{i}+(x_lg./x).*(y_R{i}-y_inf{i}).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
-        end
-
         %Ensure the sum of all species mass fractions equals 1 (sanity check)
-        sum_yG      = zeros(size(x));
-        sum_yL      = zeros(size(x));
-        for jj=1:model_g.nInerts
-            sum_yG  = sum_yG + y_g{jj};
+        aux         = find(deltav<0, 1, 'first');
+        if isempty(aux)
+            aux     = model_g.nSpecies;
         end
-        for jj=model_g.nInerts+1:model_g.nSpecies
-            sum_yL  = sum_yL + y_g{jj};
+        y_g{aux}        = 0.0*y_g{aux} + 1.0;
+        for ii=[1:aux-1,aux+1:model_g.nSpecies]
+            y_g{aux}    = y_g{aux} - y_g{ii};
         end
-        if max(max(abs((sum_yG+sum_yL)-1)))>1e-6
-            disp('ERROR: Mass fractions not equal to 1!')
-            return
+        
+        %Create profile for T_g:
+        delta       = (T_inf-T_R)/dTR_dx;
+        if abs(delta)<1e-6
+            error(['delta for temperature too small'])
+            delta   = sign(delta)*1e-6;
         end
-
+        deltap      = abs(delta);
+        T_g         = T_R + (T_inf-T_R)*tanh((x-x_lg)/delta) + ...
+                            (T_inf-T_R)*(1-sign(delta))*...
+                            0.5*(tanh((x-x_lg-20*deltap)/deltap)+1) ;
+        
+        %Compute rhoy and H:
         rho_g       = calc_rho(model_g,y_g,T_g);
+        rhoy_g      = cell(model_g.nSpecies,1);
         for i=1:model_g.nSpecies
             rhoy_g{i} = rho_g.*y_g{i};
         end
         h_g         = calc_h(T_g,y_g,model_g);
-        H_g{1,1}    = h_g.*rho_g;
+        H_g         = rho_g.*h_g;
 
-        v_g         = 0.008286095019622.*((x_lg./x).^2);
+        %Initial GUESS for the velocity (this is not the exact value!):
+        v_g         = vR_0 * (x_lg./x).^2;
 
-        %Final vector of initial gas fields
+        %Final vector of initial gas fields:
         %u = {ρY1, ..., ρYN, H, v}
-        u           = [ rhoy_g; H_g; {v_g} ];
+        u           = [ rhoy_g; {H_g}; {v_g} ];
+        
+%         display(rho_R*CellToVector(y_R))
+%         display(H_R)
+%         display(dYR_dx)
+%         display(dTR_dx)
         
     end
 
@@ -314,8 +362,7 @@ function [save_vars, model_l, model_g] = ...
     sol_n.qR    = CellToVector(EvalSolution(sol_n.ug(1:model_g.nDiff+model_g.nAlg), sol_n.fesg, 1, -1.0));
     
     %Initial guess value for droplet velocity:
-%     sol_n.w     = NF_vg;
-    sol_n.w     = 0.0;
+    sol_n.w     = w_0;
     
     %Normalization factors for differential and algebraic variables: 
     NF_l        = max(1e-6, Lqmean(sol_n.ul, sol_n.fesl, 2));
@@ -724,9 +771,9 @@ function [save_vars, model_l, model_g] = ...
         
         %Load RK coefficients:
         if sol_n.t==0.0
-%             RKmethod    = calcRKmethod_imex('ARS443');
+            RKmethod    = calcRKmethod_imex('ARS443');
 %             RKmethod    = calcRKmethod_imex('BPR3');
-            RKmethod    = calcRKmethod_imex('KC35');
+%             RKmethod    = calcRKmethod_imex('KC35');
         else
 %             RKmethod    = calcRKmethod_imex('BPR3');
             RKmethod    = calcRKmethod_imex('KC35');
@@ -750,8 +797,6 @@ function [save_vars, model_l, model_g] = ...
             Deltat_n    = t_np1-sol_n.t;
 
             %Scaling matrices for all unkwowns:
-%             [Sr_l,Sy_l]     = ScalMatrices0(model_l, NF_l, sol_n.fesl, Deltat_n);
-%             [Sr_g,Sy_g]     = ScalMatrices0(model_g, NF_g, sol_n.fesg, Deltat_n);
             [Sr_l,Sy_l]     = ScalMatrices1(model_l, NF_l, NF_tau, sol_n.fesl, Deltat_n);
             [Sr_g,Sy_g]     = ScalMatrices1(model_g, NF_g, NF_tau, sol_n.fesg, Deltat_n);
             Sy_mesh_l       = sol_n.fesg.mesh.x_faces(end) * speye(mesh_l.nElems+1);
