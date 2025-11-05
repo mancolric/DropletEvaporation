@@ -9,11 +9,11 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
-nElems_l          = 200;   % Number of elements in the liquid phase
-nElems_g          = 200;  % Number of elements in the gas phase (first part)
+nElems_l          = 20;    % Number of elements in the liquid phase
+nElems_g          = 20;    % Number of elements in the gas phase (first part)
 p                 = 5;     % Degree of the polynomial basis functions
 
-Deltat0           = 1.01e-6;  % Initial time step
+Deltat0           = 1.01e-8;  % Initial time step
                            % If you get warnings like:
                            %   “Nonlinear solver did not converge at stage 2. Reducing time step”
                            %   or
@@ -21,7 +21,7 @@ Deltat0           = 1.01e-6;  % Initial time step
                            % you may reduce Deltat0 to avoid them
                            % However, this is optional — time step control will automatically handle it
 
-t_final           = 1e-6;  % Final simulation time
+t_final           = 1e-8;  % Final simulation time
                            % Use the actual time you want the simulation to stop at
                            % If you want the simulation to continue until the droplet disappears, 
                            % set a value larger than the expected final time
