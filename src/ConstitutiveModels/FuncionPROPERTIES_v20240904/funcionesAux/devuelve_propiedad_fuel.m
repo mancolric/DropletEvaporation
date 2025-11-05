@@ -1,5 +1,5 @@
 function value = devuelve_propiedad_fuel(obj, propiedad, comb, estado, T )
-% [ACTUALIZADO 13/02/2020]
+% [VERSION MODELO NUMERICO A.GUT 31/10/2025]
 
 
 % Variable que activa/desactiva warnings por evaluar propiedades fuera de
@@ -23,16 +23,15 @@ Tbr= Tb/Tc;                     % [adimensional]
 Pc= obj.Pc(indice_comb)*1e-5;   % OJO! Aqui en [bar]
 R= 8.314;                       % Constante de los gases ideales, en J/(mol.K)
 T_fusion = obj.Tf(indice_comb);
-T_saved=T;
 
 % IMPORTANTE: EVALUACION DE PROPIEDADES FUERA DE LIMITES:
 % Dejar de considerar dependencia de propiedades con T en caso de que
-% T_evaluacion > T_b! (aplicable en mezclas multicomponentes)
-if strcmpi(estado, 'liquido') && T>Tb
-    T=Tb;    
-    if muestra_aviso==1
-        fprintf('### [%s] WARNING: T_eval > T_b when evaluating liquid properties! T_eval has been changed to T_b ### \n ',char(comb))
-    end
+% T_evaluacion > T_c! (aplicable en mezclas multicomponentes)
+if strcmpi(estado, 'liquido') && T>=Tc-2
+    T=Tc-2;    
+%     if muestra_aviso==1
+%         fprintf('### [%s] WARNING: T_eval > T_b when evaluating liquid properties! T_eval has been changed to T_b ### \n ',char(comb))
+%     end
 elseif strcmpi(estado, 'liquido') && T<T_fusion % El liquido se congelaría!
     % Las propiedades se extrapolan, pero la simulación dejaría de ser
     % válida. Se interrumpe aquí:
@@ -62,17 +61,17 @@ if strcmpi(comb,'heptano')
         if strcmpi(propiedad,'Pvap')
             % Presión de vapor del líquido, 'pvap' [Pa]
             %P_vapor, NIST
-            if (290 <= T_saved)&&(T_saved <= 542)
+            if (290 <= T)&&(T <= 542)
                 % A=4.02832; B=1268.636; C=-56.199;
                 % value = 10^5*10^(A-B/(T+C)); %(Pa)
                 c1=-7.897398; c1_5=2.866; c2=-2.990959; c3=1.196037; c4=-4.925711;
                 Pc=2734300;
                 Tc=540.13;
-                tau = 1 - T_saved/Tc;
-                value = exp(log(Pc) + (Tc/T_saved) * (c1*tau + c1_5*tau^1.5 + c2*tau^2 + c3*tau^3 + c4*tau^4)); %(Pa)
+                tau = 1 - T/Tc;
+                value = exp(log(Pc) + (Tc/T) * (c1*tau + c1_5*tau^1.5 + c2*tau^2 + c3*tau^3 + c4*tau^4)); %(Pa)
             else % Compruebo que la extrapolación es razonable...
                 A=4.02832; B=1268.636; C=-56.199;
-                value = 10^5*10^(A-B/(T_saved+C)); %(Pa)
+                value = 10^5*10^(A-B/(T+C)); %(Pa)
                 if muestra_aviso==1
                     disp('### [Heptano] AVISO: T fuera de rango en cálculo Pvap (< 298K). Se extrapolará ###')
                 end
@@ -82,11 +81,11 @@ if strcmpi(comb,'heptano')
         elseif strcmpi(propiedad,'Lv')
             % Lv, NIST
             A=53.66; beta=0.2831;
-            if (298 <= T_saved)&&(T_saved <= 510)
-                Tr=T_saved/Tc;
+            if (298 <= T)&&(T <= 510)
+                Tr=T/Tc;
                 value = 1e6*(A*exp(-beta*Tr)*(1-Tr)^beta)/MW; %J/kg
             else % Compruebo que la extrapolación es razonable...
-                Tr=T_saved/Tc;
+                Tr=T/Tc;
                 value = 1e6*(A*exp(-beta*Tr)*(1-Tr)^beta)/MW; %J/kg
                 if muestra_aviso==1
                     disp('### [Heptano] AVISO: T fuera de rango en cálculo Lv. Se extrapolará(< 298K) ###')
@@ -98,10 +97,14 @@ if strcmpi(comb,'heptano')
             % rho_l [kg/m3]
             % Perrys Handbook
             C1=0.61259; C2=0.26211; C3=540.2;C4=0.28141;
-            if (182.57 <= T_saved)&&(T_saved <= 550)
-                value=(C1/C2^(1+(1-T_saved/C3)^C4))*MW;
+            if (182.57 <= T)&&(T <= 550)
+                value=(C1/C2^(1+(1-T/C3)^C4))*MW;
             else 
+                value=(C1/C2^(1+(1-T/C3)^C4))*MW;
                 % Poco probable que T<182 K... 
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             
@@ -109,21 +112,30 @@ if strcmpi(comb,'heptano')
         elseif strcmpi(propiedad,'mu')
             % Perrys Handbook
             C1=-9.4622; C2=877.07; C3=-0.23445; C4=1.4022E+22; C5=-10;
-            if (180.15 <= T_saved)&&(T_saved <= 510)
-                value=exp(C1+C2/T_saved+C3*log(T_saved)+C4*T_saved^C5);
+            if (180.15 <= T)&&(T <= 510)
+                value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
             else 
-               % Poco probable que T<182 K..
+                value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
+                % Poco probable que T<182 K..
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Calor específico del liquido, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')
             % Perrys Handbook
-            C1=61.26; C2=314410; C3=1824.6; C4=-2547.9; C5=0; a=1-T_saved/Tc;
-            if (182.57 <= T_saved)&&(T_saved <= 510)
+            C1=61.26; C2=314410; C3=1824.6; C4=-2547.9; C5=0; a=1-T/Tc;
+            if (182.57 <= T)&&(T <= 510)
                 % Nota: Para el heptano, ec. 2, para el resto, ec. 1.
                 value=((C1^2)/a + C2 - 2*C1*C3*a - C1*C4*a^2 - (C3^2)*(a^3)/3 - C3*C4*(a^4)/2 - (C4^2)*(a^5)/5)/MW;
             else
-                % Poco probable que T<182 K..
+                % AJUSTE A POLINOMIO HECHO POR A.GUT. OCTUBRE 2025
+                C1 = 18313143.336457685; C2 = -72997.88453983126; C3 = 74.14574127249222;
+                value = (C1 + C2*T + C3*T^2) / MW;
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Conductividad térmica, 'lambda' [W/m.K]
@@ -131,7 +143,7 @@ if strcmpi(comb,'heptano')
             % Perrys Handbook. Relacion lineal con T, por lo que no parece
             % peligroso extrapolar...
             C1=0.215; C2=-0.000303; C3=0; C4=0; C5=0;
-            value=C1 + C2*T_saved + C3*T_saved^2 + C4*T_saved^3 + C5*T_saved^4;
+            value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
         end
         
         
@@ -224,7 +236,11 @@ elseif strcmpi(comb,'hexano')
             if (177.8 <= T)&&(T <= Tb)
                 value=(C1/C2^(1+(1-T/C3)^C4))*MW;
             else 
+                value=(C1/C2^(1+(1-T/C3)^C4))*MW;
                 % Poco probable que T<177 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Viscosidad, 'mu' [Pa.s]
@@ -234,7 +250,11 @@ elseif strcmpi(comb,'hexano')
             if (174 <= T)&&(T <= Tb)
                 value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
             else 
+                value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
                 % Poco probable que T<174 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Calor específico del liquido, 'cp' [J/kg.K]
@@ -244,7 +264,11 @@ elseif strcmpi(comb,'hexano')
             if (178 <= T)&&(T <= Tb)
                 value=(C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4)/MW;
             else 
+                value=(C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4)/MW;
                 % Poco probable que T<178 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Conductividad térmica, 'lambda' [W/m.K]
@@ -310,7 +334,11 @@ elseif strcmpi(comb,'octano')
             if (216.38<=T)&&(T<=568.7)
                 value = exp(C1+C2/T+C3*log(T)+C4*T^C5);
             else 
+                value = exp(C1+C2/T+C3*log(T)+C4*T^C5);
                 % Poco probable que T<216 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Calor latente de vaporización del líquido, 'Lv' [J/kg]
@@ -319,7 +347,11 @@ elseif strcmpi(comb,'octano')
             if (216.38 <= T)&&(T <= 568.7)
                 value = (C1*(1-Tr)^(C2+C3*Tr+C4*Tr^2+C5*Tr^3))/MW;
             else
+                value = (C1*(1-Tr)^(C2+C3*Tr+C4*Tr^2+C5*Tr^3))/MW;
                 % Poco probable que T<216 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Densidad del líqido, 'rho' [kg/m3]
@@ -328,7 +360,11 @@ elseif strcmpi(comb,'octano')
             if (216.38 <= T)&&(T <= 568.7)
                 value=(C1/C2^(1+(1-T/C3)^C4))*MW;
             else
+                value=(C1/C2^(1+(1-T/C3)^C4))*MW;
                 % Poco probable que T<216 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Viscosidad, 'mu' [Pa.s]
@@ -337,7 +373,11 @@ elseif strcmpi(comb,'octano')
             if (211.15 <= T)&&(T <= 454.96)
                 value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
             else
+                value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
                 % Poco probable que T<216 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Calor específico, 'cp' [J/kg.K]
@@ -346,7 +386,11 @@ elseif strcmpi(comb,'octano')
             if (216.38 <= T)&&(T <= 460)
                 value=(C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4)/MW;
             else
+                value=(C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4)/MW;
                 % Poco probable que T<216 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Conductividad térmica, 'lambda' [W/m.K]
@@ -422,7 +466,11 @@ elseif strcmpi(comb,'dodecano')
             if (263.57<=T)&&(T<=658)
                 value = exp(C1+C2/T+C3*log(T)+C4*T^C5);
             else
+                value = exp(C1+C2/T+C3*log(T)+C4*T^C5);
                 % Poco probable que T<263 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Calor latente de vaporización del líquido, 'Lv' [J/kg]
@@ -431,7 +479,11 @@ elseif strcmpi(comb,'dodecano')
             if (263.57 <= T)&&(T <= 658)
                 value = (C1*(1-Tr)^(C2+C3*Tr+C4*Tr^2+C5*Tr^3))/MW;
             else
-                 % Poco probable que T<263 K...
+                value = (C1*(1-Tr)^(C2+C3*Tr+C4*Tr^2+C5*Tr^3))/MW;
+                % Poco probable que T<263 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Densidad del líqido, 'rho' [kg/m3]
@@ -440,7 +492,11 @@ elseif strcmpi(comb,'dodecano')
             if (263.57 <= T)&&(T <= 658)
                 value=(C1/C2^(1+(1-T/C3)^C4))*MW;
             else
+                value=(C1/C2^(1+(1-T/C3)^C4))*MW;
                 % Poco probable que T<263 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Viscosidad, 'mu' [Pa.s]
@@ -449,7 +505,11 @@ elseif strcmpi(comb,'dodecano')
             if (262.15 <= T)&&(T <= 526.40) 
                 value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
             else
-                 % Poco probable que T<263 K...
+                value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
+                % Poco probable que T<263 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Calor específico, 'cp' [J/kg.K]
@@ -949,7 +1009,11 @@ elseif strcmpi(comb,'metanol')  % POR COMPLETAR
             if (175.47<=T)&&(T<=512.5)
                 value = exp(C1+C2/T+C3*log(T)+C4*T^C5);
             else
-                 % Poco probable que T<175 K... 
+                value = exp(C1+C2/T+C3*log(T)+C4*T^C5);
+                % Poco probable que T<175 K... 
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Calor latente de vaporización del líquido, 'Lv' [J/kg]
@@ -958,7 +1022,11 @@ elseif strcmpi(comb,'metanol')  % POR COMPLETAR
             if (175.47 <= T)&&(T <= 512.5)
                 value = (C1*(1-Tr)^(C2+C3*Tr+C4*Tr^2+C5*Tr^3))/MW;
             else
+                value = (C1*(1-Tr)^(C2+C3*Tr+C4*Tr^2+C5*Tr^3))/MW;
                 % Poco probable que T<175 K... 
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Densidad del líqido, 'rho' [kg/m3]
@@ -967,7 +1035,11 @@ elseif strcmpi(comb,'metanol')  % POR COMPLETAR
             if (175.47 <= T)&&(T <= 512.5)
                 value=(C1/C2^(1+(1-T/C3)^C4))*MW;
             else
+                value=(C1/C2^(1+(1-T/C3)^C4))*MW;
                 % Poco probable que T<175 K... 
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Viscosidad, 'mu' [Pa.s]
@@ -976,7 +1048,11 @@ elseif strcmpi(comb,'metanol')  % POR COMPLETAR
             if (175.47 <= T)&&(T <= 337.85)
                 value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
             else
+                value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
                 % Poco probable que T<175 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Calor específico liq., 'cp' [J/kg.K]
@@ -985,7 +1061,11 @@ elseif strcmpi(comb,'metanol')  % POR COMPLETAR
             if (175.47 <= T)&&(T <= 400)
                 value=(C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4)/MW;
             else
+                value=(C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4)/MW;
                 % Poco probable que T<175 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Conductividad térmica, 'lambda' [W/m.K]
@@ -1076,7 +1156,11 @@ elseif strcmpi(comb,'etanol')
             if (159.05 <= T)&&(T <= 514)
                 value=(C1/C2^(1+(1-T/C3)^C4))*MW;
             else
+                value=(C1/C2^(1+(1-T/C3)^C4))*MW;
                 % Poco probable que T<159 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Viscosidad, 'mu' [Pa.s]
@@ -1085,7 +1169,11 @@ elseif strcmpi(comb,'etanol')
             if (200 <= T)&&(T <= 440)
                 value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
             else
+                value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
                 % Poco probable que T<200 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Calor específico liquido, 'cp' [J/kg.K]
@@ -1094,7 +1182,11 @@ elseif strcmpi(comb,'etanol')
             if (159.05 <= T)&&(T <= 390)
                 value=(C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4)/MW;
             else
+                value=(C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4)/MW;
                 % Poco probable que T<159 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Conductividad térmica, 'lambda' [W/m.K]
@@ -1186,7 +1278,11 @@ elseif strcmpi(comb,'butanol')
             if (183.85 <= T)&&(T <= 563.1)
                 value=(C1/C2^(1+(1-T/C3)^C4))*MW;
             else
+                value=(C1/C2^(1+(1-T/C3)^C4))*MW;
                 % Poco probable que T<183 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Viscosidad liquido, 'mu' [Pa.s]
@@ -1195,7 +1291,11 @@ elseif strcmpi(comb,'butanol')
             if (190 <= T)&&(T <= 391.9)
                 value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
             else 
+                value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
                 % Poco probable que T<190 K..
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Calor específico liquido, 'cp' [J/kg.K]
@@ -1204,7 +1304,11 @@ elseif strcmpi(comb,'butanol')
             if (183.85 <= T)&&(T <= 391.9)
                 value=(C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4)/MW;
             else
+                value=(C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4)/MW;
                 % Poco probable que T<183 K..
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Conductividad térmica liquido, 'lambda' [W/m.K] 
@@ -1282,7 +1386,11 @@ elseif strcmpi(comb,'acetona')
             if (178.45<=T)&&(T<=508.2)
                 value = exp(C1+C2/T+C3*log(T)+C4*T^C5);
             else
+                value = exp(C1+C2/T+C3*log(T)+C4*T^C5);
                 % Poco probable que T<178 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Calor latente de vaporización del líquido, 'Lv' [J/kg]
@@ -1291,7 +1399,11 @@ elseif strcmpi(comb,'acetona')
             if (178.45 <= T)&&(T <= 508.2)
                 value = (C1*(1-Tr)^(C2+C3*Tr+C4*Tr^2+C5*Tr^3))/MW;
             else
-                 % Poco probable que T<178 K...
+                value = (C1*(1-Tr)^(C2+C3*Tr+C4*Tr^2+C5*Tr^3))/MW;
+                % Poco probable que T<178 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Densidad del líqido, 'rho' [kg/m3]
@@ -1300,7 +1412,11 @@ elseif strcmpi(comb,'acetona')
             if (178.45 <= T)&&(T <= 508.2)
                 value=(C1/C2^(1+(1-T/C3)^C4))*MW;
             else
-                 % Poco probable que T<178 K...
+                value=(C1/C2^(1+(1-T/C3)^C4))*MW;
+                % Poco probable que T<178 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Viscosidad, 'mu' [Pa.s]
@@ -1309,7 +1425,11 @@ elseif strcmpi(comb,'acetona')
             if (190 <= T)&&(T <= 329.7)
                 value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
             else
-                 % Poco probable que T<190 K...
+                value=exp(C1+C2/T+C3*log(T)+C4*T^C5);
+                % Poco probable que T<190 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Calor específico a presión constante, 'cp' [J/kg.K]
@@ -1318,7 +1438,11 @@ elseif strcmpi(comb,'acetona')
             if (178.45 <= T)&&(T <= 329.7)
                 value=(C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4)/MW;
             else
+                value=(C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4)/MW;
                 % Poco probable que T<178 K...
+                if muestra_aviso==1
+                    disp('### AVISO: Se extrapolará ###')
+                end
             end
             
             % Conductividad térmica, 'lambda' [W/m.K]
@@ -1604,11 +1728,14 @@ elseif strcmpi(comb,'glicerina')
             if (298 <= T)&&(T <= 1200)
                 value=(9.656 + 4.2826E-01*T - 2.6797E-04*T^2 + 3.1794E-08*T^3 + 2.7745E-11*T^4)*(1000/MW);
             else
+                T_aux=1200;
+                value=(9.656 + 4.2826E-01*T_aux - 2.6797E-04*T_aux^2 + 3.1794E-08*T_aux^3 + 2.7745E-11*T_aux^4)*(1000/MW);
+
                 % OJO! Extrapolación NO parece razonable, Cp  se dispara a
                 % altas temperaturas (>1200 K). Si tenemos que simular gicerina bajo estas 
                 % condiciones --> Buscar nueva correlacion para Cp! (no aparece en Perrys, NIST...)
-                disp('### [Glicerina] AVISO: T fuera de rango en cálculo Cp_v (> 1200 K). NO se recomienda extrapolar por la función empleada ###')
-                disp('El programa se detendrá. Buscar nueva correlación para Cp_v de la glicerina ###')
+                % disp('### [Glicerina] AVISO: T fuera de rango en cálculo Cp_v (> 1200 K). NO se recomienda extrapolar por la función empleada ###')
+                % disp('El programa se detendrá. Buscar nueva correlación para Cp_v de la glicerina ###')
             end
             
             % Conductividad térmica, 'lambda' [W/m.K]
