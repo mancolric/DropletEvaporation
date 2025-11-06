@@ -283,6 +283,7 @@ function [save_vars, model_l, model_g] = ...
     %Auxiliary variables:
     nDAE_l        = model_l.nDiff+model_l.nAlg;
     nDAE_g        = model_g.nDiff+model_g.nAlg;
+    nDiff_lg      = model_g.nDiff;
     
     %Create meshes and finite element spaces:
     mesh_l        = Mesh_Spheric_Create(xmesh_l);
@@ -315,6 +316,8 @@ function [save_vars, model_l, model_g] = ...
     %Calculate estimated evaporation time (if known, add manually):
     t_evap      = calc_t_evap(T_inf,y_inf,model_l,model_g,mass_fracL,fuel_names,x_lg);
     t_evap      = real(t_evap);
+    t_evap      = 10.0;
+    warning('t_evap')
 
     %Distribution of the saved time instants: 55% are saved in the first 20% of the 
     %simulation and the remaining 45% in the final 80% of the simulation (MODIFIABLE)
@@ -532,15 +535,17 @@ function [save_vars, model_l, model_g] = ...
     %[rho, H, v, R] at the gas:
     
     %Number of variables of the blocks in y:
+    nNodes_l        = sol_n.fesl.mesh.nElems+1;
+    nNodes_g        = sol_n.fesl.mesh.nElems+1;
     N_l             = nDAE_l*sol_n.fesl.nDof;
     N_g             = nDAE_g*sol_n.fesg.nDof;
     N_L             = model_l.nDiff;
     N_R             = nDAE_g;
-    block_l         = 1:N_l;
-    block_g         = N_l+1:N_l+N_g;
-    block_mesh_l    = block_g(end)+1:block_g(end)+mesh_l.nElems+1;
-    block_mesh_g    = block_mesh_l(end)+1:block_mesh_l(end)+mesh_g.nElems+1;
-    block_z         = block_mesh_g(end)+1:block_mesh_g(end)+N_L+N_R+1;
+    block_mesh_l    = 1:nNodes_l;
+    block_mesh_g    = block_mesh_l(end)+1:block_mesh_l(end)+nNodes_g;
+    block_l         = block_mesh_g(end)+1:block_mesh_g(end)+N_l;
+    block_g         = block_l(end)+1:block_l(end)+N_g;
+    block_z         = block_g(end)+1:block_g(end)+N_L+N_R+1;
     
     %Function that evaluates the residual and the Jacobian of the full
     %system of nonlinear equations at each Runge--Kutta stage. 
@@ -554,13 +559,13 @@ function [save_vars, model_l, model_g] = ...
     function [r,J] = ResidualFun(y, ComputeJ)
         
         %Extract variables: 
-        y_l                 = y{1};
-        y_g                 = y{2};
+        xmesh_l_np1         = y(block_mesh_l);
+        xmesh_g_np1         = y(block_mesh_g);
+        y_l                 = y(block_l);
+        y_g                 = y(block_g);
         sol_np1.ul          = VectorToCell(y_l, nDAE_l);
         sol_np1.ug          = VectorToCell(y_g, nDAE_g);
-        xmesh_l_np1         = y{3};
-        xmesh_g_np1         = y{4};
-        z                   = y{5};
+        z                   = y(block_z);
         sol_np1.qL          = z(1:N_L);
         sol_np1.qR          = z(N_L+1:N_L+N_R);
         sol_np1.w           = z(end);
@@ -722,7 +727,6 @@ function [save_vars, model_l, model_g] = ...
                     (xmesh_g_np1(2)-xmesh_g_np1(1))/sol_np1.fesg.p, ComputeJ);
                 
         %Flux balance for the differential variables:
-        nDiff_lg        = model_g.nDiff;
         r_d(1:nDiff_lg) = [zeros(model_g.nInerts,1); CellToVector(fL)]-...
                             CellToVector(fR); 
         if ComputeJ
@@ -846,19 +850,21 @@ function [save_vars, model_l, model_g] = ...
                                     [sol_np1.qL; sol_np1.qR(1:model_g.nDiff)], ...
                                     DeltaT_np1, DeltaP_np1, NF_l, NF_g, true);
         r_d(nDiff_lg+1:end)     = rEq;
-        for II=1:model_l.nSpecies+3
-            for JJ=1:model_l.nDiff+model_g.nDiff
-                J_d.iv      = cat(1, J_d.iv, nDiff_lg+II);
-                J_d.jv      = cat(1, J_d.jv, JJ);
-                J_d.sv      = cat(1, J_d.sv, JEq(II,JJ));
-            end
-        end       
+        if ComputeJ
+            for II=1:model_l.nSpecies+3
+                for JJ=1:model_l.nDiff+model_g.nDiff
+                    J_d.iv      = cat(1, J_d.iv, nDiff_lg+II);
+                    J_d.jv      = cat(1, J_d.jv, JJ);
+                    J_d.sv      = cat(1, J_d.sv, JEq(II,JJ));
+                end
+            end      
+        end
         
         %------------------------------------------------------------------
         %OUTPUT:
         
         %Pack variables:
-        r       = { cat(1, r_l, r_g, r_d), r_mesh_l, r_mesh_g };
+        r       = { r_mesh_l, r_mesh_g, cat(1, r_l, r_g, r_d) };
         if ComputeJ
 %             J   = { J_l,    NaN,    J_ld;
 %                     NaN,    J_g,    J_gd;
@@ -872,10 +878,10 @@ function [save_vars, model_l, model_g] = ...
                             J_dl.jv, J_dg.jv+N_l, J_d.jv+N_l+N_g);
             J.sv    = cat(1, J_l.sv, J_ld.sv, J_g.sv, J_gd.sv, ...
                             J_dl.sv, J_dg.sv, J_d.sv);
-            J       = { sparse(J.iv(:), J.jv(:), J.sv(:), ...
-                            N_l+N_g+N_L+N_R+1, N_l+N_g+N_L+N_R+1), ...
-                        1.0,...
-                        1.0 };
+            J       = { 1.0, ...
+                        1.0, ...
+                        sparse(J.iv(:), J.jv(:), J.sv(:), ...
+                            N_l+N_g+N_L+N_R+1, N_l+N_g+N_L+N_R+1) };
         else 
             J   = NaN;
         end
@@ -938,13 +944,13 @@ function [save_vars, model_l, model_g] = ...
     t_save          = DeltaSaveI;
     save_vars       = cell(10,4000);
     Nt              = 0;
-    yv_n            = cat(1,    CellToVector(sol_n.ul), ...
-                                CellToVector(sol_n.ug), ...
-                                sol_n.fesl.mesh.x_faces, ...
+    yv_n            = cat(1,    sol_n.fesl.mesh.x_faces, ...
                                 sol_n.fesg.mesh.x_faces, ...
+                                CellToVector(sol_n.ul), ...
+                                CellToVector(sol_n.ug), ...
                                 sol_n.qL, ...
                                 sol_n.qR, ...
-                                sol_n.w     ) ;
+                                sol_n.w ) ;
     Deltat_n        = Deltat0;
     Deltat_CFL_n    = NaN;
     while sol_n.t<t_final
@@ -976,12 +982,41 @@ function [save_vars, model_l, model_g] = ...
             end
             Deltat_n    = t_np1-sol_n.t;
 
-            %Scaling matrices for all unkwowns:
-            [Sr_l,Sy_l]     = ScalMatrices1(model_l, NF_l, NF_tau, sol_n.fesl, Deltat_n);
-            [Sr_g,Sy_g]     = ScalMatrices1(model_g, NF_g, NF_tau, sol_n.fesg, Deltat_n);
-            Sy_mesh_l       = sol_n.fesg.mesh.x_faces(end) * speye(mesh_l.nElems+1);
-            Sy_mesh_g       = sol_n.fesg.mesh.x_faces(end) * speye(mesh_g.nElems+1);
+            %Characteristic element volumes and maximum radius;
+            NF_omega_l      = sum(sol_n.fesl.mesh.V_cells)/sol_n.fesl.mesh.nElems;
+            NF_omega_g      = sum(sol_n.fesg.mesh.V_cells)/sol_n.fesg.mesh.nElems;
+            R_l             = sol_n.fesl.mesh.x_faces(end);
+            R_g             = sol_n.fesg.mesh.x_faces(end);
             
+            %Scaling vectors and multiplicity:
+            Sy_factors      = [ R_l; R_g; ...
+                                NF_l(1:end-1); NF_l(end)*NF_tau/Deltat_n; ...
+                                NF_g(1:end-1); NF_g(end)*NF_tau/Deltat_n; ...
+                                NF_l(1:end-1); NF_g(1:end); 0.5*(NF_l(end)+NF_g(end)) ];
+            Sy_mult         = [ nNodes_l; nNodes_g; ...
+                                repmat(sol_n.fesl.nDof, nDAE_l, 1); ...
+                                repmat(sol_n.fesg.nDof, nDAE_g, 1); ...
+                                repmat(1, N_L, 1); repmat(1, N_R, 1); 1 ];
+            Srinv_factors   = 1.0 ./ [ ...
+                                NF_omega_l*NF_l(1:end-1); NF_omega_l*NF_l(1); ...
+                                NF_omega_g*NF_g(1:end-1); NF_omega_g*NF_g(1); ...
+                                NF_g(end)*NF_g(1:end-1); ...
+                                DeltaT_0; DeltaP_0; NF_l(1); NF_g(1) ];
+            Srinv_mult      = [ repmat(sol_n.fesl.nDof, nDAE_l, 1); 
+                                repmat(sol_n.fesg.nDof, nDAE_g, 1); 
+                                repmat(1, nDiff_lg, 1); 
+                                1; repmat(1, model_l.nSpecies, 1); 1; 1 ]; 
+            
+            %Scaling matrices:
+            Sy              = ScalingMatrix(Sy_factors, Sy_mult);
+            Srinv           = { 1.0/R_l * speye(nNodes_l);
+                                1.0/R_g * speye(nNodes_g);
+                                ScalingMatrix(Srinv_factors, Srinv_mult) }; 
+            Sy              = speye(sum(Sy_mult));
+            Srinv           = { speye(nNodes_l);
+                                speye(nNodes_g);
+                                speye(sum(Srinv_mult)) }; 
+                            
             %Initialize stage variables:
             ii              = 1;
             yv_np1          = yv_n;
@@ -1004,13 +1039,66 @@ function [save_vars, model_l, model_g] = ...
             bDAE_g_ii       = My1_g;
         
             %Save derivatives k(:,1) and Jacobian for first stage:
-            [~,A_n]         = ResidualFun({yv_np1(block_l), yv_np1(block_g), ...
-                                            yv_np1(block_mesh_l), yv_np1(block_mesh_g), ...
-                                            yv_np1(block_z) }, ...
-                                        true);
+            [~,A_n]         = ResidualFun(yv_np1, true);
+            A_num           = Srinv{3}*A_n{3}*Sy(nNodes_l+nNodes_g+1:end, nNodes_l+nNodes_g+1:end);
             figure()
-            spy(A_n{1})
+            spy(A_num)
+            A_num2          = zeros(size(A_num));
+            delta           = 1e-6;
+            yscaled         = Sy\yv_np1;
+            for jj=1:size(A_num,2)
+               %
+               yscaled_pert     = yscaled;
+               yscaled_pert(nNodes_l+nNodes_g+jj)   = ...
+                                    yscaled_pert(nNodes_l+nNodes_g+jj) - delta;
+               y_pert           = Sy*yscaled_pert;
+               [f_pert,~]       = ResidualFun(y_pert, false);
+               fscaled_pert1    = Srinv{3}*f_pert{3};
+               %
+               yscaled_pert     = yscaled;
+               yscaled_pert(nNodes_l+nNodes_g+jj)   = ...
+                                    yscaled_pert(nNodes_l+nNodes_g+jj) + delta;
+               y_pert           = Sy*yscaled_pert;
+               [f_pert,~]       = ResidualFun(y_pert, false);
+               fscaled_pert2    = Srinv{3}*f_pert{3};
+               %
+               A_num2(:,jj)     = (fscaled_pert2-fscaled_pert1)/(2*delta);
+            end
+%             i0      = block_l(1)-1;
+%             blocks  = { block_l-i0; block_g-i0; block_z-i0 };
+            nDof_l  = sol_np1.fesl.nDof;
+            nDof_g  = sol_np1.fesg.nDof;
+            blocks  = { (1:model_l.nSpecies*nDof_l), ...
+                        model_l.nSpecies*nDof_l+(1:nDof_l), ...
+                        model_l.nDiff*nDof_l+(1:nDof_l) };
+            names   = { 'rhoY_l', 'H_l', 'v_l' };
+            for II=1:1%length(blocks)
+                for JJ=1:1%length(blocks)
+                    A_num_IJ    = A_num(blocks{II}, blocks{JJ});
+                    [iv,jv,sv]  = find(A_num_IJ);
+                    A_num2_IJ   = A_num2(blocks{II}, blocks{JJ});
+                    sv2         = A_num2_IJ(iv+(jv-1)*size(A_num_IJ,1));
+                    figure()
+                    plot(sv, '-xb')
+                    hold on
+                    plot(sv2, '+g')
+                    title([names{II} names{JJ}])
+                    %
+                    figure()
+                    spy(A_num_IJ)
+                    title([names{II} names{JJ}])
+                    %
+                    figure()
+                    spy(A_num2_IJ)
+                    title([names{II} names{JJ}])
+                end
+            end
             return
+            figure()
+            plot(sv, '-xb')
+            hold on
+            plot(sv2, '+g')
+            s return
             A_n_fact        = { LUFactorization(Sr_l*A_n{1}*Sy_l); 
                                 LUFactorization(Sr_g*A_n{2}*Sy_g); 
                                 1.0; 
