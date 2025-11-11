@@ -32,7 +32,7 @@ function [save_vars, model_l, model_g] = ...
     %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
     
     %Relaxation time:
-    tau_relax   = 1e-14;
+    tau_relax   = 1e-6;
     
     %Domain limits:
     x_l         = 0.0;
@@ -63,7 +63,7 @@ function [save_vars, model_l, model_g] = ...
     %Load models:
     model_l        = Liquid_ALE(fuel_names,mass_fracL, inert_comps, mass_fracG);
     model_g        = Gas_ALE(fuel_names, inert_comps, mass_fracG);
-
+    
     %Initial gas and droplet velocity:
     vR_0           = 8e-3;
     w_0            = NaN;   %To be initialized in u0_g
@@ -536,7 +536,7 @@ function [save_vars, model_l, model_g] = ...
     
     %Number of variables of the blocks in y:
     nNodes_l        = sol_n.fesl.mesh.nElems+1;
-    nNodes_g        = sol_n.fesl.mesh.nElems+1;
+    nNodes_g        = sol_n.fesg.mesh.nElems+1;
     N_l             = nDAE_l*sol_n.fesl.nDof;
     N_g             = nDAE_g*sol_n.fesg.nDof;
     N_L             = model_l.nDiff;
@@ -579,7 +579,7 @@ function [save_vars, model_l, model_g] = ...
         sol_np1.fesg        = FES_QX_Create(mesh_g_np1, p);
         Mm_g_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesg), model_g.nDiff, model_g.nAlg);
         
-        %         PlotFun(sol_np1)
+%         PlotFun(sol_np1)
         
         %Update boundary conditions. MATLAB works with copies, not pointers, 
         %so this is not already done in CouplingConditions:
@@ -642,6 +642,26 @@ function [save_vars, model_l, model_g] = ...
             
         end
         
+        %Impose known velocity:
+        block_vl                    = model_l.nDiff*sol_np1.fesl.nDof + (1:sol_np1.fesl.nDof).';
+        mass_l                      = MassMatrix(sol_np1.fesl);
+        y_l                         = y(block_l);
+        function v_l=v_l_fun(x)
+            v_l                     = { 0.0*x };
+        end
+        b_vl                        = ProjectFun(@v_l_fun, sol_n.fesl);
+        r_l(block_vl)               = Deltat_n*(mass_l*y_l(block_vl) - b_vl);
+        if ComputeJ
+            %Delete previous components:
+            aux                     = find((J_l.iv>=block_vl(1)) & (J_l.iv<=block_vl(end)));
+            J_l.sv(aux)             = 0.0;
+            %New components:
+            [Mm_iv, Mm_jv, Mm_sv]   = find(mass_l);
+            J_l.iv                  = cat(1, J_l.iv, Mm_iv+block_vl(1)-1);
+            J_l.jv                  = cat(1, J_l.jv, Mm_jv+block_vl(1)-1);
+            J_l.sv                  = cat(1, J_l.sv, Deltat_n*Mm_sv);
+        end 
+        
         %------------------------------------------------------------------
         %IMPOSE DAE FOR GAS:
         
@@ -700,6 +720,26 @@ function [save_vars, model_l, model_g] = ...
 %             J_g.sv                  = cat(1, J_g.sv, scal_factor*phim.');
 %         end
 
+        %Impose known velocity:
+        block_vg                    = model_g.nDiff*sol_np1.fesg.nDof + (1:sol_np1.fesg.nDof).';
+        mass_g                      = MassMatrix(sol_np1.fesg);
+        y_g                         = y(block_g);
+        function v_g=v_g_fun(x)
+            v_g                     = { sol_np1.qR(end)*(mesh_g_np1.x_faces(1)./x).^2 };
+        end
+        b_vg                        = ProjectFun(@v_g_fun, sol_n.fesg);
+        r_g(block_vg)               = Deltat_n*(mass_g*y_g(block_vg) - b_vg);
+        if ComputeJ
+            %Delete previous components:
+            aux                     = find(J_g.iv>=block_vg(1) & J_g.iv<=block_vg(end));
+            J_g.sv(aux)             = 0.0;
+            %New components:
+            [Mm_iv, Mm_jv, Mm_sv]   = find(mass_g);
+            J_g.iv                  = cat(1, J_g.iv, Mm_iv+block_vg(1)-1);
+            J_g.jv                  = cat(1, J_g.jv, Mm_jv+block_vg(1)-1);
+            J_g.sv                  = cat(1, J_g.sv, Deltat_n*Mm_sv);
+        end 
+        
         %------------------------------------------------------------------
         %IMPOSE INTERFACE CONDITIONS:
         
@@ -833,9 +873,9 @@ function [save_vars, model_l, model_g] = ...
                         iv_aux(II,JJ,iDof)  = II;
                         jv_aux(II,JJ,iDof)  = (JJ-1)*sol_np1.fesg.nDof + ...
                                                 iDof;
-                        sv_aux(II,JJ,iDof)  = dfR_duwR{II,JJ}*phim(iDof) + ...
+                        sv_aux(II,JJ,iDof)  = -dfR_duwR{II,JJ}*phim(iDof) - ...
                                                 dfR_duwR_dx{II,JJ}*dphim_dxi(iDof)*...
-                                                2/(xmesh_g_np1(end)-xmesh_g_np1(end-1));
+                                                2/(xmesh_g_np1(2)-xmesh_g_np1(1));
                     end
                 end
             end
@@ -846,6 +886,10 @@ function [save_vars, model_l, model_g] = ...
         end
         
         %Append equilibrium conditions:
+        DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
+        DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
+%             DeltaT_np1      = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
+%             DeltaP_np1      = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
         [rEq, JEq]              = EquilibriumConditions(model_l, model_g, ...
                                     [sol_np1.qL; sol_np1.qR(1:model_g.nDiff)], ...
                                     DeltaT_np1, DeltaP_np1, NF_l, NF_g, true);
@@ -902,25 +946,19 @@ function [save_vars, model_l, model_g] = ...
 %     fig2    = figure();
     function gscaled = PrecResidualFun(yscaled)
         
-        %Extract solution at liquid and gas:
-        y_l         = Sy_l*yscaled(block_l);
-        y_g         = Sy_g*yscaled(block_g);
-        y_mesh_l    = Sy_mesh_l*yscaled(block_mesh_l);
-        y_mesh_g    = Sy_mesh_g*yscaled(block_mesh_g);
-        
         %Compute residual:
-        [r,~]   = ResidualFun({y_l, y_g, y_mesh_l, y_mesh_g}, false);   %r={r_l, r_g}
-        if any(isnan(r{1})) || any(isnan(r{2}))
-            gscaled     = NaN;
+        y       = Sy*yscaled;
+        [r,~]   = ResidualFun(y, false);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
+        if any(isnan(r{1})) || any(isnan(r{2})) || any(isnan(r{3})) 
+            gscaled = NaN;
             return
         end
         
         %Compute preconditioned residual:
-        g_l         = LUSolve(A_n_fact{1},Sr_l*r{1});
-        g_g         = LUSolve(A_n_fact{2},Sr_g*r{2});
-        g_mesh_l    = Sy_mesh_l\r{3};     %g_mesh = Jhat^{-1} fhat = (Sr I Sy)^{-1} Sr f = Sy^{-1} f
-        g_mesh_g    = Sy_mesh_g\r{4};     %g_mesh is dimensionless
-        gscaled     = cat(1, g_l, g_g, g_mesh_l, g_mesh_g);
+        g_mesh_l    = Srinv{1}*r{1};    %Jacobian for this block is the identity
+        g_mesh_g    = Srinv{2}*r{2};
+        g_lgz       = LUSolve(A_n_fact{3},Srinv{3}*r{3});
+        gscaled     = cat(1, g_mesh_l, g_mesh_g, g_lgz);
         
 %         figure(fig2)
 %         semilogy(abs(g_l), "+-b")
@@ -961,8 +999,8 @@ function [save_vars, model_l, model_g] = ...
 %             RKmethod    = calcRKmethod_imex('BPR3');
 %             RKmethod    = calcRKmethod_imex('KC35');
         else
-%             RKmethod    = calcRKmethod_imex('BPR3');
-            RKmethod    = calcRKmethod_imex('KC35');
+            RKmethod    = calcRKmethod_imex('BPR3');
+%             RKmethod    = calcRKmethod_imex('KC35');
         end
         
         %Allocate derivatives:
@@ -998,8 +1036,8 @@ function [save_vars, model_l, model_g] = ...
                                 repmat(sol_n.fesg.nDof, nDAE_g, 1); ...
                                 repmat(1, N_L, 1); repmat(1, N_R, 1); 1 ];
             Srinv_factors   = 1.0 ./ [ ...
-                                NF_omega_l*NF_l(1:end-1); NF_omega_l*NF_l(1); ...
-                                NF_omega_g*NF_g(1:end-1); NF_omega_g*NF_g(1); ...
+                                NF_omega_l*NF_l(1:end-1); NF_omega_l*NF_l(1)*Deltat_n; ...
+                                NF_omega_g*NF_g(1:end-1); NF_omega_g*NF_g(1)*Deltat_n; ...
                                 NF_g(end)*NF_g(1:end-1); ...
                                 DeltaT_0; DeltaP_0; NF_l(1); NF_g(1) ];
             Srinv_mult      = [ repmat(sol_n.fesl.nDof, nDAE_l, 1); 
@@ -1012,19 +1050,15 @@ function [save_vars, model_l, model_g] = ...
             Srinv           = { 1.0/R_l * speye(nNodes_l);
                                 1.0/R_g * speye(nNodes_g);
                                 ScalingMatrix(Srinv_factors, Srinv_mult) }; 
-            Sy              = speye(sum(Sy_mult));
-            Srinv           = { speye(nNodes_l);
-                                speye(nNodes_g);
-                                speye(sum(Srinv_mult)) }; 
+%             Sy              = speye(sum(Sy_mult));
+%             Srinv           = { speye(nNodes_l);
+%                                 speye(nNodes_g);
+%                                 speye(sum(Srinv_mult)) }; 
                             
             %Initialize stage variables:
             ii              = 1;
             yv_np1          = yv_n;
             sol_np1         = sol_n;
-            DeltaT_np1      = DeltaT_0*exp(-sol_np1.t/tau_relax);
-            DeltaP_np1      = DeltaP_0*exp(-sol_np1.t/tau_relax);
-%             DeltaT_np1      = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
-%             DeltaP_np1      = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
 
             %"Solve" first stage. Although the solution is clearly *_ii=*_n, 
             %we need this step to compute the Jacobian:
@@ -1040,69 +1074,9 @@ function [save_vars, model_l, model_g] = ...
         
             %Save derivatives k(:,1) and Jacobian for first stage:
             [~,A_n]         = ResidualFun(yv_np1, true);
-            A_num           = Srinv{3}*A_n{3}*Sy(nNodes_l+nNodes_g+1:end, nNodes_l+nNodes_g+1:end);
-            figure()
-            spy(A_num)
-            A_num2          = zeros(size(A_num));
-            delta           = 1e-6;
-            yscaled         = Sy\yv_np1;
-            for jj=1:size(A_num,2)
-               %
-               yscaled_pert     = yscaled;
-               yscaled_pert(nNodes_l+nNodes_g+jj)   = ...
-                                    yscaled_pert(nNodes_l+nNodes_g+jj) - delta;
-               y_pert           = Sy*yscaled_pert;
-               [f_pert,~]       = ResidualFun(y_pert, false);
-               fscaled_pert1    = Srinv{3}*f_pert{3};
-               %
-               yscaled_pert     = yscaled;
-               yscaled_pert(nNodes_l+nNodes_g+jj)   = ...
-                                    yscaled_pert(nNodes_l+nNodes_g+jj) + delta;
-               y_pert           = Sy*yscaled_pert;
-               [f_pert,~]       = ResidualFun(y_pert, false);
-               fscaled_pert2    = Srinv{3}*f_pert{3};
-               %
-               A_num2(:,jj)     = (fscaled_pert2-fscaled_pert1)/(2*delta);
-            end
-%             i0      = block_l(1)-1;
-%             blocks  = { block_l-i0; block_g-i0; block_z-i0 };
-            nDof_l  = sol_np1.fesl.nDof;
-            nDof_g  = sol_np1.fesg.nDof;
-            blocks  = { (1:model_l.nSpecies*nDof_l), ...
-                        model_l.nSpecies*nDof_l+(1:nDof_l), ...
-                        model_l.nDiff*nDof_l+(1:nDof_l) };
-            names   = { 'rhoY_l', 'H_l', 'v_l' };
-            for II=1:1%length(blocks)
-                for JJ=1:1%length(blocks)
-                    A_num_IJ    = A_num(blocks{II}, blocks{JJ});
-                    [iv,jv,sv]  = find(A_num_IJ);
-                    A_num2_IJ   = A_num2(blocks{II}, blocks{JJ});
-                    sv2         = A_num2_IJ(iv+(jv-1)*size(A_num_IJ,1));
-                    figure()
-                    plot(sv, '-xb')
-                    hold on
-                    plot(sv2, '+g')
-                    title([names{II} names{JJ}])
-                    %
-                    figure()
-                    spy(A_num_IJ)
-                    title([names{II} names{JJ}])
-                    %
-                    figure()
-                    spy(A_num2_IJ)
-                    title([names{II} names{JJ}])
-                end
-            end
-            return
-            figure()
-            plot(sv, '-xb')
-            hold on
-            plot(sv2, '+g')
-            s return
-            A_n_fact        = { LUFactorization(Sr_l*A_n{1}*Sy_l); 
-                                LUFactorization(Sr_g*A_n{2}*Sy_g); 
-                                1.0; 
-                                1.0 };
+            A_n_fact        = { 1.0; 
+                                1.0;
+                                LUFactorization(Srinv{3}*A_n{3}*Sy(block_l(1):end, block_l(1):end)) };
                                 
             %Loop stages:
             NLS_iters       = 0;
@@ -1111,11 +1085,64 @@ function [save_vars, model_l, model_g] = ...
                 %Update time:
                 sol_np1.t           = sol_n.t + Deltat_n*RKmethod.c(ii);
                 
-                %Compute DeltaT_np1 and DeltaP_np1:
-%                 DeltaT_np1          = DeltaT_0*exp(-sol_np1.t/tau_relax);
-%                 DeltaP_np1          = DeltaP_0*exp(-sol_np1.t/tau_relax);
-                DeltaT_np1          = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
-                DeltaP_np1          = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
+%                 %DEBUG:
+%                 A_num           = Srinv{3}*A_n{3}*Sy(nNodes_l+nNodes_g+1:end, nNodes_l+nNodes_g+1:end);
+%                 A_num2          = zeros(size(A_num));
+%                 delta           = 1e-6;
+%                 yscaled         = Sy\yv_np1;
+%                 for jj=1:size(A_num,2)
+%                    %
+%                    yscaled_pert     = yscaled;
+%                    yscaled_pert(nNodes_l+nNodes_g+jj)   = ...
+%                                         yscaled_pert(nNodes_l+nNodes_g+jj) - delta;
+%                    y_pert           = Sy*yscaled_pert;
+%                    [f_pert,~]       = ResidualFun(y_pert, false);
+%                    fscaled_pert1    = Srinv{3}*f_pert{3};
+%                    %
+%                    yscaled_pert     = yscaled;
+%                    yscaled_pert(nNodes_l+nNodes_g+jj)   = ...
+%                                         yscaled_pert(nNodes_l+nNodes_g+jj) + delta;
+%                    y_pert           = Sy*yscaled_pert;
+%                    [f_pert,~]       = ResidualFun(y_pert, false);
+%                    fscaled_pert2    = Srinv{3}*f_pert{3};
+%                    %
+%                    A_num2(:,jj)     = (fscaled_pert2-fscaled_pert1)/(2*delta);
+%                 end
+%                 nDof_l  = sol_np1.fesl.nDof;
+%                 nDof_g  = sol_np1.fesg.nDof;
+%                 blocks  = { (1:model_l.nSpecies*nDof_l), ...
+%                             model_l.nSpecies*nDof_l+(1:nDof_l), ...
+%                             model_l.nDiff*nDof_l+(1:nDof_l), ...
+%                             N_l+(1:model_g.nSpecies*nDof_g), ...
+%                             N_l+model_g.nSpecies*nDof_g+(1:nDof_g), ...
+%                             N_l+model_g.nDiff*nDof_g+(1:nDof_g), ...
+%                             N_l+N_g+(1:N_L+N_R+1)};
+%                 names   = { 'rhoY_l', 'H_l', 'v_l', ...
+%                             'rhoY_g', 'H_g', 'v_g', ... 
+%                             'z', };
+%                 for II=length(blocks)
+%                     for JJ=1:length(blocks)
+%                         A_num_IJ    = A_num(blocks{II}, blocks{JJ});
+%                         [iv,jv,sv]  = find(A_num_IJ);
+%                         A_num2_IJ   = A_num2(blocks{II}, blocks{JJ});
+%                         sv2         = A_num2_IJ(iv+(jv-1)*size(A_num_IJ,1));
+%                         figure()
+%                         plot(sv, '-xb')
+%                         hold on
+%                         plot(sv2, '+g')
+%                         title([names{II} names{JJ}])
+%                         %
+% %                         figure()
+% %                         spy(A_num_IJ)
+% %                         title([names{II} names{JJ}])
+% %                         %
+% %                         figure()
+% %                         spy(A_num2_IJ)
+% %                         title([names{II} names{JJ}])
+%                     end
+%                 end
+%                 return
+%                 %DEBUG
             
                 %Auxiliary vectors:
                 bmesh_l_ii          = sol_n.fesl.mesh.x_faces + Deltat_n * (kmesh_l_RK(:,1:ii-1)*RKmethod.aI(ii,1:ii-1).');
@@ -1133,16 +1160,9 @@ function [save_vars, model_l, model_g] = ...
                     TolA            = 1e-8;
                 end
                 NDOF                            = nDAE_l*fes_l.nDof + nDAE_g*fes_g.nDof; 
-                [yscaled_np1, nIters, NLSFlag]  = Anderson(@PrecResidualFun, ...
-                                                        cat(1,  Sy_l\yv_n(block_l), ...
-                                                                Sy_g\yv_n(block_g), ...
-                                                                Sy_mesh_l\yv_n(block_mesh_l), ...
-                                                                Sy_mesh_g\yv_n(block_mesh_g)), ...
+                [yscaled_np1, nIters, NLSFlag]  = Anderson(@PrecResidualFun, Sy\yv_n, ...
                                                         sqrt(NDOF)*TolA, NLS_MaxIter, 50);
-                yv_np1                           = cat(1,   Sy_l*yscaled_np1(block_l), ...
-                                                            Sy_g*yscaled_np1(block_g), ...
-                                                            Sy_mesh_l*yscaled_np1(block_mesh_l), ...
-                                                            Sy_mesh_g*yscaled_np1(block_mesh_g) );
+                yv_np1              = Sy*yscaled_np1;
                 if NLSFlag<0
                     break
                 end
@@ -1155,7 +1175,7 @@ function [save_vars, model_l, model_g] = ...
             end
         
             %Save CFL for present time step:
-            CFL_n           = Deltat_n/Deltat_CFL_n;
+            CFL_n               = Deltat_n/Deltat_CFL_n;
             
             %The considered methods are stiffly accurate, so the
             %solution _ii is the solution at _np1.
@@ -1186,7 +1206,6 @@ function [save_vars, model_l, model_g] = ...
                 end
                 etaT_g          = LqNorm(err_np1, NF_g(1:model_g.nDiff), sol_np1.fesg, 2);
                 %Total error:
-%                 etaT            = sqrt(etaT_l^2+etaT_g^2);
                 etaT            = max(etaT_l, etaT_g);
                 
                 %Apply controler:
@@ -1230,11 +1249,13 @@ function [save_vars, model_l, model_g] = ...
                 ', tCPU=', sprintf('%.2E', toc(tStart)) ])
 
         %DEBUG:
-        z0                  = cat(1, sol_np1.qL, sol_np1.qR, sol_np1.w);
-        [z, nIters, flag]   = CouplingConditions(z0, sol_np1.t, ...
-                                DeltaT_np1, DeltaP_np1, ...
-                                model_l, sol_np1.fesl, sol_np1.ul, NF_l, ...
-                                model_g, sol_np1.fesg, sol_np1.ug, NF_g);
+        DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
+        DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
+%         z0                  = cat(1, sol_np1.qL, sol_np1.qR, sol_np1.w);
+%         [z, nIters, flag]   = CouplingConditions(z0, sol_np1.t, ...
+%                                 DeltaT_np1, DeltaP_np1, ...
+%                                 model_l, sol_np1.fesl, sol_np1.ul, NF_l, ...
+%                                 model_g, sol_np1.fesg, sol_np1.ug, NF_g);
         uL                  = EvalSolution(sol_np1.ul, sol_n.fesl, [sol_n.fesl.mesh.nElems], [1.0]);
         uR                  = EvalSolution(sol_np1.ug, sol_n.fesg, [1], [-1.0]);
         disp('aaa')        
