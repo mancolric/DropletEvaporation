@@ -39,16 +39,21 @@ function [save_vars, model_l, model_g] = ...
     x_g         = XRad*x_lg;
 
     %Initial mesh coordinates:
-    x_liq          = linspace(0, 1, nElems_l);
-    alpha_l        = 0.7;
-    xmesh_l        = x_lg * (x_liq.^alpha_l);
+%     x_liq          = linspace(0, 1, nElems_l);
+%     alpha_l        = 0.7;
+%     xmesh_l        = x_lg * (x_liq.^alpha_l);
+    mu_l           = -1.0;
+    xmesh_l        = x_lg*(exp(mu_l*(0:nElems_l))-1.0)/(exp(mu_l*nElems_l)-1.0);
+%     xmesh_l         = xmesh_l/x_lg;
     %
-    x_gas          = linspace(0, 1, nElems_g);
-    alpha_g        = 1/alpha_l;
-    xmesh_g        = x_lg + (x_g-x_lg)*(x_gas.^alpha_g);
+%     x_gas          = linspace(0, 1, nElems_g);
+%     alpha_g        = 1/alpha_l;
+%     xmesh_g        = x_lg + (x_g-x_lg)*(x_gas.^alpha_g);
+    mu_g           = 1.0;
+    xmesh_g        = x_lg + (x_g-x_lg)*(exp(mu_g*(0:nElems_g))-1.0)/(exp(mu_g*nElems_g)-1.0);
     %Correct roundoff errrors:
-    xmesh_l(end)   = x_lg;
-    xmesh_g(1)     = x_lg;
+%     xmesh_l(end)   = x_lg;
+%     xmesh_g(1)     = x_lg;
     
 %     figure;
 %     hold on;
@@ -59,7 +64,8 @@ function [save_vars, model_l, model_g] = ...
 %     title('Point distribution in liquid and gas');
 %     legend('Location', 'best');
 %     grid on;
-
+%     return
+    
     %Load models:
     model_l        = Liquid_ALE(fuel_names,mass_fracL, inert_comps, mass_fracG);
     model_g        = Gas_ALE(fuel_names, inert_comps, mass_fracG);
@@ -1210,7 +1216,7 @@ function [save_vars, model_l, model_g] = ...
                 
                 %Apply controler:
                 if etaT<=TolT
-                    Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(NLS_IterTarget/NLS_iters), 1.2]);
+                    Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(NLS_IterTarget/NLS_iters), 2.0]);
                     RepeatT     = false;
                 else
                     rDeltat     = max(0.5, min((0.8*TolT/etaT)^(1.0/RKmethod.order)));

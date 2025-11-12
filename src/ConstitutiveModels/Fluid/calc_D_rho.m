@@ -35,6 +35,6 @@ else
     error('Error calc_D_rho')
 end
 
-D_rho = reshape(vector_D,m,n); % D_rho[nElems x (2*p+1)]
+D_rho = 100*reshape(vector_D,m,n); % D_rho[nElems x (2*p+1)]
 
 end
