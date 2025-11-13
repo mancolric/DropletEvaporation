@@ -42,14 +42,14 @@ function [save_vars, model_l, model_g] = ...
 %     x_liq          = linspace(0, 1, nElems_l);
 %     alpha_l        = 0.7;
 %     xmesh_l        = x_lg * (x_liq.^alpha_l);
-    mu_l           = -1.0;
+    mu_l           = -0.2;
     xmesh_l        = x_lg*(exp(mu_l*(0:nElems_l))-1.0)/(exp(mu_l*nElems_l)-1.0);
 %     xmesh_l         = xmesh_l/x_lg;
     %
 %     x_gas          = linspace(0, 1, nElems_g);
 %     alpha_g        = 1/alpha_l;
 %     xmesh_g        = x_lg + (x_g-x_lg)*(x_gas.^alpha_g);
-    mu_g           = 1.0;
+    mu_g           = 0.2;
     xmesh_g        = x_lg + (x_g-x_lg)*(exp(mu_g*(0:nElems_g))-1.0)/(exp(mu_g*nElems_g)-1.0);
     %Correct roundoff errrors:
 %     xmesh_l(end)   = x_lg;
