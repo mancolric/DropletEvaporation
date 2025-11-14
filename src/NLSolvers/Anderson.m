@@ -13,7 +13,7 @@
 %saved.
 %
 %fun receives the argument x and returns g(x)
-function [x_n, nIters, flag] = Anderson(fun, x0, TolG, MaxIter, m)
+function [x_n, nIters, flag] = Anderson(fun, x0, TolX, TolG, MaxIter, m)
 
     %First iteration:
     nIters      = 0;
@@ -27,8 +27,11 @@ function [x_n, nIters, flag] = Anderson(fun, x0, TolG, MaxIter, m)
     while true
 
         %Exit loop:
-        if norm(g_n)<=TolG
+        if norm(p_n)<=TolX
             flag    = 1;
+            break
+        elseif norm(g_n)<=TolG
+            flag    = 2;
             break
         elseif nIters==MaxIter
             warning('Reached maximum of iterations')

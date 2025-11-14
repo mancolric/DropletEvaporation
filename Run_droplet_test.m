@@ -9,8 +9,14 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
-nElems_l          = 40;    % Number of elements in the liquid phase
-nElems_g          = 40;    % Number of elements in the gas phase (first part)
+nElems_l          = 200;    % Number of elements in the liquid phase
+nElems_g          = 200;    % Number of elements in the gas phase (first part)
+% mu_l              = -12.0;  
+% mu_g              = 12.0; 
+% mu_l              = -8.0;  
+% mu_g              = 8.0; 
+mu_l              = -5.0;  
+mu_g              = 5.0; 
 p                 = 5;     % Degree of the polynomial basis functions
 
 Deltat0           = 1.01e-10;  % Initial time step
@@ -21,7 +27,7 @@ Deltat0           = 1.01e-10;  % Initial time step
                            % you may reduce Deltat0 to avoid them
                            % However, this is optional — time step control will automatically handle it
 
-t_final           = 1e-9;  % Final simulation time
+t_final           = 1e-6;  % Final simulation time
                            % Use the actual time you want the simulation to stop at
                            % If you want the simulation to continue until the droplet disappears, 
                            % set a value larger than the expected final time
@@ -59,7 +65,7 @@ mass_fracG        = {0.7248, 0.0, 0.1513, 0.1239}; % Mass fraction of each inert
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 
 % Run the full droplet evaporation simulation from t = 0
-[save_vars] = droplet_test(nElems_l, nElems_g, p, Deltat0, t_final, ...
+[save_vars] = droplet_test(nElems_l, nElems_g, mu_l, mu_g, p, Deltat0, t_final, ...
     TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
     n_saves);

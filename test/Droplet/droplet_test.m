@@ -1,5 +1,5 @@
 function [save_vars, model_l, model_g] = ...
-    droplet_test(nElems_l, nElems_g, p, ...
+    droplet_test(nElems_l, nElems_g, mu_l, mu_g, p, ...
         Deltat0, t_final, TimeAdapt, TolT, ...
         PlotRes, Save, fuel_names, mass_fracL, ...
         inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, ...
@@ -33,6 +33,7 @@ function [save_vars, model_l, model_g] = ...
     
     %Relaxation time:
     tau_relax   = 1e-6;
+%     tau_relax   = Inf;
     
     %Domain limits:
     x_l         = 0.0;
@@ -42,15 +43,19 @@ function [save_vars, model_l, model_g] = ...
 %     x_liq          = linspace(0, 1, nElems_l);
 %     alpha_l        = 0.7;
 %     xmesh_l        = x_lg * (x_liq.^alpha_l);
-    mu_l           = -0.2;
-    xmesh_l        = x_lg*(exp(mu_l*(0:nElems_l))-1.0)/(exp(mu_l*nElems_l)-1.0);
-%     xmesh_l         = xmesh_l/x_lg;
+%     mu_l           = -0.2;
+%     xmesh_l        = x_lg*(exp(mu_l*(0:nElems_l))-1.0)/(exp(mu_l*nElems_l)-1.0);
+%     mu_l            = -2.0;
+    xmesh_l         = x_lg*(exp(mu_l*(0:nElems_l)/nElems_l)-1)/...
+                            (exp(mu_l)-1);
     %
 %     x_gas          = linspace(0, 1, nElems_g);
 %     alpha_g        = 1/alpha_l;
 %     xmesh_g        = x_lg + (x_g-x_lg)*(x_gas.^alpha_g);
-    mu_g           = 0.2;
-    xmesh_g        = x_lg + (x_g-x_lg)*(exp(mu_g*(0:nElems_g))-1.0)/(exp(mu_g*nElems_g)-1.0);
+%     mu_g            = 2.0;
+%     xmesh_g         = x_lg + (x_g-x_lg)*(exp(mu_g*(0:nElems_g))-1.0)/(exp(mu_g*nElems_g)-1.0);
+    xmesh_g         = x_lg + (x_g-x_lg)*( exp(mu_g*(0:nElems_g)/nElems_g)-1.0 ) / ...
+                                        ( exp(mu_g)-1.0 );
     %Correct roundoff errrors:
 %     xmesh_l(end)   = x_lg;
 %     xmesh_g(1)     = x_lg;
@@ -108,7 +113,7 @@ function [save_vars, model_l, model_g] = ...
     y_inf       = [y_gas_inf; y_fuel_inf];
 
     %Initial condition function for the GAS phase
-    function u = u0_g(x)
+    function u = u0_g_const(x)
         H_g         = cell(1,1);
         rhoy_g      = cell(model_g.nSpecies,1);
         
@@ -156,7 +161,7 @@ function [save_vars, model_l, model_g] = ...
         % legend('Location', 'best')
     end
 
-    function u = u0_g_old(x)
+    function u = u0_g_slopes(x)
         
         %Left state:
         y_L         = mass_fracL;
@@ -276,6 +281,58 @@ function [save_vars, model_l, model_g] = ...
         
     end
 
+    function u = u0_g_Millan(x)
+        
+        %Left and right states:
+        T_R         = T_0;
+        y_L         = mass_fracL;
+        y_R         = calc_y_gInter(y_L,model_l,model_g,T_R);
+        y_R_fuels   = 0;
+        for i=model_g.nInerts+1:model_g.nSpecies
+            y_R_fuels = y_R_fuels + y_R{i};
+        end
+        
+        %Initial Condition (A.Millan):
+        D_T         = calc_D_T(T_inf,y_inf,model_g);
+        T_g         = T_inf+(x_lg./x).*(T_R-T_inf).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
+        y_g         = cell(model_g.nSpecies,1);
+        for i=1:model_g.nSpecies
+            y_g{i}  = y_inf{i}+(x_lg./x).*(y_R{i}-y_inf{i}).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
+        end
+
+        %Ensure the sum of all species mass fractions equals 1 (sanity check)
+        sum_yG      = zeros(size(x));
+        sum_yL      = zeros(size(x));
+        for jj=1:model_g.nInerts
+            sum_yG  = sum_yG + y_g{jj};
+        end
+        for jj=model_g.nInerts+1:model_g.nSpecies
+            sum_yL  = sum_yL + y_g{jj};
+        end
+        if max(max(abs((sum_yG+sum_yL)-1)))>1e-6
+            disp('ERROR: Mass fractions not equal to 1!')
+            return
+        end
+
+        rho_g       = calc_rho(model_g,y_g,T_g);
+        rhoy_g      = cell(model_g.nSpecies,1);
+        for i=1:model_g.nSpecies
+            rhoy_g{i} = rho_g.*y_g{i};
+        end
+        h_g         = calc_h(T_g,y_g,model_g);
+        H_g         = h_g.*rho_g;
+        v_g         = 0.008286095019622.*((x_lg./x).^2);
+
+        %Final vector of initial gas fields
+        %u = {ρY1, ..., ρYN, H, v}
+        u           = [ rhoy_g; {H_g}; {v_g} ];
+        
+    end
+
+    function u = u0_g(x)
+        u       = u0_g_Millan(x);
+    end
+    
     %Boundary conditions:
     model_l.u1  = @(t) u0_l(x_l);
     model_g.uN  = @(t) u0_g(x_g);
@@ -522,6 +579,27 @@ function [save_vars, model_l, model_g] = ...
         end
     end
     PlotFun(sol_n)
+            
+    %Check diffusive CFL based on bc change:
+    rhoy_l0         = VectorToCell(sol_n.qL(1:model_l.nSpecies), model_l.nSpecies);
+    rhoy_g0         = VectorToCell(sol_n.qR(1:model_g.nSpecies), model_g.nSpecies);
+    [rho_l0,y_l0]   = calc_rho_y(rhoy_l0, model_l);
+    [rho_g0,y_g0]   = calc_rho_y(rhoy_g0, model_g);
+    H_l0            = sol_n.qL(model_l.nDiff);
+    H_g0            = sol_n.qR(model_g.nDiff);
+    T_l0            = calc_T(H_l0,rhoy_l0,model_l);
+    T_g0            = calc_T(H_g0,rhoy_g0,model_g);
+    D_rho_l         = calc_D_rho(T_l0, y_l0, model_l);
+    D_T_l           = calc_D_T(T_l0, y_l0, model_l);
+    D_max_l         = max( D_rho_l, D_T_l );
+    D_rho_g         = calc_D_rho(T_g0, y_g0, model_g);
+    D_T_g           = calc_D_T(T_g0, y_g0, model_g);   
+    D_max_g         = max( D_rho_g, D_T_g );
+    hmin_l          = min( diff(xmesh_l) );
+    hmin_g          = min( diff(xmesh_g) );
+    CFL_relax_l     = D_max_l*tau_relax/hmin_l^2;
+    CFL_relax_g     = D_max_g*tau_relax/hmin_g^2;
+    disp(['CFL_relax_l=', sprintf('%.2E', CFL_relax_l), ', CFL_relax_g=', sprintf('%.2E', CFL_relax_g)])
     
     %----------------------------------------------------------------------
     %MARCH IN TIME:
@@ -892,10 +970,10 @@ function [save_vars, model_l, model_g] = ...
         end
         
         %Append equilibrium conditions:
-        DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
-        DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
-%             DeltaT_np1      = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
-%             DeltaP_np1      = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
+%         DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
+%         DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
+        DeltaT_np1              = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
+        DeltaP_np1              = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
         [rEq, JEq]              = EquilibriumConditions(model_l, model_g, ...
                                     [sol_np1.qL; sol_np1.qR(1:model_g.nDiff)], ...
                                     DeltaT_np1, DeltaP_np1, NF_l, NF_g, true);
@@ -1045,7 +1123,7 @@ function [save_vars, model_l, model_g] = ...
                                 NF_omega_l*NF_l(1:end-1); NF_omega_l*NF_l(1)*Deltat_n; ...
                                 NF_omega_g*NF_g(1:end-1); NF_omega_g*NF_g(1)*Deltat_n; ...
                                 NF_g(end)*NF_g(1:end-1); ...
-                                DeltaT_0; DeltaP_0; NF_l(1); NF_g(1) ];
+                                max(DeltaT_0,300); max(DeltaP_0,1e5); NF_l(1); NF_g(1) ];
             Srinv_mult      = [ repmat(sol_n.fesl.nDof, nDAE_l, 1); 
                                 repmat(sol_n.fesg.nDof, nDAE_g, 1); 
                                 repmat(1, nDiff_lg, 1); 
@@ -1167,7 +1245,7 @@ function [save_vars, model_l, model_g] = ...
                 end
                 NDOF                            = nDAE_l*fes_l.nDof + nDAE_g*fes_g.nDof; 
                 [yscaled_np1, nIters, NLSFlag]  = Anderson(@PrecResidualFun, Sy\yv_n, ...
-                                                        sqrt(NDOF)*TolA, NLS_MaxIter, 50);
+                                                        sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50);
                 yv_np1              = Sy*yscaled_np1;
                 if NLSFlag<0
                     break
@@ -1255,8 +1333,8 @@ function [save_vars, model_l, model_g] = ...
                 ', tCPU=', sprintf('%.2E', toc(tStart)) ])
 
         %DEBUG:
-        DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
-        DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
+%         DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
+%         DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
 %         z0                  = cat(1, sol_np1.qL, sol_np1.qR, sol_np1.w);
 %         [z, nIters, flag]   = CouplingConditions(z0, sol_np1.t, ...
 %                                 DeltaT_np1, DeltaP_np1, ...
@@ -1502,35 +1580,3 @@ function S = ScalingMatrix(alphav, Nv)
     S           = spdiags(syv, 0, Ntotal, Ntotal);
     
 end
-
-%Compute scaling coefficients for variables rhoY_i, H, v:
-function [Sr, Sy]   = ScalMatrices0(model, NF, fes, Deltat)
-
-    NF          = NF(:);
-    
-    %Scale v with NF, multiply algebraic eq. by 1.0/Deltat
-    Sy      = ScalingMatrix(    cat(1,  NF(1:end-1), ...
-                                        NF(end) ), ...
-                                cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
-%     Sy      = ScalingMatrix(    cat(1,  NF(1:end-1), ...
-%                                         NF(end)/Deltat ), ...
-%                                 cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
-    Sr      = ScalingMatrix(    cat(1,  1.0./NF(1:end-1), ...
-                                        1.0/NF(1)/Deltat), ...
-                                cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
-                            
-end
-function [Sr, Sy]   = ScalMatrices1(model, NF, NF_tau, fes, Deltat)
-
-    NF          = NF(:);
-    
-    %Scale v with NF, multiply algebraic eq. by 1.0/Deltat
-    Sy      = ScalingMatrix(    cat(1,  NF(1:end-1), ...
-                                        NF(end)*NF_tau/Deltat ), ...
-                                cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
-    Sr      = ScalingMatrix(    cat(1,  1.0./NF(1:end-1), ...
-                                        1.0/NF(1)/Deltat), ...
-                                cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
-                            
-end
-
