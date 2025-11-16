@@ -60,8 +60,8 @@ elseif flag<0
     display(y2)
     display(rhoy2)
     hv              = calc_h(Tv, y2, model);
-%     figure()
-%     plot(Tv, rho_m(imax)*hv-H_m(imax))
+    figure()
+    plot(Tv, rho_m(imax)*hv-H_m(imax))
     
     T       = T*NaN;
 end

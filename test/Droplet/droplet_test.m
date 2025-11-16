@@ -320,8 +320,8 @@ function [save_vars, model_l, model_g] = ...
     end
 
     function u = u0_g(x)
-        u       = u0_g_const(x);  
-%         u       = u0_g_Millan(x);
+%         u       = u0_g_const(x);  
+        u       = u0_g_Millan(x);
     end
     
     %Boundary conditions:
@@ -959,10 +959,10 @@ function [save_vars, model_l, model_g] = ...
         end
         
         %Append equilibrium conditions:
-        DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
-        DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
-%         DeltaT_np1              = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
-%         DeltaP_np1              = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
+%         DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
+%         DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
+        DeltaT_np1              = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
+        DeltaP_np1              = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
         [rEq, JEq]              = EquilibriumConditions(model_l, model_g, ...
                                     [sol_np1.qL; sol_np1.qR(1:model_g.nDiff)], ...
                                     DeltaT_np1, DeltaP_np1, NF_l, NF_g, true);
@@ -1072,8 +1072,8 @@ function [save_vars, model_l, model_g] = ...
 %             RKmethod    = calcRKmethod_imex('BPR3');
 %             RKmethod    = calcRKmethod_imex('KC35');
         else
-            RKmethod    = calcRKmethod_imex('BPR3');
-%             RKmethod    = calcRKmethod_imex('KC35');
+%             RKmethod    = calcRKmethod_imex('BPR3');
+            RKmethod    = calcRKmethod_imex('KC35');
         end
         
         %Allocate derivatives:
@@ -1251,6 +1251,7 @@ function [save_vars, model_l, model_g] = ...
         end
 
         %At this point, integration of the time step has converged.
+        disp(' ')
         disp([  't=', sprintf('%.2E',sol_n.t),...
                 ', tau=', sprintf('%.2E',Deltat_n), ...
                 ', CFL=', sprintf('%.2E',CFL_n), ...
@@ -1274,10 +1275,13 @@ function [save_vars, model_l, model_g] = ...
         H_qg             = sol_np1.qR(model_g.nSpecies+1);
         T_ql_bc          = calc_T(H_ql,rhoy_ql,model_l);
         T_qg_bc          = calc_T(H_qg,rhoy_qg,model_g);
-        disp([  'T_ql=', sprintf('%.5E', T_ql_bc), ...
-                ', DeltaT_ql=', sprintf('%3.E', abs(T_ql_bc-T_ql_num)), ...
-                ', T_qg=', sprintf('%.5E', T_qg_bc), ...
-                ', DeltaT_qg=', sprintf('%3.E', abs(T_qg_bc-T_qg_num)) ] );
+        disp([  'T_ql=', sprintf('%.8f', T_ql_bc), ...
+                ', DeltaT_ql=', sprintf('%.2E', abs(T_ql_bc-T_ql_num)), ...
+                ', T_qg=', sprintf('%.8f', T_qg_bc), ...
+                ', DeltaT_qg=', sprintf('%.2E', abs(T_qg_bc-T_qg_num)) ] );
+        disp([  'v_l=', sprintf('%.5E', uL{model_l.nDiff+1}), ...
+                ', v_g=', sprintf('%.5E', uR{model_g.nDiff+1}), ...
+                ', w=', sprintf('%.5E', sol_np1.w) ] );
         
         %Update solution:
         sol_np1.t   = t_np1;    %Correct roundoff errors for last stage
