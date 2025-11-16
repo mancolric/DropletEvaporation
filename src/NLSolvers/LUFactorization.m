@@ -7,7 +7,7 @@ function LUFact = LUFactorization(A)
     LUFact.U        = U;
     LUFact.P        = P;
     LUFact.Q        = Q;
-    LUFact.R        = R;
+    LUFact.R        = diag(R);
     
 end
 

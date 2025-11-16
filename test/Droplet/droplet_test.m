@@ -14,6 +14,10 @@ function [save_vars, model_l, model_g] = ...
     NLS_MaxIter     = 200;   %for BPR3 method
     NLS_IterTarget  = 120;   %for BPR3 method
     
+    %Relaxation time for boundary conditions:
+    tau_relax   = 1e-6;
+%     tau_relax   = Inf;
+    
     % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
     % where NLS_iters is the mean number of nonlinear solver iterations at 
     % each Runge--Kutta stage. 
@@ -28,48 +32,34 @@ function [save_vars, model_l, model_g] = ...
     %Characteristic velocities and time:
     NF_vl       = 1e-4;  %Characteristic value for liquid velocity
     NF_vg       = 1e-1;  %Characteristic value for gas velocity
-    NF_tau      = 1e-4;  %Characteristic time
+    NF_tau      = 1e-6;  %Characteristic time
     %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
-    
-    %Relaxation time:
-    tau_relax   = 1e-6;
-%     tau_relax   = Inf;
     
     %Domain limits:
     x_l         = 0.0;
     x_g         = XRad*x_lg;
 
     %Initial mesh coordinates:
-%     x_liq          = linspace(0, 1, nElems_l);
-%     alpha_l        = 0.7;
-%     xmesh_l        = x_lg * (x_liq.^alpha_l);
-%     mu_l           = -0.2;
-%     xmesh_l        = x_lg*(exp(mu_l*(0:nElems_l))-1.0)/(exp(mu_l*nElems_l)-1.0);
-%     mu_l            = -2.0;
     xmesh_l         = x_lg*(exp(mu_l*(0:nElems_l)/nElems_l)-1)/...
                             (exp(mu_l)-1);
-    %
-%     x_gas          = linspace(0, 1, nElems_g);
-%     alpha_g        = 1/alpha_l;
-%     xmesh_g        = x_lg + (x_g-x_lg)*(x_gas.^alpha_g);
-%     mu_g            = 2.0;
-%     xmesh_g         = x_lg + (x_g-x_lg)*(exp(mu_g*(0:nElems_g))-1.0)/(exp(mu_g*nElems_g)-1.0);
     xmesh_g         = x_lg + (x_g-x_lg)*( exp(mu_g*(0:nElems_g)/nElems_g)-1.0 ) / ...
                                         ( exp(mu_g)-1.0 );
-    %Correct roundoff errrors:
-%     xmesh_l(end)   = x_lg;
-%     xmesh_g(1)     = x_lg;
-    
-%     figure;
-%     hold on;
-%     plot(xmesh_l, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
-%     plot(xmesh_g, zeros(size(xmesh_g)), 'r*', 'MarkerSize', 6, 'LineWidth', 1.5, 'DisplayName', 'Gas'); 
-%     plot(x_lg, 0, 'go', 'MarkerSize', 10, 'LineWidth', 2, 'DisplayName', 'Interface');
-%     xlabel('x [m]');
-%     title('Point distribution in liquid and gas');
-%     legend('Location', 'best');
-%     grid on;
-%     return
+    if false
+        figure;
+        hold on;
+        plot(xmesh_l, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
+        plot(xmesh_g, zeros(size(xmesh_g)), 'r*', 'MarkerSize', 6, 'LineWidth', 1.5, 'DisplayName', 'Gas'); 
+        plot(x_lg, 0, 'go', 'MarkerSize', 10, 'LineWidth', 2, 'DisplayName', 'Interface');
+        xlabel('x [m]');
+        title('Point distribution in liquid and gas');
+        legend('Location', 'best');
+        grid on;
+        return
+    end
+
+    %Display minimum mesh sizes:
+    disp(['hmin_l=', sprintf('%.2E', min(diff(xmesh_l))), ...
+            ', hmin_g=', sprintf('%.2E', min(diff(xmesh_g)))])
     
     %Load models:
     model_l        = Liquid_ALE(fuel_names,mass_fracL, inert_comps, mass_fracG);
@@ -330,7 +320,8 @@ function [save_vars, model_l, model_g] = ...
     end
 
     function u = u0_g(x)
-        u       = u0_g_Millan(x);
+        u       = u0_g_const(x);  
+%         u       = u0_g_Millan(x);
     end
     
     %Boundary conditions:
@@ -379,8 +370,6 @@ function [save_vars, model_l, model_g] = ...
     %Calculate estimated evaporation time (if known, add manually):
     t_evap      = calc_t_evap(T_inf,y_inf,model_l,model_g,mass_fracL,fuel_names,x_lg);
     t_evap      = real(t_evap);
-    t_evap      = 10.0;
-    warning('t_evap')
 
     %Distribution of the saved time instants: 55% are saved in the first 20% of the 
     %simulation and the remaining 45% in the final 80% of the simulation (MODIFIABLE)
@@ -580,26 +569,26 @@ function [save_vars, model_l, model_g] = ...
     end
     PlotFun(sol_n)
             
-    %Check diffusive CFL based on bc change:
-    rhoy_l0         = VectorToCell(sol_n.qL(1:model_l.nSpecies), model_l.nSpecies);
-    rhoy_g0         = VectorToCell(sol_n.qR(1:model_g.nSpecies), model_g.nSpecies);
-    [rho_l0,y_l0]   = calc_rho_y(rhoy_l0, model_l);
-    [rho_g0,y_g0]   = calc_rho_y(rhoy_g0, model_g);
-    H_l0            = sol_n.qL(model_l.nDiff);
-    H_g0            = sol_n.qR(model_g.nDiff);
-    T_l0            = calc_T(H_l0,rhoy_l0,model_l);
-    T_g0            = calc_T(H_g0,rhoy_g0,model_g);
-    D_rho_l         = calc_D_rho(T_l0, y_l0, model_l);
-    D_T_l           = calc_D_T(T_l0, y_l0, model_l);
-    D_max_l         = max( D_rho_l, D_T_l );
-    D_rho_g         = calc_D_rho(T_g0, y_g0, model_g);
-    D_T_g           = calc_D_T(T_g0, y_g0, model_g);   
-    D_max_g         = max( D_rho_g, D_T_g );
-    hmin_l          = min( diff(xmesh_l) );
-    hmin_g          = min( diff(xmesh_g) );
-    CFL_relax_l     = D_max_l*tau_relax/hmin_l^2;
-    CFL_relax_g     = D_max_g*tau_relax/hmin_g^2;
-    disp(['CFL_relax_l=', sprintf('%.2E', CFL_relax_l), ', CFL_relax_g=', sprintf('%.2E', CFL_relax_g)])
+%     %Check diffusive CFL based on bc change:
+%     rhoy_l0         = VectorToCell(sol_n.qL(1:model_l.nSpecies), model_l.nSpecies);
+%     rhoy_g0         = VectorToCell(sol_n.qR(1:model_g.nSpecies), model_g.nSpecies);
+%     [rho_l0,y_l0]   = calc_rho_y(rhoy_l0, model_l);
+%     [rho_g0,y_g0]   = calc_rho_y(rhoy_g0, model_g);
+%     H_l0            = sol_n.qL(model_l.nDiff);
+%     H_g0            = sol_n.qR(model_g.nDiff);
+%     T_l0            = calc_T(H_l0,rhoy_l0,model_l);
+%     T_g0            = calc_T(H_g0,rhoy_g0,model_g);
+%     D_rho_l         = calc_D_rho(T_l0, y_l0, model_l);
+%     D_T_l           = calc_D_T(T_l0, y_l0, model_l);
+%     D_max_l         = max( D_rho_l, D_T_l );
+%     D_rho_g         = calc_D_rho(T_g0, y_g0, model_g);
+%     D_T_g           = calc_D_T(T_g0, y_g0, model_g);   
+%     D_max_g         = max( D_rho_g, D_T_g );
+%     hmin_l          = min( diff(xmesh_l) );
+%     hmin_g          = min( diff(xmesh_g) );
+%     CFL_relax_l     = D_max_l*tau_relax/hmin_l^2;
+%     CFL_relax_g     = D_max_g*tau_relax/hmin_g^2;
+%     disp(['CFL_relax_l=', sprintf('%.2E', CFL_relax_l), ', CFL_relax_g=', sprintf('%.2E', CFL_relax_g)])
     
     %----------------------------------------------------------------------
     %MARCH IN TIME:
@@ -970,10 +959,10 @@ function [save_vars, model_l, model_g] = ...
         end
         
         %Append equilibrium conditions:
-%         DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
-%         DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
-        DeltaT_np1              = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
-        DeltaP_np1              = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
+        DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
+        DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
+%         DeltaT_np1              = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
+%         DeltaP_np1              = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
         [rEq, JEq]              = EquilibriumConditions(model_l, model_g, ...
                                     [sol_np1.qL; sol_np1.qR(1:model_g.nDiff)], ...
                                     DeltaT_np1, DeltaP_np1, NF_l, NF_g, true);
@@ -1134,10 +1123,6 @@ function [save_vars, model_l, model_g] = ...
             Srinv           = { 1.0/R_l * speye(nNodes_l);
                                 1.0/R_g * speye(nNodes_g);
                                 ScalingMatrix(Srinv_factors, Srinv_mult) }; 
-%             Sy              = speye(sum(Sy_mult));
-%             Srinv           = { speye(nNodes_l);
-%                                 speye(nNodes_g);
-%                                 speye(sum(Srinv_mult)) }; 
                             
             %Initialize stage variables:
             ii              = 1;
@@ -1168,65 +1153,6 @@ function [save_vars, model_l, model_g] = ...
 
                 %Update time:
                 sol_np1.t           = sol_n.t + Deltat_n*RKmethod.c(ii);
-                
-%                 %DEBUG:
-%                 A_num           = Srinv{3}*A_n{3}*Sy(nNodes_l+nNodes_g+1:end, nNodes_l+nNodes_g+1:end);
-%                 A_num2          = zeros(size(A_num));
-%                 delta           = 1e-6;
-%                 yscaled         = Sy\yv_np1;
-%                 for jj=1:size(A_num,2)
-%                    %
-%                    yscaled_pert     = yscaled;
-%                    yscaled_pert(nNodes_l+nNodes_g+jj)   = ...
-%                                         yscaled_pert(nNodes_l+nNodes_g+jj) - delta;
-%                    y_pert           = Sy*yscaled_pert;
-%                    [f_pert,~]       = ResidualFun(y_pert, false);
-%                    fscaled_pert1    = Srinv{3}*f_pert{3};
-%                    %
-%                    yscaled_pert     = yscaled;
-%                    yscaled_pert(nNodes_l+nNodes_g+jj)   = ...
-%                                         yscaled_pert(nNodes_l+nNodes_g+jj) + delta;
-%                    y_pert           = Sy*yscaled_pert;
-%                    [f_pert,~]       = ResidualFun(y_pert, false);
-%                    fscaled_pert2    = Srinv{3}*f_pert{3};
-%                    %
-%                    A_num2(:,jj)     = (fscaled_pert2-fscaled_pert1)/(2*delta);
-%                 end
-%                 nDof_l  = sol_np1.fesl.nDof;
-%                 nDof_g  = sol_np1.fesg.nDof;
-%                 blocks  = { (1:model_l.nSpecies*nDof_l), ...
-%                             model_l.nSpecies*nDof_l+(1:nDof_l), ...
-%                             model_l.nDiff*nDof_l+(1:nDof_l), ...
-%                             N_l+(1:model_g.nSpecies*nDof_g), ...
-%                             N_l+model_g.nSpecies*nDof_g+(1:nDof_g), ...
-%                             N_l+model_g.nDiff*nDof_g+(1:nDof_g), ...
-%                             N_l+N_g+(1:N_L+N_R+1)};
-%                 names   = { 'rhoY_l', 'H_l', 'v_l', ...
-%                             'rhoY_g', 'H_g', 'v_g', ... 
-%                             'z', };
-%                 for II=length(blocks)
-%                     for JJ=1:length(blocks)
-%                         A_num_IJ    = A_num(blocks{II}, blocks{JJ});
-%                         [iv,jv,sv]  = find(A_num_IJ);
-%                         A_num2_IJ   = A_num2(blocks{II}, blocks{JJ});
-%                         sv2         = A_num2_IJ(iv+(jv-1)*size(A_num_IJ,1));
-%                         figure()
-%                         plot(sv, '-xb')
-%                         hold on
-%                         plot(sv2, '+g')
-%                         title([names{II} names{JJ}])
-%                         %
-% %                         figure()
-% %                         spy(A_num_IJ)
-% %                         title([names{II} names{JJ}])
-% %                         %
-% %                         figure()
-% %                         spy(A_num2_IJ)
-% %                         title([names{II} names{JJ}])
-%                     end
-%                 end
-%                 return
-%                 %DEBUG
             
                 %Auxiliary vectors:
                 bmesh_l_ii          = sol_n.fesl.mesh.x_faces + Deltat_n * (kmesh_l_RK(:,1:ii-1)*RKmethod.aI(ii,1:ii-1).');
@@ -1332,40 +1258,26 @@ function [save_vars, model_l, model_g] = ...
                 ', NLSiters/stage=', sprintf('%.1f',NLS_iters), ...
                 ', tCPU=', sprintf('%.2E', toc(tStart)) ])
 
-        %DEBUG:
-%         DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
-%         DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
-%         z0                  = cat(1, sol_np1.qL, sol_np1.qR, sol_np1.w);
-%         [z, nIters, flag]   = CouplingConditions(z0, sol_np1.t, ...
-%                                 DeltaT_np1, DeltaP_np1, ...
-%                                 model_l, sol_np1.fesl, sol_np1.ul, NF_l, ...
-%                                 model_g, sol_np1.fesg, sol_np1.ug, NF_g);
-        uL                  = EvalSolution(sol_np1.ul, sol_n.fesl, [sol_n.fesl.mesh.nElems], [1.0]);
-        uR                  = EvalSolution(sol_np1.ug, sol_n.fesg, [1], [-1.0]);
-        disp('aaa')        
-        disp(sol_np1.qL(1:end-1))
-        disp(sol_np1.qL(end))
-        disp(sol_np1.qR(1:end-2))
-        disp(sol_np1.qR(end-1))
-        disp(sol_np1.qR(end))
-        disp(sol_np1.w)
-        disp('Temperatures')
-        rhoy_ql          = VectorToCell(sol_np1.qL(1:end-1), model_l.nSpecies);
-        rhoy_qg          = VectorToCell(sol_np1.qR(1:end-2), model_g.nSpecies);
-        H_ql             = sol_np1.qL(model_l.nSpecies+1);
-        H_qg             = sol_np1.qR(model_g.nSpecies+1);
-        T_ql             = calc_T(H_ql,rhoy_ql,model_l);
-        T_qg             = calc_T(H_qg,rhoy_qg,model_g);
-        display(T_ql)
-        display(T_qg)
+        %DEBUG: Evaluate temperature from numerical solution:
+        uL               = EvalSolution(sol_np1.ul, sol_n.fesl, [sol_n.fesl.mesh.nElems], [1.0]);
+        uR               = EvalSolution(sol_np1.ug, sol_n.fesg, [1], [-1.0]);
         rhoy_ql          = uL(1:model_l.nSpecies);
         rhoy_qg          = uR(1:model_g.nSpecies);
         H_ql             = uL{model_l.nSpecies+1};
         H_qg             = uR{model_g.nSpecies+1};
-        T_ql             = calc_T(H_ql,rhoy_ql,model_l);
-        T_qg             = calc_T(H_qg,rhoy_qg,model_g);
-        display(T_ql)
-        display(T_qg)
+        T_ql_num         = calc_T(H_ql,rhoy_ql,model_l);
+        T_qg_num         = calc_T(H_qg,rhoy_qg,model_g);
+        %DEBUG: Evaluate temperature from boundary conditions:
+        rhoy_ql          = VectorToCell(sol_np1.qL(1:end-1), model_l.nSpecies);
+        rhoy_qg          = VectorToCell(sol_np1.qR(1:end-2), model_g.nSpecies);
+        H_ql             = sol_np1.qL(model_l.nSpecies+1);
+        H_qg             = sol_np1.qR(model_g.nSpecies+1);
+        T_ql_bc          = calc_T(H_ql,rhoy_ql,model_l);
+        T_qg_bc          = calc_T(H_qg,rhoy_qg,model_g);
+        disp([  'T_ql=', sprintf('%.5E', T_ql_bc), ...
+                ', DeltaT_ql=', sprintf('%3.E', abs(T_ql_bc-T_ql_num)), ...
+                ', T_qg=', sprintf('%.5E', T_qg_bc), ...
+                ', DeltaT_qg=', sprintf('%3.E', abs(T_qg_bc-T_qg_num)) ] );
         
         %Update solution:
         sol_np1.t   = t_np1;    %Correct roundoff errors for last stage
