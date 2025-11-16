@@ -569,27 +569,6 @@ function [save_vars, model_l, model_g] = ...
     end
     PlotFun(sol_n)
             
-%     %Check diffusive CFL based on bc change:
-%     rhoy_l0         = VectorToCell(sol_n.qL(1:model_l.nSpecies), model_l.nSpecies);
-%     rhoy_g0         = VectorToCell(sol_n.qR(1:model_g.nSpecies), model_g.nSpecies);
-%     [rho_l0,y_l0]   = calc_rho_y(rhoy_l0, model_l);
-%     [rho_g0,y_g0]   = calc_rho_y(rhoy_g0, model_g);
-%     H_l0            = sol_n.qL(model_l.nDiff);
-%     H_g0            = sol_n.qR(model_g.nDiff);
-%     T_l0            = calc_T(H_l0,rhoy_l0,model_l);
-%     T_g0            = calc_T(H_g0,rhoy_g0,model_g);
-%     D_rho_l         = calc_D_rho(T_l0, y_l0, model_l);
-%     D_T_l           = calc_D_T(T_l0, y_l0, model_l);
-%     D_max_l         = max( D_rho_l, D_T_l );
-%     D_rho_g         = calc_D_rho(T_g0, y_g0, model_g);
-%     D_T_g           = calc_D_T(T_g0, y_g0, model_g);   
-%     D_max_g         = max( D_rho_g, D_T_g );
-%     hmin_l          = min( diff(xmesh_l) );
-%     hmin_g          = min( diff(xmesh_g) );
-%     CFL_relax_l     = D_max_l*tau_relax/hmin_l^2;
-%     CFL_relax_g     = D_max_g*tau_relax/hmin_g^2;
-%     disp(['CFL_relax_l=', sprintf('%.2E', CFL_relax_l), ', CFL_relax_g=', sprintf('%.2E', CFL_relax_g)])
-    
     %----------------------------------------------------------------------
     %MARCH IN TIME:
     
@@ -652,7 +631,7 @@ function [save_vars, model_l, model_g] = ...
         sol_np1.fesg        = FES_QX_Create(mesh_g_np1, p);
         Mm_g_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesg), model_g.nDiff, model_g.nAlg);
         
-%         PlotFun(sol_np1)
+        PlotFun(sol_np1)
         
         %Update boundary conditions. MATLAB works with copies, not pointers, 
         %so this is not already done in CouplingConditions:
@@ -715,25 +694,25 @@ function [save_vars, model_l, model_g] = ...
             
         end
         
-        %Impose known velocity:
-        block_vl                    = model_l.nDiff*sol_np1.fesl.nDof + (1:sol_np1.fesl.nDof).';
-        mass_l                      = MassMatrix(sol_np1.fesl);
-        y_l                         = y(block_l);
-        function v_l=v_l_fun(x)
-            v_l                     = { 0.0*x };
-        end
-        b_vl                        = ProjectFun(@v_l_fun, sol_n.fesl);
-        r_l(block_vl)               = Deltat_n*(mass_l*y_l(block_vl) - b_vl);
-        if ComputeJ
-            %Delete previous components:
-            aux                     = find((J_l.iv>=block_vl(1)) & (J_l.iv<=block_vl(end)));
-            J_l.sv(aux)             = 0.0;
-            %New components:
-            [Mm_iv, Mm_jv, Mm_sv]   = find(mass_l);
-            J_l.iv                  = cat(1, J_l.iv, Mm_iv+block_vl(1)-1);
-            J_l.jv                  = cat(1, J_l.jv, Mm_jv+block_vl(1)-1);
-            J_l.sv                  = cat(1, J_l.sv, Deltat_n*Mm_sv);
-        end 
+%         %Impose known velocity:
+%         block_vl                    = model_l.nDiff*sol_np1.fesl.nDof + (1:sol_np1.fesl.nDof).';
+%         mass_l                      = MassMatrix(sol_np1.fesl);
+%         y_l                         = y(block_l);
+%         function v_l=v_l_fun(x)
+%             v_l                     = { 0.0*x };
+%         end
+%         b_vl                        = ProjectFun(@v_l_fun, sol_n.fesl);
+%         r_l(block_vl)               = Deltat_n*(mass_l*y_l(block_vl) - b_vl);
+%         if ComputeJ
+%             %Delete previous components:
+%             aux                     = find((J_l.iv>=block_vl(1)) & (J_l.iv<=block_vl(end)));
+%             J_l.sv(aux)             = 0.0;
+%             %New components:
+%             [Mm_iv, Mm_jv, Mm_sv]   = find(mass_l);
+%             J_l.iv                  = cat(1, J_l.iv, Mm_iv+block_vl(1)-1);
+%             J_l.jv                  = cat(1, J_l.jv, Mm_jv+block_vl(1)-1);
+%             J_l.sv                  = cat(1, J_l.sv, Deltat_n*Mm_sv);
+%         end 
         
         %------------------------------------------------------------------
         %IMPOSE DAE FOR GAS:
@@ -793,25 +772,25 @@ function [save_vars, model_l, model_g] = ...
 %             J_g.sv                  = cat(1, J_g.sv, scal_factor*phim.');
 %         end
 
-        %Impose known velocity:
-        block_vg                    = model_g.nDiff*sol_np1.fesg.nDof + (1:sol_np1.fesg.nDof).';
-        mass_g                      = MassMatrix(sol_np1.fesg);
-        y_g                         = y(block_g);
-        function v_g=v_g_fun(x)
-            v_g                     = { sol_np1.qR(end)*(mesh_g_np1.x_faces(1)./x).^2 };
-        end
-        b_vg                        = ProjectFun(@v_g_fun, sol_n.fesg);
-        r_g(block_vg)               = Deltat_n*(mass_g*y_g(block_vg) - b_vg);
-        if ComputeJ
-            %Delete previous components:
-            aux                     = find(J_g.iv>=block_vg(1) & J_g.iv<=block_vg(end));
-            J_g.sv(aux)             = 0.0;
-            %New components:
-            [Mm_iv, Mm_jv, Mm_sv]   = find(mass_g);
-            J_g.iv                  = cat(1, J_g.iv, Mm_iv+block_vg(1)-1);
-            J_g.jv                  = cat(1, J_g.jv, Mm_jv+block_vg(1)-1);
-            J_g.sv                  = cat(1, J_g.sv, Deltat_n*Mm_sv);
-        end 
+%         %Impose known velocity:
+%         block_vg                    = model_g.nDiff*sol_np1.fesg.nDof + (1:sol_np1.fesg.nDof).';
+%         mass_g                      = MassMatrix(sol_np1.fesg);
+%         y_g                         = y(block_g);
+%         function v_g=v_g_fun(x)
+%             v_g                     = { sol_np1.qR(end)*(mesh_g_np1.x_faces(1)./x).^2 };
+%         end
+%         b_vg                        = ProjectFun(@v_g_fun, sol_n.fesg);
+%         r_g(block_vg)               = Deltat_n*(mass_g*y_g(block_vg) - b_vg);
+%         if ComputeJ
+%             %Delete previous components:
+%             aux                     = find(J_g.iv>=block_vg(1) & J_g.iv<=block_vg(end));
+%             J_g.sv(aux)             = 0.0;
+%             %New components:
+%             [Mm_iv, Mm_jv, Mm_sv]   = find(mass_g);
+%             J_g.iv                  = cat(1, J_g.iv, Mm_iv+block_vg(1)-1);
+%             J_g.jv                  = cat(1, J_g.jv, Mm_jv+block_vg(1)-1);
+%             J_g.sv                  = cat(1, J_g.sv, Deltat_n*Mm_sv);
+%         end 
         
         %------------------------------------------------------------------
         %IMPOSE INTERFACE CONDITIONS:
