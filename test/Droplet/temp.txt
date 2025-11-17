@@ -392,3 +392,60 @@ T_ql=316.22459187, DeltaT_ql=5.68E-14, T_qg=316.22459187, DeltaT_qg=1.78E-11
 v_l=0.00000000, v_g=0.22220872, w=-0.00006252
 Simulation finished, tCPU=1.43E+02
 
+---
+
+t=7.60E-07, tau=2.40E-07, CFL=4.14E+05, errT=8.71E-10, NLSiters/stage=34.2, tCPU=8.26E+01
+T_ql=310.64457523, DeltaT_ql=1.14E-13, T_qg=310.64457523, DeltaT_qg=7.55E-04
+v_l=2.08093E-09, v_g=5.63159E-02, w=-1.58816E-05
+Simulation finished, tCPU=8.27E+01
+
+t=9.25E-07, tau=7.48E-08, CFL=5.68E+06, errT=3.10E-11, NLSiters/stage=55.0, tCPU=1.17E+02
+T_ql=310.64456716, DeltaT_ql=2.27E-13, T_qg=310.64456716, DeltaT_qg=6.44E-07
+v_l=-3.58751E-10, v_g=5.64496E-02, w=-1.58834E-05
+Simulation finished, tCPU=1.17E+02
+
+t=9.70E-07, tau=3.04E-08, CFL=1.08E+07, errT=2.70E-10, NLSiters/stage=57.0, tCPU=1.74E+02
+T_ql=310.64474472, DeltaT_ql=0.00E+00, T_qg=310.64474472, DeltaT_qg=6.05E-09
+v_l=-1.91595E-12, v_g=5.64499E-02, w=-1.58835E-05
+Simulation finished, tCPU=1.75E+02
+
+---
+
+t=7.02E-07, tau=2.98E-07, CFL=6.56E+05, errT=1.73E-09, NLSiters/stage=34.8, tCPU=9.13E+01
+T_ql=310.64478615, DeltaT_ql=5.68E-13, T_qg=310.64478611, DeltaT_qg=1.24E-05
+v_l=-3.50242E-09, v_g=5.64784E-02, w=-1.58947E-05
+Simulation finished, tCPU=9.15E+01
+
+t=9.42E-07, tau=5.83E-08, CFL=7.08E+05, errT=1.32E-11, NLSiters/stage=42.5, tCPU=1.09E+02
+T_ql=310.64458754, DeltaT_ql=1.71E-13, T_qg=310.64458753, DeltaT_qg=7.87E-07
+v_l=2.72807E-08, v_g=5.64505E-02, w=-1.58563E-05
+Simulation finished, tCPU=1.09E+02
+
+t=9.31E-07, tau=6.92E-08, CFL=3.93E+06, errT=2.26E-11, NLSiters/stage=52.0, tCPU=1.28E+02
+T_ql=310.64457552, DeltaT_ql=5.68E-14, T_qg=310.64457552, DeltaT_qg=5.63E-08
+v_l=-5.20182E-12, v_g=5.64489E-02, w=-1.58833E-05
+Simulation finished, tCPU=1.28E+02
+
+---
+
+t=9.29E-07, tau=7.13E-08, CFL=9.76E+05, errT=1.86E-10, NLSiters/stage=62.2, tCPU=2.61E+02
+T_ql=312.28788718, DeltaT_ql=3.41E-13, T_qg=312.28788718, DeltaT_qg=8.68E-04
+v_l=6.72147E-04, v_g=6.24422E-02, w=5.65075E-04
+Simulation finished, tCPU=2.62E+02
+
+t=9.17E-07, tau=8.26E-08, CFL=6.24E+06, errT=2.91E-10, NLSiters/stage=84.0, tCPU=3.81E+02
+T_ql=312.28796091, DeltaT_ql=0.00E+00, T_qg=312.28796091, DeltaT_qg=1.44E-05
+v_l=6.72184E-04, v_g=6.13750E-02, w=5.65101E-04
+Simulation finished, tCPU=3.81E+02
+
+t=8.82E-07, tau=1.18E-07, CFL=4.18E+07, errT=8.62E-10, NLSiters/stage=84.5, tCPU=3.63E+02
+T_ql=312.28795979, DeltaT_ql=1.71E-13, T_qg=312.28795979, DeltaT_qg=2.50E-07
+v_l=6.72183E-04, v_g=6.14157E-02, w=5.65100E-04
+
+t=9.12E-07, tau=8.78E-08, CFL=4.96E+06, errT=3.49E-10, NLSiters/stage=75.5, tCPU=2.99E+02
+T_ql=312.28797665, DeltaT_ql=1.71E-13, T_qg=312.28797666, DeltaT_qg=1.28E-06
+v_l=6.72186E-04, v_g=6.14058E-02, w=5.65102E-04
+
+
+
+
