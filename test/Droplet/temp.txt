@@ -446,6 +446,41 @@ t=9.12E-07, tau=8.78E-08, CFL=4.96E+06, errT=3.49E-10, NLSiters/stage=75.5, tCPU
 T_ql=312.28797665, DeltaT_ql=1.71E-13, T_qg=312.28797666, DeltaT_qg=1.28E-06
 v_l=6.72186E-04, v_g=6.14058E-02, w=5.65102E-04
 
+t=8.17E-07, tau=1.83E-07, CFL=4.47E+07, errT=3.28E-09, NLSiters/stage=83.0, tCPU=3.43E+02
+T_ql=312.28796171, DeltaT_ql=1.71E-13, T_qg=312.28796171, DeltaT_qg=1.82E-07
+v_l=6.72183E-04, v_g=6.14116E-02, w=5.65100E-04
+Simulation finished, tCPU=3.43E+02
 
+t=8.86E-07, tau=1.14E-07, CFL=2.78E+07, errT=7.66E-10, NLSiters/stage=100.5, tCPU=5.91E+02
+Y_qg=0.0000E+00, DeltaY_ql=0.00000E+00, Y_qg=6.1200E-01, DeltaY_qg=1.17436E-11
+Y_qg=0.0000E+00, DeltaY_ql=0.00000E+00, Y_qg=0.0000E+00, DeltaY_qg=0.00000E+00
+Y_qg=0.0000E+00, DeltaY_ql=0.00000E+00, Y_qg=1.9425E-01, DeltaY_qg=3.69926E-12
+Y_qg=0.0000E+00, DeltaY_ql=0.00000E+00, Y_qg=7.0579E-02, DeltaY_qg=1.36882E-12
+Y_qg=7.4942E-01, DeltaY_ql=0.00000E+00, Y_qg=1.2317E-01, DeltaY_qg=1.68118E-11
+Y_qg=2.5058E-01, DeltaY_ql=0.00000E+00, Y_qg=1.3461E-07, DeltaY_qg=3.32338E-17
+T_ql=312.28796244, DeltaT_ql=5.68E-14, T_qg=312.28796245, DeltaT_qg=2.22E-07
+v_l=6.72183E-04, v_g=6.14113E-02, w=5.65100E-04
+Simulation finished, tCPU=5.91E+02
 
+t=8.45E-07, tau=1.55E-07, CFL=8.77E+06, errT=1.97E-09, NLSiters/stage=102.2, tCPU=4.75E+02
+Y_qg=0.0000E+00, DeltaY_ql=0.00000E+00, Y_qg=6.1200E-01, DeltaY_qg=6.87506E-11
+Y_qg=0.0000E+00, DeltaY_ql=0.00000E+00, Y_qg=0.0000E+00, DeltaY_qg=0.00000E+00
+Y_qg=0.0000E+00, DeltaY_ql=0.00000E+00, Y_qg=1.9425E-01, DeltaY_qg=2.15597E-11
+Y_qg=0.0000E+00, DeltaY_ql=0.00000E+00, Y_qg=7.0579E-02, DeltaY_qg=8.06283E-12
+Y_qg=7.4942E-01, DeltaY_ql=0.00000E+00, Y_qg=1.2317E-01, DeltaY_qg=9.83731E-11
+Y_qg=2.5058E-01, DeltaY_ql=1.11022E-16, Y_qg=1.3461E-07, DeltaY_qg=1.94244E-16
+T_ql=312.28797708, DeltaT_ql=5.68E-14, T_qg=312.28797709, DeltaT_qg=1.30E-06
+v_l=6.72186E-04, v_g=6.14057E-02, w=5.65102E-04
+Simulation finished, tCPU=4.75E+02
+
+t=9.17E-07, tau=8.26E-08, CFL=6.24E+06, errT=2.91E-10, NLSiters/stage=84.0, tCPU=4.14E+02
+Y_qg=0.0000E+00, DeltaY_ql=0.00000E+00, Y_qg=6.1200E-01, DeltaY_qg=7.64386E-10
+Y_qg=0.0000E+00, DeltaY_ql=0.00000E+00, Y_qg=-3.2947E-13, DeltaY_qg=1.72655E-19
+Y_qg=0.0000E+00, DeltaY_ql=0.00000E+00, Y_qg=1.9425E-01, DeltaY_qg=2.41911E-10
+Y_qg=0.0000E+00, DeltaY_ql=0.00000E+00, Y_qg=7.0579E-02, DeltaY_qg=8.85168E-11
+Y_qg=7.4942E-01, DeltaY_ql=2.22045E-16, Y_qg=1.2317E-01, DeltaY_qg=1.09481E-09
+Y_qg=2.5058E-01, DeltaY_ql=2.77556E-16, Y_qg=1.3461E-07, DeltaY_qg=2.16714E-15
+T_ql=312.28796091, DeltaT_ql=0.00E+00, T_qg=312.28796091, DeltaT_qg=1.44E-05
+v_l=6.72184E-04, v_g=6.13750E-02, w=5.65101E-04
+Simulation finished, tCPU=4.14E+02
 

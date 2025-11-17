@@ -9,15 +9,11 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
-nElems_l          = 80;    % Number of elements in the liquid phase
-nElems_g          = 80;    % Number of elements in the gas phase (first part)
+nElems_l          = 40;    % Number of elements in the liquid phase
+nElems_g          = 40;    % Number of elements in the gas phase (first part)
 mu_l              = -12.0;  
 mu_g              = 12.0; 
-% mu_l              = -8.0;  
-% mu_g              = 8.0; 
-% mu_l              = -5.0;  
-% mu_g              = 5.0; 
-p                 = 2;     % Degree of the polynomial basis functions
+p                 = 5;     % Degree of the polynomial basis functions
 
 Deltat0           = 1.01e-10;  % Initial time step
                            % If you get warnings like:

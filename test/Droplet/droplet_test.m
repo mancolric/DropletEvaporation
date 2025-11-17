@@ -1333,22 +1333,38 @@ function [save_vars, model_l, model_g] = ...
                 ', NLSiters/stage=', sprintf('%.1f',NLS_iters), ...
                 ', tCPU=', sprintf('%.2E', toc(tStart)) ])
 
-        %DEBUG: Evaluate temperature from numerical solution:
+        %Evaluate densities and temperature from numerical solution:
         uL               = EvalSolution(sol_np1.ul, sol_n.fesl, [sol_n.fesl.mesh.nElems], [1.0]);
         uR               = EvalSolution(sol_np1.ug, sol_n.fesg, [1], [-1.0]);
         rhoy_ql          = uL(1:model_l.nSpecies);
         rhoy_qg          = uR(1:model_g.nSpecies);
         H_ql             = uL{model_l.nSpecies+1};
         H_qg             = uR{model_g.nSpecies+1};
+        [~,y_ql_num]     = calc_rho_y(rhoy_ql, model_l);
+        [~,y_qg_num]     = calc_rho_y(rhoy_qg, model_g);
         T_ql_num         = calc_T(H_ql,rhoy_ql,model_l);
         T_qg_num         = calc_T(H_qg,rhoy_qg,model_g);
-        %DEBUG: Evaluate temperature from boundary conditions:
+        %Evaluate densities and temperature from boundary conditions:
         rhoy_ql          = VectorToCell(sol_np1.qL(1:end-1), model_l.nSpecies);
         rhoy_qg          = VectorToCell(sol_np1.qR(1:end-2), model_g.nSpecies);
         H_ql             = sol_np1.qL(model_l.nSpecies+1);
         H_qg             = sol_np1.qR(model_g.nSpecies+1);
+        [~,y_ql_bc]      = calc_rho_y(rhoy_ql, model_l);
+        [~,y_qg_bc]      = calc_rho_y(rhoy_qg, model_g);
         T_ql_bc          = calc_T(H_ql,rhoy_ql,model_l);
         T_qg_bc          = calc_T(H_qg,rhoy_qg,model_g);
+        for II=1:model_g.nInerts
+            disp([  'Y_qg=', sprintf('%.4E', 0.0), ...
+                    ', DeltaY_ql=', sprintf('%.5E', 0.0), ...
+                    ', Y_qg=', sprintf('%.4E', y_qg_bc{II}), ...
+                    ', DeltaY_qg=', sprintf('%.5E', abs(y_qg_bc{II}-y_qg_num{II}))])
+        end
+        for II=model_g.nInerts+1:model_g.nSpecies
+            disp([  'Y_qg=', sprintf('%.4E', y_ql_bc{II-model_g.nInerts}), ...
+                    ', DeltaY_ql=', sprintf('%.5E', abs(y_ql_bc{II-model_g.nInerts}-y_ql_num{II-model_g.nInerts})), ...
+                    ', Y_qg=', sprintf('%.4E', y_qg_bc{II}), ...
+                    ', DeltaY_qg=', sprintf('%.5E', abs(y_qg_bc{II}-y_qg_num{II}))])
+        end        
         disp([  'T_ql=', sprintf('%.8f', T_ql_bc), ...
                 ', DeltaT_ql=', sprintf('%.2E', abs(T_ql_bc-T_ql_num)), ...
                 ', T_qg=', sprintf('%.8f', T_qg_bc), ...
