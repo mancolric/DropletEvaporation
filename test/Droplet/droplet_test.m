@@ -558,7 +558,7 @@ function [save_vars, model_l, model_g] = ...
             H_qg       = sol.qR(model_g.nSpecies+1);
             T_ql       = calc_T(H_ql,rhoy_ql,model_l);
             T_qg       = calc_T(H_qg,rhoy_qg,model_g);
-            disp(['T_ql=', sprintf('%.8f', T_ql), ', T_qg=', sprintf('%.8f', T_qg)])
+%             disp(['T_ql=', sprintf('%.8f', T_ql), ', T_qg=', sprintf('%.8f', T_qg)])
 
             uplot_ql   = [ {rho_ql}; {T_ql} ];
             uplot_qg   = [ {rho_qg}; {T_qg} ];
@@ -642,23 +642,6 @@ function [save_vars, model_l, model_g] = ...
     prolm_gg_sv     = cat(2, ones(1,N_ug), prolm_g_sv.');
     prolm_gg        = sparse(prolm_gg_iv, prolm_gg_jv, prolm_gg_sv, ...
                             nDAE_g*sol_n.fesg.nDof, N_ug+N_vg);
-                        
-%     prolm_lgz_iv    = cat(2, 1:N_ul, ...
-%                             N_ul+prolm_l_iv.', ...
-%                             nDAE_l*sol_n.fesl.nDof+(1:N_ug), ...
-%                             nDAE_l*sol_n.fesl.nDof+N_ug+prolm_g_iv.', ...
-%                             nDAE_l*sol_n.fesl.nDof+nDAE_g*sol_n.fesg.nDof+(1:N_z));
-%     prolm_lgz_jv    = cat(2, 1:N_ul, ...
-%                             N_ul+prolm_l_jv.', ...
-%                             N_ul+N_vl+(1:N_ug), ...
-%                             N_ul+N_vl+N_ug+prolm_g_jv.', ...
-%                             N_ul+N_vl+N_ug+N_vg+(1:N_z));
-%     prolm_lgz_sv    = cat(2, ones(1,N_ul), prolm_l_sv.', ...
-%                             ones(1,N_ug), prolm_g_sv.', ...
-%                             ones(1,N_z));
-%     prolm_lgz       = sparse(prolm_lgz_iv, prolm_lgz_jv, prolm_lgz_sv, ...
-%                             nDAE_l*sol_n.fesl.nDof+nDAE_g*sol_n.fesg.nDof+N_z, ...
-%                             N_ul+N_vl+N_ug+N_vg+N_z);
      
     %Function that evaluates the residual and the Jacobian of the full
     %system of nonlinear equations at each Runge--Kutta stage. 
@@ -698,7 +681,7 @@ function [save_vars, model_l, model_g] = ...
         sol_np1.fesg        = FES_QX_Create(mesh_g_np1, p);
         Mm_g_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesg), model_g.nDiff, model_g.nAlg);
         
-        PlotFun(sol_np1)
+%         PlotFun(sol_np1)
         
         %Update boundary conditions. MATLAB works with copies, not pointers, 
         %so this is not already done in CouplingConditions:
@@ -1252,9 +1235,9 @@ function [save_vars, model_l, model_g] = ...
                 %modified according to the values of y. Deltat_CFL_n is
                 %also modified when solving the last stage:
                 if TimeAdapt && sol_n.t>0
-                    TolA            = max(1e-8, 0.01*etaT_nm1);
+                    TolA            = max(1e-10, 0.01*etaT_nm1);
                 else
-                    TolA            = 1e-8;
+                    TolA            = 1e-10;
                 end
                 NDOF                            = nDAE_l*fes_l.nDof + nDAE_g*fes_g.nDof; 
                 [yscaled_np1, nIters, NLSFlag]  = Anderson(@PrecResidualFun, Sy\yv_n, ...
@@ -1306,7 +1289,11 @@ function [save_vars, model_l, model_g] = ...
                 etaT            = max(etaT_l, etaT_g);
                 
                 %Apply controler:
-                if etaT<=TolT
+                if sol_n.t==0
+                    %Go to next time level:
+                    Deltat_np1  = Deltat_n;
+                    RepeatT     = false;
+                elseif etaT<=TolT
                     Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(NLS_IterTarget/NLS_iters), 2.0]);
                     RepeatT     = false;
                 else
