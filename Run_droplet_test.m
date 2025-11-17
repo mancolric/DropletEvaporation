@@ -10,7 +10,7 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
 nElems_l          = 10;    % Number of elements in the liquid phase
-nElems_g          = 10;    % Number of elements in the gas phase (first part)
+nElems_g          = 11;    % Number of elements in the gas phase (first part)
 mu_l              = -12.0;  
 mu_g              = 12.0; 
 % mu_l              = -8.0;  

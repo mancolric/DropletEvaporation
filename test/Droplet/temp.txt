@@ -356,3 +356,39 @@ T_qg =
 
 T_ql=317.69622427, T_qg=840.08503073
 Simulation finished, tCPU=2.74E+02
+
+1.061621413299415
+
+    -2.987116913474866e-04
+
+Temperatures
+
+T_ql =
+
+     3.176962217215780e+02
+
+
+T_qg =
+
+     8.400850281848046e+02
+
+
+T_ql =
+
+     3.176962217215808e+02
+
+
+T_qg =
+
+     8.400850338777282e+02
+
+T_ql=317.69622172, T_qg=840.08502818
+Simulation finished, tCPU=2.80E+02
+
+T_ql=316.22464613, DeltaT_ql=1.71E-13, T_qg=316.22464614, DeltaT_qg=7.63E-07
+
+t=9.22E-06, tau=7.84E-07, CFL=5.86E+07, errT=2.04E-09, NLSiters/stage=28.8, tCPU=1.43E+02
+T_ql=316.22459187, DeltaT_ql=5.68E-14, T_qg=316.22459187, DeltaT_qg=1.78E-11
+v_l=0.00000000, v_g=0.22220872, w=-0.00006252
+Simulation finished, tCPU=1.43E+02
+
