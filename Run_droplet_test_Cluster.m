@@ -12,8 +12,10 @@ function Run_droplet_test_Cluster(i)
     % ---------------------- MESH AND TIME CONFIGURATION ----------------------
     
     nElems_l          = Tab.nElems_l(i);    % Number of elements in the liquid phase
-    N                 = Tab.N(i);
-    p                 = Tab.p(i);     % Degree of the polynomial basis functions
+    nElems_g          = Tab.nElems_g(i);    % Number of elements in the gas phase (first part)
+    mu_l              = Tab.mu_l(i);             
+    mu_g              = Tab.mu_g(i);    
+    p                 = Tab.p(i);           % Degree of the polynomial basis functions
     
     Deltat0           = Tab.Deltat0(i);  % Initial time step
                                % If you get warnings like:
@@ -70,9 +72,10 @@ function Run_droplet_test_Cluster(i)
         'R_end_percent','T_0','T_inf','fuel_names','mass_fracL','inert_comps','mass_fracG')
 
     % Run the full droplet evaporation simulation from t = 0
-    [save_vars] = droplet_test_Cluster(nElems_l, p, Deltat0, t_final, ...
-        TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
-        mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
-        n_saves, FolderName, N);
+    [save_vars] = droplet_test_Cluster2(nElems_l, nElems_g,...
+        mu_l, mu_g, p, Deltat0, t_final, TimeAdapt, TolT, ...
+        PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
+        mass_fracG, n_saved_solutions, T_0, T_inf, ...
+        R_0, XRad, R_end_percent, n_saves, FolderName);
     
 end
