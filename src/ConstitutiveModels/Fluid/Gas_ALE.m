@@ -29,6 +29,7 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
 
     model.gota        = clase_gota(fuel_names);
     model.Lv          = calcula_Lv_fuel(model.gota,[],298.15,[]); % Lv(298.15K)
+    model.Hf          = calcula_Hf(model, model.bool_liq);
     model.Tmin        = 300; 
     model.Tmax        = 1700;
     model.P           = 101325;

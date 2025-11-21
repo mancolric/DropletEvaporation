@@ -144,6 +144,10 @@ if strcmpi(comb,'heptano')
             % peligroso extrapolar...
             C1=0.215; C2=-0.000303; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
+
+        % Entalpía de formación, 'Hf' [J/Kg]
+        elseif strcmpi(propiedad,'Hf')
+                value=-224.4*1000/(MW/1000);
         end
         
         
@@ -172,7 +176,11 @@ if strcmpi(comb,'heptano')
                     disp('### AVISO: Temperatura fuera de rango ###')
                 end
             end
-            
+
+            % Entalpía de formación, 'Hf' [J/Kg]
+        elseif strcmpi(propiedad,'Hf')
+                value=-187.78*1000/(MW/1000);
+
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')
             % NASA polynomial fit
@@ -278,6 +286,7 @@ elseif strcmpi(comb,'hexano')
             C1=0.22492; C2=-0.0003533; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
         end
+        
         
         
         % Propiedades HEXANO(vap.), todas en función de la Temperatura en K.
