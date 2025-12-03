@@ -9,13 +9,13 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
-nElems_l          = 40;    % Number of elements in the liquid phase
+nElems_l          = 30;    % Number of elements in the liquid phase
 nElems_g          = 40;    % Number of elements in the gas phase (first part)
 mu_l              = -12.0;  
 mu_g              = 12.0; 
-p                 = 5;     % Degree of the polynomial basis functions
+p                 = 7;     % Degree of the polynomial basis functions
 
-Deltat0           = 1.01e-10;  % Initial time step
+Deltat0           = 0.000000001;  % Initial time step
                            % If you get warnings like:
                            %   “Nonlinear solver did not converge at stage 2. Reducing time step”
                            %   or
@@ -29,26 +29,26 @@ t_final           = 10;  % Final simulation time
                            % set a value larger than the expected final time
 
 TimeAdapt         = true;  % Enable adaptive time-stepping (true/false)
-TolT              = 1e-8;  % Tolerance for temporal error (≥1e-3) (used if TimeAdapt = true)
+TolT              = 0.0001;  % Tolerance for temporal error (≥1e-3) (used if TimeAdapt = true)
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
 PlotRes           = false; % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
-Save              = false;  % Save results to file (true/false)
+Save              = true;  % Save results to file (true/false)
                            % NOTE: if true, PlotRes must be false
                            
 n_saved_solutions = 500;   % Number of solution snapshots to save throughout simulation
-n_saves           = 5;    % Number of intermediate "safety saves" during simulation
+n_saves           = 2;    % Number of intermediate "safety saves" during simulation
 
 % ---------------------- INITIAL AND BOUNDARY CONDITIONS ------------------
 
-R_0               = (150e-6)/2; % Initial droplet radius [m]
+R_0               = 0.00025; % Initial droplet radius [m]
 XRad              = 150;        % Domain size (in gas phase) as a multiple of the initial radius
-R_end_percent     = 0.15;       % Final droplet size as a fraction of initial radius (when Save = true)
+R_end_percent     = 0.2;       % Final droplet size as a fraction of initial radius (when Save = true)
 
-T_0               = 310;        % Initial temperature at the center of the droplet [K]
+T_0               = 300;        % Initial temperature at the center of the droplet [K]
 T_inf             = 1730;       % Ambient (far-field) temperature [K]
 
 % --------------------------- SPECIES DEFINITION --------------------------
@@ -56,7 +56,7 @@ T_inf             = 1730;       % Ambient (far-field) temperature [K]
 fuel_names        = {'Heptano'};                    % Fuel components
 mass_fracL        = {1.00};                         % Mass fraction of each fuel component (same order as above)
 inert_comps       = {'N2', 'O2', 'CO2', 'H2O'};     % Inert gas species (DO NOT MODIFY)
-mass_fracG        = {0.7248, 0.0, 0.1513, 0.1239};  % Mass fraction of each inert species in the gas phase (same order as above)
+mass_fracG        = {0.79, 0.0, 0.0, 0.21};  % Mass fraction of each inert species in the gas phase (same order as above)
 
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 

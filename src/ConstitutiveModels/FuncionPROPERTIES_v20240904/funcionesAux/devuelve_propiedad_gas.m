@@ -51,7 +51,7 @@ elseif strcmpi(comb,'CO2')
     elseif strcmpi(estado,'vapor')
         % Entalpía de formación, 'Hf' [J/Kg]
         if strcmpi(propiedad,'Hf')
-            value=-393.5*1000/MW;
+            value=-393.510*1000/MW;
         else
             error("This property name does not exist")
         end
@@ -63,11 +63,11 @@ elseif strcmpi(comb,'H2O')
     if strcmpi(estado,'liquido')
 
         error("Liquid H2O ?")
-        % Propiedades HEPTANO(vap.), todas en función de la Temperatura en K.
+        % Propiedades H2O(vap.), todas en función de la Temperatura en K.
     elseif strcmpi(estado,'vapor')
-        % Entalpía de formación, 'Hf' [J/Kg]
+        % Entalpía de formación, 'Hf' [J/Kg] 
         if strcmpi(propiedad,'Hf')
-            value=-241.8*1000/MW;
+            value=-241.826*1000/MW;
         else
             error("This property name does not exist")
         end

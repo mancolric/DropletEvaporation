@@ -146,8 +146,9 @@ if strcmpi(comb,'heptano')
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
 
         % Entalpía de formación, 'Hf' [J/Kg]
+        % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
         elseif strcmpi(propiedad,'Hf')
-                value=-224.4*1000/(MW/1000);
+                value=-187.78*1000/(MW/1000);
         end
         
         

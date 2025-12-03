@@ -10,7 +10,7 @@ if bool_liq
 N_comb=length(obj.tipo_combustible);
 
 for id_fuel=1:N_comb
-    value(id_fuel)=devuelve_propiedad_fuel(obj, 'Hf',obj.tipo_combustible(id_fuel),'liquido',298.15);
+    value(id_fuel)=devuelve_propiedad_fuel(obj, 'Hf',obj.tipo_combustible(id_fuel),'vapor',298.15);
 end
 
 else
