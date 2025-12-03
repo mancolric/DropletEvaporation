@@ -15,7 +15,7 @@ mu_l              = -12.0;
 mu_g              = 12.0; 
 p                 = 7;     % Degree of the polynomial basis functions
 
-Deltat0           = 0.000000001;  % Initial time step
+Deltat0           = 1e-9;  % Initial time step
                            % If you get warnings like:
                            %   “Nonlinear solver did not converge at stage 2. Reducing time step”
                            %   or
@@ -29,11 +29,11 @@ t_final           = 10;  % Final simulation time
                            % set a value larger than the expected final time
 
 TimeAdapt         = true;  % Enable adaptive time-stepping (true/false)
-TolT              = 0.0001;  % Tolerance for temporal error (≥1e-3) (used if TimeAdapt = true)
+TolT              = 1e-4;  % Tolerance for temporal error (≥1e-3) (used if TimeAdapt = true)
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = false; % Plot intermediate results (true/false)
+PlotRes           = true; % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
 Save              = true;  % Save results to file (true/false)
