@@ -11,9 +11,15 @@ function [u_n, Iteration, flag] = NewtonRaphson(fun, x0, TolF, TolX, MaxIter)
         [f_n,J_n]   = fun(u_n, true);
         fnorm_n     = norm(f_n);
 
+        if any(isnan(f_n))
+            warning('Found NaNs in residual')
+            flag    = -2;
+            break 
+        end
+        
         if fnorm_n<TolF
             flag    = 1;
-            return
+            break
         end
 
         Delta_u_n       = - (J_n\f_n);

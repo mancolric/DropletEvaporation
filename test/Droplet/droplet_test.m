@@ -1,3 +1,11 @@
+%UNDO!:
+%Zeros in mesh motion
+%Imposed velocity
+%Constant density
+%Initial condition
+%tevap
+%convergence info msg
+
 function [save_vars, model_l, model_g] = ...
     droplet_test(nElems_l, nElems_g, hmin_l, hmin_g, p, ...
         Deltat0, t_final, TimeAdapt, TolT, ...
@@ -61,11 +69,11 @@ function [save_vars, model_l, model_g] = ...
         error('Unable to generate mesh for liquid phase')
     end
     %Generate meshes:
-    helems_l        = hmin_l*r_l.^(nElems_l-1:-1:0);
-    xmesh_l         = [ 0.0, cumsum(helems_l) ];
+    hElems_l        = hmin_l*r_l.^(nElems_l-1:-1:0);
+    xmesh_l         = [ 0.0, cumsum(hElems_l) ];
     xmesh_l(end)    = x_lg;
-    helems_g        = hmin_g*r_g.^(0:nElems_g-1);
-    xmesh_g         = x_lg + [ 0.0, cumsum(helems_g) ];
+    hElems_g        = hmin_g*r_g.^(0:nElems_g-1);
+    xmesh_g         = x_lg + [ 0.0, cumsum(hElems_g) ];
     xmesh_g(end)    = x_g;
     
     %Plot mesh:
@@ -83,16 +91,20 @@ function [save_vars, model_l, model_g] = ...
     end
 
     %Display minimum mesh sizes:
-    disp(['hmin_l=', sprintf('%.2E', min(diff(xmesh_l))), ...
-            ', hmin_g=', sprintf('%.2E', min(diff(xmesh_g)))])
-    
+    disp([  'hmin_l=', sprintf('%.2E', min(hElems_l)), ...
+            ', r_l=', sprintf('%.2E', r_l), ...
+            ', hmax_g=', sprintf('%.2E', max(hElems_l))])
+    disp([  'hmin_g=', sprintf('%.2E', min(hElems_g)), ...
+            ', r_g=', sprintf('%.2E', r_g), ...
+            ', hmax_g=', sprintf('%.2E', max(hElems_g))])
+        
     %Load models:
     model_l        = Liquid_ALE(fuel_names,mass_fracL, inert_comps, mass_fracG);
     model_g        = Gas_ALE(fuel_names, inert_comps, mass_fracG);
     
-    %Initial gas and droplet velocity:
-    vR_0           = 8e-3;
-    w_0            = NaN;   %To be initialized in u0_g
+    %Initial gas and droplet velocity. To be initialized in u0_g:
+    vR_0           = NaN;
+    w_0            = NaN;   
     
     %Initial condition function for the LIQUID phase
     function u = u0_l(x)
@@ -144,36 +156,16 @@ function [save_vars, model_l, model_g] = ...
         end
         h_g         = calc_h(T_g,y_g,model_g);
         H_g{1,1}    = h_g.*rho_g;
-
         v_g         = 0.0*x;
-%         v_g         = NF_vg*(x_lg./x).^2;
+        
+        %Initial droplet velocity:
+        vR_0        = 0.0;
+        w_0         = 0.0;
 
         %Final vector of initial gas fields
         %u = {ρY1, ..., ρYN, H, v}
         u           = [ rhoy_g; H_g; {v_g} ];
-        %Each profile is defined as a function of x to match the expected shape 
-        %required by the solver: matrices of size (nElems × (2p + 1))
 
-        %Plot initial condition GAS:
-        % figure()
-        % plot(MatTranspVec(x),MatTranspVec(y_g{1}), 'DisplayName', 'N2')
-        % hold on
-        % plot(MatTranspVec(x),MatTranspVec(y_g{2}), 'DisplayName', 'O2')
-        % hold on
-        % plot(MatTranspVec(x),MatTranspVec(y_g{3}), 'DisplayName', 'CO2')
-        % hold on
-        % plot(MatTranspVec(x),MatTranspVec(y_g{4}), 'DisplayName', 'H20')
-        % hold on
-        % plot(MatTranspVec(x),MatTranspVec(y_g{5}), 'DisplayName', 'Heptano')
-        % hold on
-        % plot(MatTranspVec(x),MatTranspVec(y_g{6}), 'DisplayName', 'Hexadecano')
-        % hold on
-        % legend('Location', 'best')
-        % hold off
-
-        % figure()
-        % plot(MatTranspVec(x),MatTranspVec(T_g), 'DisplayName', 'Temperatura Gas')
-        % legend('Location', 'best')
     end
 
     function u = u0_g_slopes(x)
@@ -199,6 +191,7 @@ function [save_vars, model_l, model_g] = ...
         k_R         = rho_R*cp_R*D_T;
         
         %Initial droplet velocity:
+        vR_0        = 8e-3;
         w_0         = -rho_R/(rho_L-rho_R) * vR_0;
         
         %Compute slopes:
@@ -246,7 +239,7 @@ function [save_vars, model_l, model_g] = ...
             deltav(i)   = delta;
         end
         %Exit if any delta is too small:
-        if any(abs(deltav)<1e-6)
+        if any(abs(deltav)<1e-10)
             display(deltav)
             error(['delta for specie ', num2str(i), ' too small'])
             delta   = sign(delta)*1e-6;
@@ -337,6 +330,12 @@ function [save_vars, model_l, model_g] = ...
         h_g         = calc_h(T_g,y_g,model_g);
         H_g         = h_g.*rho_g;
         v_g         = 0.008286095019622.*((x_lg./x).^2);
+        
+        %Initial droplet velocity:
+        rho_l       = calc_rho(model_l,y_L,T_0);
+        rho_g       = calc_rho(model_g,y_R,T_0);
+        vR_0        = 0.008286095019622;
+        w_0         = -rho_g/(rho_l-rho_g) * vR_0;
 
         %Final vector of initial gas fields
         %u = {ρY1, ..., ρYN, H, v}
@@ -345,8 +344,9 @@ function [save_vars, model_l, model_g] = ...
     end
 
     function u = u0_g(x)
-%         u       = u0_g_const(x);  
-        u       = u0_g_Millan(x);
+%         u       = u0_g_const(x);
+        u       = u0_g_slopes(x);
+%         u       = u0_g_Millan(x);
     end
     
     %Boundary conditions:
@@ -399,8 +399,9 @@ function [save_vars, model_l, model_g] = ...
     uplot_g_ini = [ {rho_g_ini}; {T_g_ini}; {v_g_ini}];
     
     %Calculate estimated evaporation time (if known, add manually):
-    t_evap      = calc_t_evap(T_inf,y_inf,model_l,model_g,mass_fracL,fuel_names,x_lg);
-    t_evap      = real(t_evap);
+    % t_evap      = calc_t_evap(T_inf,y_inf,model_l,model_g,mass_fracL,fuel_names,x_lg);
+    % t_evap      = real(t_evap);
+    t_evap      = 0.1;
 
     %Distribution of the saved time instants: 55% are saved in the first 20% of the 
     %simulation and the remaining 45% in the final 80% of the simulation (MODIFIABLE)
@@ -453,7 +454,7 @@ function [save_vars, model_l, model_g] = ...
     %Initial values for droplet variables qL, qR, w:
     sol_n.qL    = CellToVector(EvalSolution(sol_n.ul(1:model_l.nDiff), sol_n.fesl, sol_n.fesl.mesh.nElems, 1.0));
     sol_n.qR    = CellToVector(EvalSolution(sol_n.ug(1:model_g.nDiff+model_g.nAlg), sol_n.fesg, 1, -1.0));
-    sol_n.w     = 0.0;
+    sol_n.w     = w_0;
     
     %Normalization factors for differential and algebraic variables: 
     NF_l        = max(1e-6, Lqmean(sol_n.ul, sol_n.fesl, 2));
@@ -677,7 +678,7 @@ function [save_vars, model_l, model_g] = ...
     %
     %CAREFUL: This function modifies the variable sol_np1. The values in
     %sol_np1 correspond to the values of y in the last function call.
-    function [r,J] = ResidualFun(y, ComputeJ)
+    function [r,J] = ResidualFun(y, ComputeJ, is) %is=istage
         
         %Extract variables: 
         xmesh_l_np1                         = y(block_mesh_l);
@@ -706,7 +707,7 @@ function [save_vars, model_l, model_g] = ...
         sol_np1.fesg        = FES_QX_Create(mesh_g_np1, p);
         Mm_g_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesg), model_g.nDiff, model_g.nAlg);
         
-%         PlotFun(sol_np1)
+        PlotFun(sol_np1)
         
         %Update boundary conditions. MATLAB works with copies, not pointers, 
         %so this is not already done in CouplingConditions:
@@ -722,22 +723,22 @@ function [save_vars, model_l, model_g] = ...
         uw_g                = [ sol_np1.ug; {P1ToQX(wmesh_g_np1, sol_np1.fesg)} ];
         
         %------------------------------------------------------------------
-        %Residual of mesh motion equation:
+        %MESH MOTION EQUATION:
         
-        kmesh_l_RK(:,ii)    = wmesh_l_np1;
-        kmesh_g_RK(:,ii)    = wmesh_g_np1;
-        r_mesh_l            = xmesh_l_np1 - bmesh_l_ii - Deltat_n*RKmethod.aI(ii,ii)*kmesh_l_RK(:,ii);
-        r_mesh_g            = xmesh_g_np1 - bmesh_g_ii - Deltat_n*RKmethod.aI(ii,ii)*kmesh_g_RK(:,ii);
+        kmesh_l_RK(:,is)    = wmesh_l_np1;
+        kmesh_g_RK(:,is)    = wmesh_g_np1;
+        r_mesh_l            = xmesh_l_np1 - bmesh_l_ii - 0.0*Deltat_n*RKmethod.aI(is,is)*kmesh_l_RK(:,is);
+        r_mesh_g            = xmesh_g_np1 - bmesh_g_ii - 0.0*Deltat_n*RKmethod.aI(is,is)*kmesh_g_RK(:,is);
                         
         %------------------------------------------------------------------
         %IMPOSE DAE FOR LIQUID:
         
         %Compute term due to fluxes and restriction:
-        [kDAE_l_RK(:,ii),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
+        [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
             FEM_fgQ(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ);
         
         %Residuals and Jacobians:
-        r_l                             = Mm_l_np1*CellToVector(sol_np1.ul) - bDAE_l_ii - RKmethod.aI(ii,ii)*Deltat_n * kDAE_l_RK(:,ii);
+        r_l                             = Mm_l_np1*CellToVector(sol_np1.ul) - bDAE_l_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_l_RK(:,is);
         if ComputeJ
             
             %Derivatives of equations related to liquid:
@@ -782,47 +783,53 @@ function [save_vars, model_l, model_g] = ...
             [J_lz.iv, J_lz.jv, J_lz.sv] = find(J_lz_mat);
         end
         
-        %Impose null velocity at origin:
-        r_l(N_ul+1)                     = y(block_vl(1)) * NF_l(1)*NF_omega_l*Deltat_n; %keep same order of magnitude
-        if ComputeJ
-            %Delete previous components:
-            J_l.sv(J_l.iv==N_ul+1)      = 0.0;
-            J_lz.sv(J_lz.iv==N_ul+1)    = 0.0;
-            %New components:
-            J_l.iv                      = cat(1, J_l.iv, N_ul+1);
-            J_l.jv                      = cat(1, J_l.jv, N_ul+1);
-            J_l.sv                      = cat(1, J_l.sv, NF_l(1)*NF_omega_l*Deltat_n);
-        end
-        
-%         %Impose known velocity:
-%         block_vl                    = model_l.nDiff*sol_np1.fesl.nDof + (1:sol_np1.fesl.nDof).';
-%         mass_l                      = MassMatrix(sol_np1.fesl);
-%         y_l                         = y(block_l);
-%         function v_l=v_l_fun(x)
-%             v_l                     = { 0.0*x };
-%         end
-%         b_vl                        = ProjectFun(@v_l_fun, sol_n.fesl);
-%         r_l(block_vl)               = Deltat_n*(mass_l*y_l(block_vl) - b_vl);
+%         %Impose null velocity at origin:
+%         Jterm                           = NF_omega_l*NF_l(1)*Deltat_n / ...
+%                                             (NF_l(end)*NF_tau/Deltat_n);
+%         r_l(N_ul+1)                     = y(block_vl(1)) * Jterm;
+%         %Jterm is chosen in such a way that, after aplying scaling
+%         %matrices, the corresponding scale term is 1.
 %         if ComputeJ
 %             %Delete previous components:
-%             aux                     = find((J_l.iv>=block_vl(1)) & (J_l.iv<=block_vl(end)));
-%             J_l.sv(aux)             = 0.0;
+%             J_l.sv(J_l.iv==N_ul+1)      = 0.0;
+%             J_lz.sv(J_lz.iv==N_ul+1)    = 0.0;
 %             %New components:
-%             [Mm_iv, Mm_jv, Mm_sv]   = find(mass_l);
-%             J_l.iv                  = cat(1, J_l.iv, Mm_iv+block_vl(1)-1);
-%             J_l.jv                  = cat(1, J_l.jv, Mm_jv+block_vl(1)-1);
-%             J_l.sv                  = cat(1, J_l.sv, Deltat_n*Mm_sv);
-%         end 
+%             J_l.iv                      = cat(1, J_l.iv, N_ul+1);
+%             J_l.jv                      = cat(1, J_l.jv, N_ul+1);
+%             J_l.sv                      = cat(1, J_l.sv, Jterm);
+%         end
+        
+        %Impose known velocity:
+        mass_l                      = MassMatrix(sol_np1.feslm1);
+        function v_l=v_l_fun(x)
+            v_l                     = { 0.0*x };
+        end
+        b_vl                        = ProjectFun(@v_l_fun, sol_n.feslm1);
+        block_vl_aux                = block_vl-block_ul(1)+1;
+        r_l(block_vl_aux)           = Deltat_n*(mass_l*y(block_vl) - b_vl);
+        if ComputeJ
+            %Delete previous components:
+            aux                     = find((J_l.iv>=block_vl_aux(1)) & (J_l.iv<=block_vl_aux(end)));
+            J_l.sv(aux)             = 0.0;
+            %New components:
+            [Mm_iv, Mm_jv, Mm_sv]   = find(mass_l);
+            J_l.iv                  = cat(1, J_l.iv, Mm_iv+block_vl_aux(1)-1);
+            J_l.jv                  = cat(1, J_l.jv, Mm_jv+block_vl_aux(1)-1);
+            J_l.sv                  = cat(1, J_l.sv, Deltat_n*Mm_sv);
+            %Delete previous components:
+            aux                     = find((J_lz.iv>=block_vl_aux(1)) & (J_lz.iv<=block_vl_aux(end)));
+            J_lz.sv(aux)            = 0.0;
+        end 
         
         %------------------------------------------------------------------
         %IMPOSE DAE FOR GAS:
         
         %Compute term due to fluxes and restriction:
-        [kDAE_g_RK(:,ii),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
+        [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
             FEM_fgQ(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ);
         
         %Residuals and Jacobians:
-        r_g                             = Mm_g_np1*CellToVector(sol_np1.ug) - bDAE_g_ii - RKmethod.aI(ii,ii)*Deltat_n * kDAE_g_RK(:,ii);
+        r_g                             = Mm_g_np1*CellToVector(sol_np1.ug) - bDAE_g_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_g_RK(:,is);
         if ComputeJ
             
             %Derivatives of equations related to gas:
@@ -867,37 +874,47 @@ function [save_vars, model_l, model_g] = ...
             [J_gz.iv, J_gz.jv, J_gz.sv] = find(J_gz_mat);
         end
         
-        %Impose velocity at droplet surface:
-        r_g(N_ug+1)                     = (y(block_vg(1))-sol_np1.qR(end)) * NF_g(1)*NF_omega_g*Deltat_n; %keep same order of magnitude
-        if ComputeJ
-            %Delete previous components:
-            J_g.sv(J_g.iv==N_ug+1)      = 0.0;
-            J_gz.sv(J_gz.iv==N_ug+1)    = 0.0;
-            %New components:
-            J_g.iv                      = cat(1, J_g.iv, N_ug+1);
-            J_g.jv                      = cat(1, J_g.jv, N_ug+1);
-            J_g.sv                      = cat(1, J_g.sv, NF_g(1)*NF_omega_g*Deltat_n);
-        end
-        
-%         %Impose known velocity:
-%         block_vg                    = model_g.nDiff*sol_np1.fesg.nDof + (1:sol_np1.fesg.nDof).';
-%         mass_g                      = MassMatrix(sol_np1.fesg);
-%         y_g                         = y(block_g);
-%         function v_g=v_g_fun(x)
-%             v_g                     = { sol_np1.qR(end)*(mesh_g_np1.x_faces(1)./x).^2 };
-%         end
-%         b_vg                        = ProjectFun(@v_g_fun, sol_n.fesg);
-%         r_g(block_vg)               = Deltat_n*(mass_g*y_g(block_vg) - b_vg);
+%         %Impose velocity at droplet surface:
+%         Jterm                           = NF_omega_g*NF_g(1)*Deltat_n / ...
+%                                             (NF_g(end)*NF_tau/Deltat_n);
+%         %Jterm is chosen in such a way that, after aplying scaling
+%         %matrices, the corresponding scale term is 1.
+%         r_g(N_ug+1)                     = (y(block_vg(1))-sol_np1.qR(end)) * Jterm;
 %         if ComputeJ
 %             %Delete previous components:
-%             aux                     = find(J_g.iv>=block_vg(1) & J_g.iv<=block_vg(end));
-%             J_g.sv(aux)             = 0.0;
+%             J_g.sv(J_g.iv==N_ug+1)      = 0.0;
+%             J_gz.sv(J_gz.iv==N_ug+1)    = 0.0;
 %             %New components:
-%             [Mm_iv, Mm_jv, Mm_sv]   = find(mass_g);
-%             J_g.iv                  = cat(1, J_g.iv, Mm_iv+block_vg(1)-1);
-%             J_g.jv                  = cat(1, J_g.jv, Mm_jv+block_vg(1)-1);
-%             J_g.sv                  = cat(1, J_g.sv, Deltat_n*Mm_sv);
-%         end 
+%             J_g.iv                      = cat(1, J_g.iv, N_ug+1);
+%             J_g.jv                      = cat(1, J_g.jv, N_ug+1);
+%             J_g.sv                      = cat(1, J_g.sv, Jterm);
+%         end
+        
+        %Impose known velocity:
+        mass_g                      = MassMatrix(sol_np1.fesgm1);
+        function v_g=v_g_fun(x)
+            v_g                     = { 1.0*(mesh_g_np1.x_faces(1)./x).^2 };
+        end
+        b_vg                        = ProjectFun(@v_g_fun, sol_n.fesgm1);
+        block_vg_aux                = block_vg-block_ug(1)+1;
+        r_g(block_vg_aux)           = Deltat_n*(mass_g*y(block_vg) - sol_np1.qR(end)*b_vg);
+        if ComputeJ
+            %Delete previous components:
+            aux                     = find(J_g.iv>=block_vg_aux(1) & J_g.iv<=block_vg_aux(end));
+            J_g.sv(aux)             = 0.0;
+            %New components:
+            [Mm_iv, Mm_jv, Mm_sv]   = find(mass_g);
+            J_g.iv                  = cat(1, J_g.iv, Mm_iv+block_vg_aux(1)-1);
+            J_g.jv                  = cat(1, J_g.jv, Mm_jv+block_vg_aux(1)-1);
+            J_g.sv                  = cat(1, J_g.sv, Deltat_n*Mm_sv);
+            %Delete previous components:
+            aux                     = find(J_gz.iv>=block_vg_aux(1) & J_gz.iv<=block_vg_aux(end));
+            J_gz.sv(aux)            = 0.0;
+            %New components:
+            J_gz.iv                 = cat(1, J_gz.iv, block_vg_aux.');
+            J_gz.jv                 = cat(1, J_gz.jv, repmat(N_z-1, length(block_vg_aux),1));
+            J_gz.sv                 = cat(1, J_gz.sv, -Deltat_n*b_vg);
+        end 
         
         %------------------------------------------------------------------
         %IMPOSE INTERFACE CONDITIONS:
@@ -1081,7 +1098,11 @@ function [save_vars, model_l, model_g] = ...
             J.jv    = cat(1, J_l.jv, J_lz.jv+N_l+N_g, ...
                             J_g.jv+N_l, J_gz.jv+N_l+N_g, ...
                             J_zl.jv, J_zg.jv+N_l, J_z.jv+N_l+N_g);
-            J.sv    = cat(1, J_l.sv, J_lz.sv, J_g.sv, J_gz.sv, ...
+%             J.sv    = cat(1, J_l.sv, 0.0*J_lz.sv, ... 
+%                             J_g.sv, 0.0*J_gz.sv, ...
+%                             0.0*J_zl.sv, 0.0*J_zg.sv, J_z.sv);
+            J.sv    = cat(1, J_l.sv, J_lz.sv, ... 
+                            J_g.sv, J_gz.sv, ...
                             J_zl.sv, J_zg.sv, J_z.sv);
             J       = { 1.0, ...
                         1.0, ...
@@ -1094,7 +1115,7 @@ function [save_vars, model_l, model_g] = ...
         
         %Save Deltat for CFL=1 for last stage (first stage is avoided because 
         %velocity at t=0 is unknown):
-        if ii==RKmethod.s
+        if is==RKmethod.s
             Deltat_CFL_n    = min(Deltat_CFL_l, Deltat_CFL_g);
         end
         
@@ -1106,11 +1127,11 @@ function [save_vars, model_l, model_g] = ...
     %The Jacobian is hence Jhat = Sr*df/dy*Sy and we solve
     %g:=Jhat\fhat(yhat)=0
 %     fig2    = figure();
-    function gscaled = PrecResidualFun(yscaled)
+    function gscaled = PrecResidualFun(yscaled, istage)
         
         %Compute residual:
         y       = Sy*yscaled;
-        [r,~]   = ResidualFun(y, false);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
+        [r,~]   = ResidualFun(y, false, istage);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
         if any(isnan(r{1})) || any(isnan(r{2})) || any(isnan(r{3})) 
             gscaled = NaN;
             return
@@ -1122,14 +1143,55 @@ function [save_vars, model_l, model_g] = ...
         g_lgz       = LUSolve(A_n_fact{3},Srinv{3}*r{3});
         gscaled     = cat(1, g_mesh_l, g_mesh_g, g_lgz);
         
+%         display(sol_np1.w)
+        
 %         figure(fig2)
-%         semilogy(abs(g_l), "+-b")
+%         semilogy(abs(g_lgz), "+-b")
 %         hold on
-%         block_v     = model_l.nDiff*fes_l.nDof+1:nDAE_l*fes_l.nDof;
-%         semilogy(block_v, abs(g_l(block_v)), "x-c")   
-%         semilogy(abs(g_g), "+-r")
-%         block_v     = model_g.nDiff*fes_g.nDof+1:nDAE_g*fes_g.nDof;
-%         semilogy(block_v, abs(g_g(block_v)), "x-m")
+%         aux         = block_vl-block_ul(1)+1;
+%         semilogy(aux, abs(g_lgz(aux)), "x-c")
+%         aux         = block_vg-block_ul(1)+1;
+%         semilogy(aux, abs(g_lgz(aux)), "x-m")
+%         hold off
+        
+    end
+    function [fscaled, Jscaled] = ScaledResidualFun(yscaled, ComputeJ)
+        
+        %Compute residual:
+        y       = Sy*yscaled;
+        [r,A]   = ResidualFun(y, ComputeJ);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
+        if any(isnan(r{1})) || any(isnan(r{2})) || any(isnan(r{3})) 
+            fscaled = NaN;
+            Jscaled = NaN;
+            return
+        end
+        
+        %Reshape r and A:
+        fscaled = cat(1, Srinv{1}*r{1}, Srinv{2}*r{2}, Srinv{3}*r{3});
+        Nl      = length(r{1});
+        Ng      = length(r{2});
+        Nlgz    = length(r{3});
+        if ComputeJ
+            Jscaled = [ speye(Nl),          sparse(Nl,Ng),      sparse(Nl,Nlgz);
+                        sparse(Ng,Nl),      speye(Ng),          sparse(Ng,Nlgz);
+                        sparse(Nlgz,Nl),    sparse(Nlgz,Ng),    Srinv{3}*A{3}*Sy(block_ul(1):end, block_ul(1):end) ];
+%             Jest    = JacobEst(@(yhat,ComputeJ)ScaledResidualFun(yhat,ComputeJ), yscaled, 1e-5);
+%             save('test.mat', 'Jscaled', 'Jest', 'block_ul', 'block_vl', 'block_ug', 'block_vg', 'block_z' )
+        else
+            Jscaled = NaN;
+        end
+        
+%         f_lgz       = fscaled;
+%         f_lgz       = Jscaled\fscaled;
+%         f_lgz       = f_lgz(block_ul(1):end);
+        
+%         figure(fig2)
+%         semilogy(abs(f_lgz), "+-b")
+%         hold on
+%         aux         = block_vl-block_ul(1)+1;
+%         semilogy(aux, abs(f_lgz(aux)), "x-c")
+%         aux         = block_vg-block_ul(1)+1;
+%         semilogy(aux, abs(f_lgz(aux)), "x-m")
 %         hold off
         
     end
@@ -1220,7 +1282,6 @@ function [save_vars, model_l, model_g] = ...
                                 ScalingMatrix(Srinv_factors, Srinv_mult) }; 
                             
             %Initialize stage variables:
-            ii              = 1;
             yv_np1          = yv_n;
             sol_np1         = sol_n;
 
@@ -1237,15 +1298,15 @@ function [save_vars, model_l, model_g] = ...
             bDAE_g_ii       = My1_g;
         
             %Save derivatives k(:,1) and Jacobian for first stage:
-            [~,A_n]         = ResidualFun(yv_np1, true);
+            [~,A_n]         = ResidualFun(yv_np1, true, 1);
             A_n_fact        = { 1.0; 
                                 1.0;
                                 LUFactorization(Srinv{3}*A_n{3}*Sy(block_ul(1):end, block_ul(1):end)) };
                                 
             %Loop stages:
             NLS_iters       = 0;
-            for ii=2:RKmethod.s
-
+            for ii=2:RKmethod.s 
+                
                 %Update time:
                 sol_np1.t           = sol_n.t + Deltat_n*RKmethod.c(ii);
             
@@ -1265,11 +1326,18 @@ function [save_vars, model_l, model_g] = ...
                     TolA            = 1e-10;
                 end
                 NDOF                            = nDAE_l*fes_l.nDof + nDAE_g*fes_g.nDof; 
-                [yscaled_np1, nIters, NLSFlag]  = Anderson(@PrecResidualFun, Sy\yv_n, ...
+                [yscaled_np1, nIters, NLSFlag]  = Anderson(...
+                                                    @(yhat)PrecResidualFun(yhat,ii), ...
+                                                        Sy\yv_n, ...
                                                         sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50);
+%                 [yscaled_np1, nIters, NLSFlag]  = NewtonRaphson(@ScaledResidualFun, Sy\yv_n, ...
+%                                                         0.0, sqrt(NDOF)*TolA, NLS_MaxIter);
                 yv_np1              = Sy*yscaled_np1;
                 if NLSFlag<0
+                    disp(['Nonlinear solver did not converge at stage ', num2str(ii),'. Reducing time step'])
                     break
+                else
+                    disp(['Nonlinear solver converged in ', num2str(nIters), ' iterations'])
                 end
                 NLS_iters           = NLS_iters + nIters/(RKmethod.s-1);
                 
@@ -1337,7 +1405,7 @@ function [save_vars, model_l, model_g] = ...
                 
             else %decrease time step and try again
                 
-                disp(['Nonlinear solver did not converge at stage ', num2str(ii),'. Reducing time step'])
+                disp(['Reducing time step'])
                 Deltat_n        = Deltat_n*0.5;
                 if Deltat_n<Deltat_min
                     sol_np1     = sol_n;
@@ -1609,5 +1677,26 @@ function S = ScalingMatrix(alphav, Nv)
     end
     Ntotal      = sum(Nv);
     S           = spdiags(syv, 0, Ntotal, Ntotal);
+    
+end
+
+function J=JacobEst(fun, x0, delta)
+
+    %Dimensiones del sistema:
+    N       = length(x0);
+    
+    %Calculamos jacobiano por diferencias finitas:
+    J       = zeros(N, N);
+    for jj=1:N
+        %Perturbaci'on 1:
+        xpert       = x0;
+        xpert(jj)   = x0(jj)-delta;
+        [f1, ~]     = fun(xpert, false);
+        %Perturbaci'on 2:
+        xpert(jj)   = x0(jj)+delta;
+        [f2,~]      = fun(xpert, false);
+        %Aplicamos f'ormula para la derivada df/dx = (f(x+h)-f(x-h))/(2h):
+        J(:,jj)     = (f2-f1)/(2*delta);
+    end
     
 end

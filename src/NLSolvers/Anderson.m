@@ -1,4 +1,4 @@
-%[x_n, Iteration, flag] = Anderson(fun, x0, TolG, MaxIter, m)
+%[x_n, Iteration, flag] = Anderson(fun, x0, TolX, TolG, MaxIter, m)
 %
 %Normally, an equation of the form
 %   f(x)    = 0
