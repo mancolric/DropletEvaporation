@@ -5,6 +5,7 @@
 %Initial condition
 %tevap
 %convergence info msg
+%Plot solution at each iteration
 
 function [save_vars, model_l, model_g] = ...
     droplet_test(nElems_l, nElems_g, hmin_l, hmin_g, p, ...
@@ -727,8 +728,8 @@ function [save_vars, model_l, model_g] = ...
         
         kmesh_l_RK(:,is)    = wmesh_l_np1;
         kmesh_g_RK(:,is)    = wmesh_g_np1;
-        r_mesh_l            = xmesh_l_np1 - bmesh_l_ii - 0.0*Deltat_n*RKmethod.aI(is,is)*kmesh_l_RK(:,is);
-        r_mesh_g            = xmesh_g_np1 - bmesh_g_ii - 0.0*Deltat_n*RKmethod.aI(is,is)*kmesh_g_RK(:,is);
+        r_mesh_l            = xmesh_l_np1 - bmesh_l_ii - Deltat_n*RKmethod.aI(is,is)*kmesh_l_RK(:,is);
+        r_mesh_g            = xmesh_g_np1 - bmesh_g_ii - Deltat_n*RKmethod.aI(is,is)*kmesh_g_RK(:,is);
                         
         %------------------------------------------------------------------
         %IMPOSE DAE FOR LIQUID:
@@ -783,21 +784,21 @@ function [save_vars, model_l, model_g] = ...
             [J_lz.iv, J_lz.jv, J_lz.sv] = find(J_lz_mat);
         end
         
-%         %Impose null velocity at origin:
-%         Jterm                           = NF_omega_l*NF_l(1)*Deltat_n / ...
-%                                             (NF_l(end)*NF_tau/Deltat_n);
-%         r_l(N_ul+1)                     = y(block_vl(1)) * Jterm;
-%         %Jterm is chosen in such a way that, after aplying scaling
-%         %matrices, the corresponding scale term is 1.
-%         if ComputeJ
-%             %Delete previous components:
-%             J_l.sv(J_l.iv==N_ul+1)      = 0.0;
-%             J_lz.sv(J_lz.iv==N_ul+1)    = 0.0;
-%             %New components:
-%             J_l.iv                      = cat(1, J_l.iv, N_ul+1);
-%             J_l.jv                      = cat(1, J_l.jv, N_ul+1);
-%             J_l.sv                      = cat(1, J_l.sv, Jterm);
-%         end
+        %Impose null velocity at origin:
+        Jterm                           = NF_omega_l*NF_l(1)*Deltat_n / ...
+                                            (NF_l(end)*NF_tau/Deltat_n);
+        r_l(N_ul+1)                     = y(block_vl(1)) * Jterm;
+        %Jterm is chosen in such a way that, after aplying scaling
+        %matrices, the corresponding scale term is 1.
+        if ComputeJ
+            %Delete previous components:
+            J_l.sv(J_l.iv==N_ul+1)      = 0.0;
+            J_lz.sv(J_lz.iv==N_ul+1)    = 0.0;
+            %New components:
+            J_l.iv                      = cat(1, J_l.iv, N_ul+1);
+            J_l.jv                      = cat(1, J_l.jv, N_ul+1);
+            J_l.sv                      = cat(1, J_l.sv, Jterm);
+        end
         
         %Impose known velocity:
         mass_l                      = MassMatrix(sol_np1.feslm1);
@@ -874,21 +875,21 @@ function [save_vars, model_l, model_g] = ...
             [J_gz.iv, J_gz.jv, J_gz.sv] = find(J_gz_mat);
         end
         
-%         %Impose velocity at droplet surface:
-%         Jterm                           = NF_omega_g*NF_g(1)*Deltat_n / ...
-%                                             (NF_g(end)*NF_tau/Deltat_n);
-%         %Jterm is chosen in such a way that, after aplying scaling
-%         %matrices, the corresponding scale term is 1.
-%         r_g(N_ug+1)                     = (y(block_vg(1))-sol_np1.qR(end)) * Jterm;
-%         if ComputeJ
-%             %Delete previous components:
-%             J_g.sv(J_g.iv==N_ug+1)      = 0.0;
-%             J_gz.sv(J_gz.iv==N_ug+1)    = 0.0;
-%             %New components:
-%             J_g.iv                      = cat(1, J_g.iv, N_ug+1);
-%             J_g.jv                      = cat(1, J_g.jv, N_ug+1);
-%             J_g.sv                      = cat(1, J_g.sv, Jterm);
-%         end
+        %Impose velocity at droplet surface:
+        Jterm                           = NF_omega_g*NF_g(1)*Deltat_n / ...
+                                            (NF_g(end)*NF_tau/Deltat_n);
+        %Jterm is chosen in such a way that, after aplying scaling
+        %matrices, the corresponding scaled term is 1.
+        r_g(N_ug+1)                     = (y(block_vg(1))-sol_np1.qR(end)) * Jterm;
+        if ComputeJ
+            %Delete previous components:
+            J_g.sv(J_g.iv==N_ug+1)      = 0.0;
+            J_gz.sv(J_gz.iv==N_ug+1)    = 0.0;
+            %New components:
+            J_g.iv                      = cat(1, J_g.iv, N_ug+1);
+            J_g.jv                      = cat(1, J_g.jv, N_ug+1);
+            J_g.sv                      = cat(1, J_g.sv, Jterm);
+        end
         
         %Impose known velocity:
         mass_g                      = MassMatrix(sol_np1.fesgm1);
