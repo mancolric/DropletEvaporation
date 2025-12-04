@@ -9,10 +9,10 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
-nElems_l          = 30;    % Number of elements in the liquid phase
-nElems_g          = 40;    % Number of elements in the gas phase (first part)
-mu_l              = -12.0;  
-mu_g              = 12.0; 
+nElems_l          = 10;    % Number of elements in the liquid phase
+nElems_g          = 10;    % Number of elements in the gas phase (first part)
+hmin_l            = 1e-7;  
+hmin_g            = 1e-7; 
 p                 = 7;     % Degree of the polynomial basis functions
 
 Deltat0           = 1e-9;  % Initial time step
@@ -61,7 +61,7 @@ mass_fracG        = {0.79, 0.0, 0.0, 0.21};  % Mass fraction of each inert speci
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 
 % Run the full droplet evaporation simulation from t = 0
-[save_vars] = droplet_test(nElems_l, nElems_g, mu_l, mu_g, p, Deltat0, t_final, ...
+[save_vars] = droplet_test(nElems_l, nElems_g, hmin_l, hmin_g, p, Deltat0, t_final, ...
     TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
     n_saves);

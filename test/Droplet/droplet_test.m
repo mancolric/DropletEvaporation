@@ -1,5 +1,5 @@
 function [save_vars, model_l, model_g] = ...
-    droplet_test(nElems_l, nElems_g, mu_l, mu_g, p, ...
+    droplet_test(nElems_l, nElems_g, hmin_l, hmin_g, p, ...
         Deltat0, t_final, TimeAdapt, TolT, ...
         PlotRes, Save, fuel_names, mass_fracL, ...
         inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, ...
@@ -39,11 +39,36 @@ function [save_vars, model_l, model_g] = ...
     x_l         = 0.0;
     x_g         = XRad*x_lg;
 
-    %Initial mesh coordinates:
-    xmesh_l         = x_lg*(exp(mu_l*(0:nElems_l)/nElems_l)-1)/...
-                            (exp(mu_l)-1);
-    xmesh_g         = x_lg + (x_g-x_lg)*( exp(mu_g*(0:nElems_g)/nElems_g)-1.0 ) / ...
-                                        ( exp(mu_g)-1.0 );
+    %Function to solve hmin*(1+r+r^2+...+r^(N-1))=L:
+    function [f,J]=MeshFactor(r, hmin, nElems, L)
+        f       = sum(r.^(0:nElems-1)) - L/hmin;
+        J       = dot(1:nElems-1, r.^(0:nElems-2));
+    end
+    %Find mesh factors. Note that the equation above is ill conditioned. It
+    %is necessary to start from r_max, which is defined in such a way that 
+    %   hmin*r_max^(N-1)=L
+    %It is clear that r<r_max, otherwise, hmin(1+r+r^2+...+r^(N-1))>L.
+    [r_l, ~, flag]  = NewtonRaphson(...
+                        @(r, ComputeJ) MeshFactor(r, hmin_l, nElems_l, x_lg), ...
+                        (x_lg/hmin_l)^(1/(nElems_l-1)), 1e-2*x_lg, 0.0, 200);
+    if flag<0
+        error('Unable to generate mesh for liquid phase')
+    end
+    [r_g, ~, flag]  = NewtonRaphson(...
+                        @(r, ComputeJ) MeshFactor(r, hmin_g, nElems_g, x_g-x_lg), ...
+                        ((x_g-x_lg)/hmin_g)^(1/(nElems_g-1)), 1e-2*(x_g-x_lg), 0.0, 200);
+    if flag<0
+        error('Unable to generate mesh for liquid phase')
+    end
+    %Generate meshes:
+    helems_l        = hmin_l*r_l.^(nElems_l-1:-1:0);
+    xmesh_l         = [ 0.0, cumsum(helems_l) ];
+    xmesh_l(end)    = x_lg;
+    helems_g        = hmin_g*r_g.^(0:nElems_g-1);
+    xmesh_g         = x_lg + [ 0.0, cumsum(helems_g) ];
+    xmesh_g(end)    = x_g;
+    
+    %Plot mesh:
     if false
         figure;
         hold on;
