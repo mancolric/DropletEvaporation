@@ -714,7 +714,7 @@ function [save_vars, model_l, model_g] = ...
         mass_g_np1          = MassMatrix(sol_np1.fesg);
         Mm_g_np1            = MassMatrixExpand(mass_g_np1, model_g.nDiff, model_g.nAlg);
         
-        PlotFun(sol_np1)
+%         PlotFun(sol_np1)
         
         %Update boundary conditions. MATLAB works with copies, not pointers, 
         %so this is not already done in CouplingConditions:
@@ -743,7 +743,7 @@ function [save_vars, model_l, model_g] = ...
         %Compute term due to fluxes and restriction:
         [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
             FEM_fgQ_Baumgarte(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ, ...
-            mass_l_np1, tau_Baum);
+            mass_l_np1, NF_l, tau_Baum);
         
         %Residuals and Jacobians:
         r_l                             = Mm_l_np1*CellToVector(sol_np1.ul) - bDAE_l_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_l_RK(:,is);
@@ -807,35 +807,37 @@ function [save_vars, model_l, model_g] = ...
             J_l.sv                      = cat(1, J_l.sv, Jterm);
         end
         
-        %Impose known velocity:
-        mass_l                      = MassMatrix(sol_np1.feslm1);
-        function v_l=v_l_fun(x)
-            v_l                     = { 0.0*x };
-        end
-        b_vl                        = ProjectFun(@v_l_fun, sol_n.feslm1);
-        block_vl_aux                = block_vl-block_ul(1)+1;
-        r_l(block_vl_aux)           = Deltat_n*(mass_l*y(block_vl) - b_vl);
-        if ComputeJ
-            %Delete previous components:
-            aux                     = find((J_l.iv>=block_vl_aux(1)) & (J_l.iv<=block_vl_aux(end)));
-            J_l.sv(aux)             = 0.0;
-            %New components:
-            [Mm_iv, Mm_jv, Mm_sv]   = find(mass_l);
-            J_l.iv                  = cat(1, J_l.iv, Mm_iv+block_vl_aux(1)-1);
-            J_l.jv                  = cat(1, J_l.jv, Mm_jv+block_vl_aux(1)-1);
-            J_l.sv                  = cat(1, J_l.sv, Deltat_n*Mm_sv);
-            %Delete previous components:
-            aux                     = find((J_lz.iv>=block_vl_aux(1)) & (J_lz.iv<=block_vl_aux(end)));
-            J_lz.sv(aux)            = 0.0;
-        end 
+%         %Impose known velocity:
+%         mass_l                      = MassMatrix(sol_np1.feslm1);
+%         function v_l=v_l_fun(x)
+%             v_l                     = { 0.0*x };
+%         end
+%         b_vl                        = ProjectFun(@v_l_fun, sol_n.feslm1);
+%         block_vl_aux                = block_vl-block_ul(1)+1;
+%         r_l(block_vl_aux)           = Deltat_n*(mass_l*y(block_vl) - b_vl);
+%         if ComputeJ
+%             %Delete previous components:
+%             aux                     = find((J_l.iv>=block_vl_aux(1)) & (J_l.iv<=block_vl_aux(end)));
+%             J_l.sv(aux)             = 0.0;
+%             %New components:
+%             [Mm_iv, Mm_jv, Mm_sv]   = find(mass_l);
+%             J_l.iv                  = cat(1, J_l.iv, Mm_iv+block_vl_aux(1)-1);
+%             J_l.jv                  = cat(1, J_l.jv, Mm_jv+block_vl_aux(1)-1);
+%             J_l.sv                  = cat(1, J_l.sv, Deltat_n*Mm_sv);
+%             %Delete previous components:
+%             aux                     = find((J_lz.iv>=block_vl_aux(1)) & (J_lz.iv<=block_vl_aux(end)));
+%             J_lz.sv(aux)            = 0.0;
+%         end 
         
         %------------------------------------------------------------------
         %IMPOSE DAE FOR GAS:
         
         %Compute term due to fluxes and restriction:
+%         [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
+%             FEM_fgQ_Baumgarte(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ, ...
+%             mass_g_np1, NF_g, tau_Baum);
         [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
-            FEM_fgQ_Baumgarte(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ, ...
-            mass_g_np1, tau_Baum);
+            FEM_fgQ(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ);
         
         %Residuals and Jacobians:
         r_g                             = Mm_g_np1*CellToVector(sol_np1.ug) - bDAE_g_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_g_RK(:,is);
@@ -899,31 +901,31 @@ function [save_vars, model_l, model_g] = ...
             J_g.sv                      = cat(1, J_g.sv, Jterm);
         end
         
-        %Impose known velocity:
-        mass_g                      = MassMatrix(sol_np1.fesgm1);
-        function v_g=v_g_fun(x)
-            v_g                     = { 1.0*(mesh_g_np1.x_faces(1)./x).^2 };
-        end
-        b_vg                        = ProjectFun(@v_g_fun, sol_n.fesgm1);
-        block_vg_aux                = block_vg-block_ug(1)+1;
-        r_g(block_vg_aux)           = Deltat_n*(mass_g*y(block_vg) - sol_np1.qR(end)*b_vg);
-        if ComputeJ
-            %Delete previous components:
-            aux                     = find(J_g.iv>=block_vg_aux(1) & J_g.iv<=block_vg_aux(end));
-            J_g.sv(aux)             = 0.0;
-            %New components:
-            [Mm_iv, Mm_jv, Mm_sv]   = find(mass_g);
-            J_g.iv                  = cat(1, J_g.iv, Mm_iv+block_vg_aux(1)-1);
-            J_g.jv                  = cat(1, J_g.jv, Mm_jv+block_vg_aux(1)-1);
-            J_g.sv                  = cat(1, J_g.sv, Deltat_n*Mm_sv);
-            %Delete previous components:
-            aux                     = find(J_gz.iv>=block_vg_aux(1) & J_gz.iv<=block_vg_aux(end));
-            J_gz.sv(aux)            = 0.0;
-            %New components:
-            J_gz.iv                 = cat(1, J_gz.iv, block_vg_aux.');
-            J_gz.jv                 = cat(1, J_gz.jv, repmat(N_z-1, length(block_vg_aux),1));
-            J_gz.sv                 = cat(1, J_gz.sv, -Deltat_n*b_vg);
-        end 
+%         %Impose known velocity:
+%         mass_g                      = MassMatrix(sol_np1.fesgm1);
+%         function v_g=v_g_fun(x)
+%             v_g                     = { 1.0*(mesh_g_np1.x_faces(1)./x).^2 };
+%         end
+%         b_vg                        = ProjectFun(@v_g_fun, sol_n.fesgm1);
+%         block_vg_aux                = block_vg-block_ug(1)+1;
+%         r_g(block_vg_aux)           = Deltat_n*(mass_g*y(block_vg) - sol_np1.qR(end)*b_vg);
+%         if ComputeJ
+%             %Delete previous components:
+%             aux                     = find(J_g.iv>=block_vg_aux(1) & J_g.iv<=block_vg_aux(end));
+%             J_g.sv(aux)             = 0.0;
+%             %New components:
+%             [Mm_iv, Mm_jv, Mm_sv]   = find(mass_g);
+%             J_g.iv                  = cat(1, J_g.iv, Mm_iv+block_vg_aux(1)-1);
+%             J_g.jv                  = cat(1, J_g.jv, Mm_jv+block_vg_aux(1)-1);
+%             J_g.sv                  = cat(1, J_g.sv, Deltat_n*Mm_sv);
+%             %Delete previous components:
+%             aux                     = find(J_gz.iv>=block_vg_aux(1) & J_gz.iv<=block_vg_aux(end));
+%             J_gz.sv(aux)            = 0.0;
+%             %New components:
+%             J_gz.iv                 = cat(1, J_gz.iv, block_vg_aux.');
+%             J_gz.jv                 = cat(1, J_gz.jv, repmat(N_z-1, length(block_vg_aux),1));
+%             J_gz.sv                 = cat(1, J_gz.sv, -Deltat_n*b_vg);
+%         end 
         
         %------------------------------------------------------------------
         %IMPOSE INTERFACE CONDITIONS:
@@ -1162,11 +1164,12 @@ function [save_vars, model_l, model_g] = ...
 %         hold off
         
     end
-    function [fscaled, Jscaled] = ScaledResidualFun(yscaled, ComputeJ)
+    function [fscaled, Jscaled] = ScaledResidualFun(yscaled, ComputeJ, is)
         
         %Compute residual:
-        y       = Sy*yscaled;
-        [r,A]   = ResidualFun(y, ComputeJ);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
+%         y       = Sy*yscaled;
+        y       = yscaled;
+        [r,A]   = ResidualFun(y, ComputeJ, is);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
         if any(isnan(r{1})) || any(isnan(r{2})) || any(isnan(r{3})) 
             fscaled = NaN;
             Jscaled = NaN;
@@ -1174,16 +1177,20 @@ function [save_vars, model_l, model_g] = ...
         end
         
         %Reshape r and A:
-        fscaled = cat(1, Srinv{1}*r{1}, Srinv{2}*r{2}, Srinv{3}*r{3});
+%         fscaled = cat(1, Srinv{1}*r{1}, Srinv{2}*r{2}, Srinv{3}*r{3});
+        fscaled = cat(1, r{1}, r{2}, r{3});
         Nl      = length(r{1});
         Ng      = length(r{2});
         Nlgz    = length(r{3});
         if ComputeJ
+%             Jscaled = [ speye(Nl),          sparse(Nl,Ng),      sparse(Nl,Nlgz);
+%                         sparse(Ng,Nl),      speye(Ng),          sparse(Ng,Nlgz);
+%                         sparse(Nlgz,Nl),    sparse(Nlgz,Ng),    Srinv{3}*A{3}*Sy(block_ul(1):end, block_ul(1):end) ];
             Jscaled = [ speye(Nl),          sparse(Nl,Ng),      sparse(Nl,Nlgz);
                         sparse(Ng,Nl),      speye(Ng),          sparse(Ng,Nlgz);
-                        sparse(Nlgz,Nl),    sparse(Nlgz,Ng),    Srinv{3}*A{3}*Sy(block_ul(1):end, block_ul(1):end) ];
-%             Jest    = JacobEst(@(yhat,ComputeJ)ScaledResidualFun(yhat,ComputeJ), yscaled, 1e-5);
-%             save('test.mat', 'Jscaled', 'Jest', 'block_ul', 'block_vl', 'block_ug', 'block_vg', 'block_z' )
+                        sparse(Nlgz,Nl),    sparse(Nlgz,Ng),    A{3} ];
+            Jest    = JacobEst(@(yhat,ComputeJ)ScaledResidualFun(yhat,ComputeJ,is), yscaled, 1e-5);
+            save('test.mat', 'Jscaled', 'Jest', 'block_ul', 'block_vl', 'block_ug', 'block_vg', 'block_z' )
         else
             Jscaled = NaN;
         end
@@ -1309,7 +1316,11 @@ function [save_vars, model_l, model_g] = ...
             A_n_fact        = { 1.0; 
                                 1.0;
                                 LUFactorization(Srinv{3}*A_n{3}*Sy(block_ul(1):end, block_ul(1):end)) };
-                                
+                    
+            %DEBUG: Evaluate Jacobian numerically:
+            ScaledResidualFun(yv_np1, true, 2);
+            error(' ')
+            
             %Loop stages:
             NLS_iters       = 0;
             for ii=2:RKmethod.s 

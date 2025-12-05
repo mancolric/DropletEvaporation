@@ -1,5 +1,5 @@
 function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, usol, fes, ComputeJ, ...
-    Mm, tau)
+    Mm, NF, tau)
 
     %NOTE: This function is only valid for DG.
     
@@ -344,21 +344,26 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
     end
     
     %Compute Udot = M^{-1} F(U,V):
-    Udot            = cell(model.nDiff, 1);
-    Mm_F            = LUFactorization(Mm);
+    Udot                = cell(model.nDiff, 1);
+    Mm_F                = LUFactorization(Mm);
+    Udot_rnorm          = zeros(model.nDiff, 1);
     for II=1:model.nDiff
-        dof         = (II-1)*fes.nDof + (1:fes.nDof);
-        Udot{II}    = LUSolve(Mm_F, F(dof));
+        dof             = (II-1)*fes.nDof + (1:fes.nDof);
+        Udot{II}        = LUSolve(Mm_F, F(dof));
+        Udot_rnorm(II)  = norm(Udot{II},Inf)/NF(II);
     end
     udot_qp         = EvalSolution(Udot, fes, 1:mesh.nElems, QuadRule.xi);
     dudot_dx_qp     = EvalSolution_dx(Udot, fes, 1:mesh.nElems, QuadRule.xi);
+    
+    %Scale Udot's in such a way that the maximum relative norm is one:
+    Udot_scal       = max(Udot_rnorm);
     
     %Derivation nodes and weights:
     epsilon         = 1e-4;
     xi_deriv        = [-2.0, -1.0, 0.0, 1.0, 2.0]*epsilon;
     w_deriv         = [1, -8, 0, 8, -1]/(12*epsilon);
     
-    %Compute Gdot = dG/dU*Udot = 1/epsilon * sum w_i G(U+epsilon*xi_i*Udot):
+    %Compute Gdot = dG/dU*Udot = ||Udot|| sum w_i G(U+xi_i*Udot/||Udot||):
     Gdot            = zeros(model.nAlg*fes.nDof, 1);
     Gpert           = zeros(model.nAlg*fes.nDof, 1);
     for ideriv=1:length(w_deriv)
@@ -370,8 +375,8 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
             upert_qp        = cell(model.nVars, 1);
             dupert_dx_qp    = cell(model.nVars, 1);
             for II=1:model.nDiff
-                upert_qp{II}        = u_qp{II} + xi_deriv(ideriv)*udot_qp{II};
-                dupert_dx_qp{II}    = du_dx_qp{II} + xi_deriv(ideriv)*dudot_dx_qp{II};
+                upert_qp{II}        = u_qp{II} + xi_deriv(ideriv)*(udot_qp{II}/Udot_scal);
+                dupert_dx_qp{II}    = du_dx_qp{II} + xi_deriv(ideriv)*(dudot_dx_qp{II}/Udot_scal);
             end
             for II=model.nDiff+1:model.nVars
                 upert_qp{II}        = u_qp{II}*NaN;
@@ -394,7 +399,7 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
         end
         
         %Update Gdot:
-        Gdot        = Gdot + w_deriv(ideriv)*Gpert;
+        Gdot        = Gdot + Udot_scal*(w_deriv(ideriv)*Gpert);
         
     end
     
