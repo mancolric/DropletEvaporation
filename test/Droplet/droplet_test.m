@@ -1,11 +1,8 @@
 %UNDO!:
-%Zeros in mesh motion
-%Imposed velocity
 %Constant density
 %Initial condition
 %tevap
 %convergence info msg
-%Plot solution at each iteration
 
 %TODO:
 % Compute only g in models
@@ -23,12 +20,10 @@ function [save_vars, model_l, model_g] = ...
     %DATA:
     
     %Maximum and target nb of iterations in nonlinear solver:
-    NLS_MaxIter     = 200;   %for BPR3 method
-    NLS_IterTarget  = 120;   %for BPR3 method
-    
-    %Relaxation time for boundary conditions:
-    tau_relax   = 1e-6;
-%     tau_relax   = Inf;
+%     NLS_MaxIter     = 200;   
+%     NLS_IterTarget  = 120;   
+    NLS_MaxIter     = 400;   
+    NLS_IterTarget  = 300;
     
     % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
     % where NLS_iters is the mean number of nonlinear solver iterations at 
@@ -44,9 +39,13 @@ function [save_vars, model_l, model_g] = ...
     %Characteristic velocities and time:
     NF_vl       = 1e-1;         %Characteristic value for liquid velocity
     NF_vg       = 1e-1;         %Characteristic value for gas velocity
-    NF_tau      = 1e-6;         %Characteristic time
-    tau_Baum    = 100*NF_tau;   %Baumgarte's time stabilization parameter
+    NF_w        = 1e-1;         %Characteristic value for droplet velocity;
+    tau_Baum    = 1e-3;         %Baumgarte's time stabilization parameter
+    
     %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
+    
+    %Algebraic tolerance for first time level:
+    TolA0       = 1e-4;
     
     %Domain limits:
     x_l         = 0.0;
@@ -102,7 +101,8 @@ function [save_vars, model_l, model_g] = ...
     disp([  'hmin_g=', sprintf('%.2E', min(hElems_g)), ...
             ', r_g=', sprintf('%.2E', r_g), ...
             ', hmax_g=', sprintf('%.2E', max(hElems_g))])
-        
+    disp(' ')
+    
     %Load models:
     model_l        = Liquid_ALE(fuel_names,mass_fracL, inert_comps, mass_fracG);
     model_g        = Gas_ALE(fuel_names, inert_comps, mass_fracG);
@@ -110,7 +110,11 @@ function [save_vars, model_l, model_g] = ...
     %Initial gas and droplet velocity. To be initialized in u0_g:
     vR_0           = NaN;
     w_0            = NaN;   
-    
+      
+    %Relaxation time for boundary conditions (useful for u0=u0_const,
+    %useless otherwise):
+    tau_relax       = 1e-3;
+
     %Initial condition function for the LIQUID phase
     function u = u0_l(x)
               
@@ -349,8 +353,8 @@ function [save_vars, model_l, model_g] = ...
     end
 
     function u = u0_g(x)
-%         u       = u0_g_const(x);
-        u       = u0_g_slopes(x);
+        u       = u0_g_const(x);
+%         u       = u0_g_slopes(x);
 %         u       = u0_g_Millan(x);
     end
     
@@ -714,7 +718,7 @@ function [save_vars, model_l, model_g] = ...
         mass_g_np1          = MassMatrix(sol_np1.fesg);
         Mm_g_np1            = MassMatrixExpand(mass_g_np1, model_g.nDiff, model_g.nAlg);
         
-        PlotFun(sol_np1)
+%         PlotFun(sol_np1)
         
         %Update boundary conditions. MATLAB works with copies, not pointers, 
         %so this is not already done in CouplingConditions:
@@ -1078,8 +1082,10 @@ function [save_vars, model_l, model_g] = ...
         end
         
         %Append equilibrium conditions:
-        DeltaT_np1              = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
-        DeltaP_np1              = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
+%         DeltaT_np1              = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
+%         DeltaP_np1              = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
+        DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
+        DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
         [rEq, JEq]              = EquilibriumConditions(model_l, model_g, ...
                                     [sol_np1.qL; sol_np1.qR(1:model_g.nDiff)], ...
                                     DeltaT_np1, DeltaP_np1, NF_l, NF_g, true);
@@ -1157,7 +1163,7 @@ function [save_vars, model_l, model_g] = ...
         g_lgz       = LUSolve(A_n_fact{3},Srinv{3}*r{3});
         gscaled     = cat(1, g_mesh_l, g_mesh_g, g_lgz);
         
-        display(sol_np1.w)
+%         display(sol_np1.w)
         
 %         figure(fig2)
 %         semilogy(abs(g_lgz), "+-b")
@@ -1296,7 +1302,7 @@ function [save_vars, model_l, model_g] = ...
 
             %Scaling vectors and multiplicity:
             Sy_factors      = [ R_l; R_g; NF_l; NF_g; NF_l(1:end-1); NF_g(1:end); 
-                                0.5*(NF_l(end)+NF_g(end)) ];
+                                NF_w ];
             Sy_mult         = [ nNodes_l; nNodes_g; ...
                                 repmat(sol_n.fesl.nDof, model_l.nDiff, 1); ...
                                 repmat(sol_n.feslm1.nDof, model_l.nAlg, 1); ...
@@ -1304,8 +1310,8 @@ function [save_vars, model_l, model_g] = ...
                                 repmat(sol_n.fesgm1.nDof, model_g.nAlg, 1); ...
                                 repmat(1, N_L, 1); repmat(1, N_R, 1); 1 ];
             Srinv_factors   = 1.0 ./ [ ...
-                                NF_omega_l*NF_l(1:end-1); Deltat_n*NF_omega_l*NF_l(1)/NF_tau; ...
-                                NF_omega_g*NF_g(1:end-1); Deltat_n*NF_omega_g*NF_g(1)/NF_tau; ...
+                                NF_omega_l*NF_l(1:end-1); Deltat_n*NF_omega_l*NF_l(1)/tau_Baum; ...
+                                NF_omega_g*NF_g(1:end-1); Deltat_n*NF_omega_g*NF_g(1)/tau_Baum; ...
                                 NF_g(end)*NF_g(1:end-1); ...
                                 max(DeltaT_0,300); max(DeltaP_0,1e5); NF_l(1); NF_g(1) ];
             Srinv_mult      = [ repmat(sol_n.fesl.nDof, model_l.nDiff, 1);
@@ -1365,21 +1371,23 @@ function [save_vars, model_l, model_g] = ...
                 %and kmesh. Variables xmesh_ii, wmesh_ii, ..., Mm_ii are also
                 %modified according to the values of y. Deltat_CFL_n is
                 %also modified when solving the last stage:
-                if TimeAdapt && sol_n.t>0
-                    TolA            = max(1e-10, 0.01*etaT_nm1);
+                if sol_n.t==0
+                    TolA            = TolA0;
+                elseif TimeAdapt
+                    TolA            = max(5e-3*TolT, 0.01*etaT_nm1);
                 else
-                    TolA            = 1e-6;
+                    TolA            = 1e-8;
                 end
-                NDOF                            = nDAE_l*fes_l.nDof + nDAE_g*fes_g.nDof; 
+                NDOF                            = length(yv_np1); 
                 [yscaled_np1, nIters, NLSFlag]  = Anderson(...
                                                     @(yhat)PrecResidualFun(yhat,ii), ...
                                                         diag(Sy).\yv_np1, ...
-                                                        sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50);
-%                 [yscaled_np1, nIters, NLSFlag]  = NewtonRaphson(@ScaledResidualFun, diag(Sy).\yv_n, ...
+                                                        0.0, sqrt(NDOF)*TolA, NLS_MaxIter, 50);
+%                 [yscaled_np1, nIters, NLSFlag]  = NewtonRaphson(@ScaledResidualFun, diag(Sy).\yv_np1, ...
 %                                                         0.0, sqrt(NDOF)*TolA, NLS_MaxIter);
                 yv_np1              = Sy*yscaled_np1;
                 if NLSFlag<0
-                    disp(['Nonlinear solver did not converge at stage ', num2str(ii),'. Reducing time step'])
+                    disp(['Nonlinear solver did not converge at stage ', num2str(ii)])
                     break
                 else
                     disp(['Nonlinear solver converged in ', num2str(nIters), ' iterations'])
@@ -1463,13 +1471,6 @@ function [save_vars, model_l, model_g] = ...
         end
 
         %At this point, integration of the time step has converged.
-        disp(' ')
-        disp([  't=', sprintf('%.2E',sol_n.t),...
-                ', tau=', sprintf('%.2E',Deltat_n), ...
-                ', CFL=', sprintf('%.2E',CFL_n), ...
-                ', errT=', sprintf('%.2E',etaT), ...
-                ', NLSiters/stage=', sprintf('%.1f',NLS_iters), ...
-                ', tCPU=', sprintf('%.2E', toc(tStart)) ])
 
         %Evaluate densities and temperature from numerical solution:
         uL               = EvalSolution(sol_np1.ul, sol_n.fesl, [sol_n.fesl.mesh.nElems], [1.0]);
@@ -1491,6 +1492,7 @@ function [save_vars, model_l, model_g] = ...
         [~,y_qg_bc]      = calc_rho_y(rhoy_qg, model_g);
         T_ql_bc          = calc_T(H_ql,rhoy_ql,model_l);
         T_qg_bc          = calc_T(H_qg,rhoy_qg,model_g);
+        %Print info of BC:
         for II=1:model_g.nInerts
             disp([  'Y_qg=', sprintf('%.4E', 0.0), ...
                     ', DeltaY_ql=', sprintf('%.5E', 0.0), ...
@@ -1511,6 +1513,15 @@ function [save_vars, model_l, model_g] = ...
                 ', v_g=', sprintf('%.5E', uR{model_g.nDiff+1}), ...
                 ', w=', sprintf('%.5E', sol_np1.w) ] );
         
+        %Print summary:
+        disp([  't=', sprintf('%.2E',sol_n.t),...
+                ', tau=', sprintf('%.2E',Deltat_n), ...
+                ', CFL=', sprintf('%.2E',CFL_n), ...
+                ', errT=', sprintf('%.2E',etaT), ...
+                ', NLSiters/stage=', sprintf('%.1f',NLS_iters), ...
+                ', tCPU=', sprintf('%.2E', toc(tStart)) ])
+        disp(' ')
+                    
         %Update solution:
         sol_np1.t   = t_np1;    %Correct roundoff errors for last stage
         Nt          = Nt+1;
