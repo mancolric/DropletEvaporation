@@ -1,8 +1,11 @@
 clear all
+close all
 
 load 'test.mat'
 
 blocks      = { block_ul, block_vl, block_ug, block_vg, block_z };
+% blocks      = { block_ul(1:80), block_ul(81:160), block_vl, block_ug, block_vg, block_z(6) };
+% blocks      = { block_ul(1:160), block_vl, block_ug, block_vg, block_z(6) };
 
 for II=1:length(blocks)
     for JJ=1:length(blocks)

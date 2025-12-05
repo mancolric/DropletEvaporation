@@ -33,7 +33,7 @@ TolT              = 1e-4;  % Tolerance for temporal error (≥1e-3) (used if Tim
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = false; % Plot intermediate results (true/false)
+PlotRes           = true; % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
 Save              = true;  % Save results to file (true/false)

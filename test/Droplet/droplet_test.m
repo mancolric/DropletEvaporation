@@ -29,7 +29,6 @@ function [save_vars, model_l, model_g] = ...
     %Relaxation time for boundary conditions:
     tau_relax   = 1e-6;
 %     tau_relax   = Inf;
-    tau_Baum    = 1e-4;
     
     % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
     % where NLS_iters is the mean number of nonlinear solver iterations at 
@@ -43,9 +42,10 @@ function [save_vars, model_l, model_g] = ...
     % and many temporary or convergence errors appear in the console, NLS_IterTarget should be a value around 26.
     
     %Characteristic velocities and time:
-    NF_vl       = 1e-4;  %Characteristic value for liquid velocity
-    NF_vg       = 1e-1;  %Characteristic value for gas velocity
-    NF_tau      = 1e-6;  %Characteristic time
+    NF_vl       = 1e-1;         %Characteristic value for liquid velocity
+    NF_vg       = 1e-1;         %Characteristic value for gas velocity
+    NF_tau      = 1e-6;         %Characteristic time
+    tau_Baum    = 100*NF_tau;   %Baumgarte's time stabilization parameter
     %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
     
     %Domain limits:
@@ -714,7 +714,7 @@ function [save_vars, model_l, model_g] = ...
         mass_g_np1          = MassMatrix(sol_np1.fesg);
         Mm_g_np1            = MassMatrixExpand(mass_g_np1, model_g.nDiff, model_g.nAlg);
         
-%         PlotFun(sol_np1)
+        PlotFun(sol_np1)
         
         %Update boundary conditions. MATLAB works with copies, not pointers, 
         %so this is not already done in CouplingConditions:
@@ -744,6 +744,8 @@ function [save_vars, model_l, model_g] = ...
         [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
             FEM_fgQ_Baumgarte(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ, ...
             mass_l_np1, NF_l, tau_Baum);
+%         [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
+%             FEM_fgQ(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ);
         
         %Residuals and Jacobians:
         r_l                             = Mm_l_np1*CellToVector(sol_np1.ul) - bDAE_l_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_l_RK(:,is);
@@ -792,8 +794,8 @@ function [save_vars, model_l, model_g] = ...
         end
         
         %Impose null velocity at origin:
-        Jterm                           = NF_omega_l*NF_l(1)*Deltat_n / ...
-                                            (NF_l(end)*NF_tau/Deltat_n);
+        Jterm                           = 1.0/(Srinv{3}(N_ul+1, N_ul+1) * ...
+                                               Sy(block_vl(1), block_vl(1)) );
         r_l(N_ul+1)                     = y(block_vl(1)) * Jterm;
         %Jterm is chosen in such a way that, after aplying scaling
         %matrices, the corresponding scale term is 1.
@@ -833,11 +835,11 @@ function [save_vars, model_l, model_g] = ...
         %IMPOSE DAE FOR GAS:
         
         %Compute term due to fluxes and restriction:
-%         [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
-%             FEM_fgQ_Baumgarte(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ, ...
-%             mass_g_np1, NF_g, tau_Baum);
         [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
-            FEM_fgQ(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ);
+            FEM_fgQ_Baumgarte(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ, ...
+            mass_g_np1, NF_g, tau_Baum);
+%         [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
+%             FEM_fgQ(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ);
         
         %Residuals and Jacobians:
         r_g                             = Mm_g_np1*CellToVector(sol_np1.ug) - bDAE_g_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_g_RK(:,is);
@@ -886,8 +888,8 @@ function [save_vars, model_l, model_g] = ...
         end
         
         %Impose velocity at droplet surface:
-        Jterm                           = NF_omega_g*NF_g(1)*Deltat_n / ...
-                                            (NF_g(end)*NF_tau/Deltat_n);
+        Jterm                           = 1.0/(Srinv{3}(N_ul+N_vl+N_ug+1, N_ul+N_vl+N_ug+1) * ...
+                                               Sy(block_vg(1), block_vg(1)) );
         %Jterm is chosen in such a way that, after aplying scaling
         %matrices, the corresponding scaled term is 1.
         r_g(N_ug+1)                     = (y(block_vg(1))-sol_np1.qR(end)) * Jterm;
@@ -899,6 +901,9 @@ function [save_vars, model_l, model_g] = ...
             J_g.iv                      = cat(1, J_g.iv, N_ug+1);
             J_g.jv                      = cat(1, J_g.jv, N_ug+1);
             J_g.sv                      = cat(1, J_g.sv, Jterm);
+            J_gz.iv                     = cat(1, J_gz.iv, N_ug+1);
+            J_gz.jv                     = cat(1, J_gz.jv, N_z-1);
+            J_gz.sv                     = cat(1, J_gz.sv, -Jterm);
         end
         
 %         %Impose known velocity:
@@ -1152,7 +1157,7 @@ function [save_vars, model_l, model_g] = ...
         g_lgz       = LUSolve(A_n_fact{3},Srinv{3}*r{3});
         gscaled     = cat(1, g_mesh_l, g_mesh_g, g_lgz);
         
-%         display(sol_np1.w)
+        display(sol_np1.w)
         
 %         figure(fig2)
 %         semilogy(abs(g_lgz), "+-b")
@@ -1167,8 +1172,8 @@ function [save_vars, model_l, model_g] = ...
     function [fscaled, Jscaled] = ScaledResidualFun(yscaled, ComputeJ, is)
         
         %Compute residual:
-%         y       = Sy*yscaled;
-        y       = yscaled;
+        y       = Sy*yscaled;
+%         y       = yscaled;
         [r,A]   = ResidualFun(y, ComputeJ, is);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
         if any(isnan(r{1})) || any(isnan(r{2})) || any(isnan(r{3})) 
             fscaled = NaN;
@@ -1177,18 +1182,18 @@ function [save_vars, model_l, model_g] = ...
         end
         
         %Reshape r and A:
-%         fscaled = cat(1, Srinv{1}*r{1}, Srinv{2}*r{2}, Srinv{3}*r{3});
-        fscaled = cat(1, r{1}, r{2}, r{3});
+        fscaled = cat(1, Srinv{1}*r{1}, Srinv{2}*r{2}, Srinv{3}*r{3});
+%         fscaled = cat(1, r{1}, r{2}, r{3});
         Nl      = length(r{1});
         Ng      = length(r{2});
         Nlgz    = length(r{3});
         if ComputeJ
-%             Jscaled = [ speye(Nl),          sparse(Nl,Ng),      sparse(Nl,Nlgz);
-%                         sparse(Ng,Nl),      speye(Ng),          sparse(Ng,Nlgz);
-%                         sparse(Nlgz,Nl),    sparse(Nlgz,Ng),    Srinv{3}*A{3}*Sy(block_ul(1):end, block_ul(1):end) ];
             Jscaled = [ speye(Nl),          sparse(Nl,Ng),      sparse(Nl,Nlgz);
                         sparse(Ng,Nl),      speye(Ng),          sparse(Ng,Nlgz);
-                        sparse(Nlgz,Nl),    sparse(Nlgz,Ng),    A{3} ];
+                        sparse(Nlgz,Nl),    sparse(Nlgz,Ng),    Srinv{3}*A{3}*Sy(block_ul(1):end, block_ul(1):end) ];
+%             Jscaled = [ speye(Nl),          sparse(Nl,Ng),      sparse(Nl,Nlgz);
+%                         sparse(Ng,Nl),      speye(Ng),          sparse(Ng,Nlgz);
+%                         sparse(Nlgz,Nl),    sparse(Nlgz,Ng),    A{3} ];
             Jest    = JacobEst(@(yhat,ComputeJ)ScaledResidualFun(yhat,ComputeJ,is), yscaled, 1e-5);
             save('test.mat', 'Jscaled', 'Jest', 'block_ul', 'block_vl', 'block_ug', 'block_vg', 'block_z' )
         else
@@ -1266,11 +1271,32 @@ function [save_vars, model_l, model_g] = ...
             R_l             = sol_n.fesl.mesh.x_faces(end);
             R_g             = sol_n.fesg.mesh.x_faces(end);
             
+%             %Scaling vectors and multiplicity:
+%             Sy_factors      = [ R_l; R_g; ...
+%                                 NF_l(1:end-1); NF_l(end)*NF_tau/Deltat_n; ...
+%                                 NF_g(1:end-1); NF_g(end)*NF_tau/Deltat_n; ...
+%                                 NF_l(1:end-1); NF_g(1:end); 0.5*(NF_l(end)+NF_g(end)) ];
+%             Sy_mult         = [ nNodes_l; nNodes_g; ...
+%                                 repmat(sol_n.fesl.nDof, model_l.nDiff, 1); ...
+%                                 repmat(sol_n.feslm1.nDof, model_l.nAlg, 1); ...
+%                                 repmat(sol_n.fesg.nDof, model_g.nDiff, 1); ...
+%                                 repmat(sol_n.fesgm1.nDof, model_g.nAlg, 1); ...
+%                                 repmat(1, N_L, 1); repmat(1, N_R, 1); 1 ];
+%             Srinv_factors   = 1.0 ./ [ ...
+%                                 NF_omega_l*NF_l(1:end-1); NF_omega_l*NF_l(1)*Deltat_n; ...
+%                                 NF_omega_g*NF_g(1:end-1); NF_omega_g*NF_g(1)*Deltat_n; ...
+%                                 NF_g(end)*NF_g(1:end-1); ...
+%                                 max(DeltaT_0,300); max(DeltaP_0,1e5); NF_l(1); NF_g(1) ];
+%             Srinv_mult      = [ repmat(sol_n.fesl.nDof, model_l.nDiff, 1);
+%                                 repmat(sol_n.feslm1.nDof, model_l.nAlg, 1); ...
+%                                 repmat(sol_n.fesg.nDof, model_g.nDiff, 1);
+%                                 repmat(sol_n.fesgm1.nDof, model_g.nAlg, 1); ...
+%                                 repmat(1, nDiff_lg, 1); 
+%                                 1; repmat(1, model_l.nSpecies, 1); 1; 1 ]; 
+
             %Scaling vectors and multiplicity:
-            Sy_factors      = [ R_l; R_g; ...
-                                NF_l(1:end-1); NF_l(end)*NF_tau/Deltat_n; ...
-                                NF_g(1:end-1); NF_g(end)*NF_tau/Deltat_n; ...
-                                NF_l(1:end-1); NF_g(1:end); 0.5*(NF_l(end)+NF_g(end)) ];
+            Sy_factors      = [ R_l; R_g; NF_l; NF_g; NF_l(1:end-1); NF_g(1:end); 
+                                0.5*(NF_l(end)+NF_g(end)) ];
             Sy_mult         = [ nNodes_l; nNodes_g; ...
                                 repmat(sol_n.fesl.nDof, model_l.nDiff, 1); ...
                                 repmat(sol_n.feslm1.nDof, model_l.nAlg, 1); ...
@@ -1278,8 +1304,8 @@ function [save_vars, model_l, model_g] = ...
                                 repmat(sol_n.fesgm1.nDof, model_g.nAlg, 1); ...
                                 repmat(1, N_L, 1); repmat(1, N_R, 1); 1 ];
             Srinv_factors   = 1.0 ./ [ ...
-                                NF_omega_l*NF_l(1:end-1); NF_omega_l*NF_l(1)*Deltat_n; ...
-                                NF_omega_g*NF_g(1:end-1); NF_omega_g*NF_g(1)*Deltat_n; ...
+                                NF_omega_l*NF_l(1:end-1); Deltat_n*NF_omega_l*NF_l(1)/NF_tau; ...
+                                NF_omega_g*NF_g(1:end-1); Deltat_n*NF_omega_g*NF_g(1)/NF_tau; ...
                                 NF_g(end)*NF_g(1:end-1); ...
                                 max(DeltaT_0,300); max(DeltaP_0,1e5); NF_l(1); NF_g(1) ];
             Srinv_mult      = [ repmat(sol_n.fesl.nDof, model_l.nDiff, 1);
@@ -1317,9 +1343,10 @@ function [save_vars, model_l, model_g] = ...
                                 1.0;
                                 LUFactorization(Srinv{3}*A_n{3}*Sy(block_ul(1):end, block_ul(1):end)) };
                     
-            %DEBUG: Evaluate Jacobian numerically:
-            ScaledResidualFun(yv_np1, true, 2);
-            error(' ')
+%             %DEBUG: Evaluate Jacobian numerically:
+%             ScaledResidualFun(yv_np1, true, 2);
+%             ScaledResidualFun(diag(Sy).\yv_np1, true, 2);
+%             error(' ')
             
             %Loop stages:
             NLS_iters       = 0;
@@ -1341,12 +1368,12 @@ function [save_vars, model_l, model_g] = ...
                 if TimeAdapt && sol_n.t>0
                     TolA            = max(1e-10, 0.01*etaT_nm1);
                 else
-                    TolA            = 1e-10;
+                    TolA            = 1e-6;
                 end
                 NDOF                            = nDAE_l*fes_l.nDof + nDAE_g*fes_g.nDof; 
                 [yscaled_np1, nIters, NLSFlag]  = Anderson(...
                                                     @(yhat)PrecResidualFun(yhat,ii), ...
-                                                        diag(Sy).\yv_n, ...
+                                                        diag(Sy).\yv_np1, ...
                                                         sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50);
 %                 [yscaled_np1, nIters, NLSFlag]  = NewtonRaphson(@ScaledResidualFun, diag(Sy).\yv_n, ...
 %                                                         0.0, sqrt(NDOF)*TolA, NLS_MaxIter);
