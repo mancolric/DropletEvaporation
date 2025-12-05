@@ -7,9 +7,6 @@
 %convergence info msg
 %Plot solution at each iteration
 
-%TODO:
-% Compute only g in models
-
 function [save_vars, model_l, model_g] = ...
     droplet_test(nElems_l, nElems_g, hmin_l, hmin_g, p, ...
         Deltat0, t_final, TimeAdapt, TolT, ...
@@ -29,7 +26,6 @@ function [save_vars, model_l, model_g] = ...
     %Relaxation time for boundary conditions:
     tau_relax   = 1e-6;
 %     tau_relax   = Inf;
-    tau_Baum    = 1e-4;
     
     % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
     % where NLS_iters is the mean number of nonlinear solver iterations at 
@@ -706,13 +702,11 @@ function [save_vars, model_l, model_g] = ...
         %Update matrices for new mesh:
         mesh_l_np1          = Mesh_Spheric_Create(xmesh_l_np1);
         sol_np1.fesl        = FES_QX_Create(mesh_l_np1, p);
-        mass_l_np1          = MassMatrix(sol_np1.fesl);
-        Mm_l_np1            = MassMatrixExpand(mass_l_np1, model_l.nDiff, model_l.nAlg);
+        Mm_l_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesl), model_l.nDiff, model_l.nAlg);
         %
         mesh_g_np1          = Mesh_Spheric_Create(xmesh_g_np1);
         sol_np1.fesg        = FES_QX_Create(mesh_g_np1, p);
-        mass_g_np1          = MassMatrix(sol_np1.fesg);
-        Mm_g_np1            = MassMatrixExpand(mass_g_np1, model_g.nDiff, model_g.nAlg);
+        Mm_g_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesg), model_g.nDiff, model_g.nAlg);
         
         PlotFun(sol_np1)
         
@@ -742,8 +736,7 @@ function [save_vars, model_l, model_g] = ...
         
         %Compute term due to fluxes and restriction:
         [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
-            FEM_fgQ_Baumgarte(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ, ...
-            mass_l_np1, tau_Baum);
+            FEM_fgQ(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ);
         
         %Residuals and Jacobians:
         r_l                             = Mm_l_np1*CellToVector(sol_np1.ul) - bDAE_l_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_l_RK(:,is);
@@ -834,15 +827,14 @@ function [save_vars, model_l, model_g] = ...
         
         %Compute term due to fluxes and restriction:
         [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
-            FEM_fgQ_Baumgarte(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ, ...
-            mass_g_np1, tau_Baum);
+            FEM_fgQ(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ);
         
         %Residuals and Jacobians:
         r_g                             = Mm_g_np1*CellToVector(sol_np1.ug) - bDAE_g_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_g_RK(:,is);
         if ComputeJ
             
             %Derivatives of equations related to gas:
-            aux                         = dfDAE_duw_g.jv<=nDAE_g*sol_np1.fesg.nDof; 
+            aux                         = dfDAE_duw_g.jv<=nDAE_g*sol_np1.fesg.nDof; %(the contribution of dfDAE_dw*dw_du is ignored for the moment)
             [M_iv, M_jv, M_sv]          = find(Mm_g_np1);
             J_g.iv                      = cat(1, M_iv, dfDAE_duw_g.iv(aux));
             J_g.jv                      = cat(1, M_jv, dfDAE_duw_g.jv(aux));
@@ -1071,6 +1063,8 @@ function [save_vars, model_l, model_g] = ...
         end
         
         %Append equilibrium conditions:
+%         DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
+%         DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
         DeltaT_np1              = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
         DeltaP_np1              = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
         [rEq, JEq]              = EquilibriumConditions(model_l, model_g, ...
@@ -1337,7 +1331,7 @@ function [save_vars, model_l, model_g] = ...
                                                     @(yhat)PrecResidualFun(yhat,ii), ...
                                                         diag(Sy).\yv_n, ...
                                                         sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50);
-%                 [yscaled_np1, nIters, NLSFlag]  = NewtonRaphson(@ScaledResidualFun, diag(Sy).\yv_n, ...
+%                 [yscaled_np1, nIters, NLSFlag]  = NewtonRaphson(@ScaledResidualFun, diag(Sy)\yv_n, ...
 %                                                         0.0, sqrt(NDOF)*TolA, NLS_MaxIter);
                 yv_np1              = Sy*yscaled_np1;
                 if NLSFlag<0

@@ -1,4 +1,5 @@
-%Function to compute int(f * phi_i dOmega):
+%Function to compute int(f * phi_i dOmega). This function is only valid for
+%DG.
 function b=ProjectFun(f, fes)
 
     mesh        = fes.mesh;
