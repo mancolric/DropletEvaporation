@@ -44,7 +44,7 @@ function [save_vars, model_l, model_g] = ...
     NF_vl       = 1e-1;         %Characteristic value for liquid velocity
     NF_vg       = 1e-1;         %Characteristic value for gas velocity
     NF_w        = 1e-1;         %Characteristic value for droplet velocity;
-    tau_Baum    = 1e-6;         %Baumgarte's time stabilization parameter
+    tau_Baum    = 1e-3;         %Baumgarte's time stabilization parameter
     
     %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
     
@@ -1019,6 +1019,10 @@ function [save_vars, model_l, model_g] = ...
         %Compute residual:
         y       = Sy*yscaled;
         [r,~]   = ResidualFun(y, false, istage);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
+%         [r,A_n] = ResidualFun(y, true, istage);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
+%         A_n_fact        = { 1.0; 
+%                             1.0;
+%                             LUFactorization(Srinv{3}*A_n{3}*Sy(block_ul(1):end, block_ul(1):end)) };
         if any(isnan(r{1})) || any(isnan(r{2})) || any(isnan(r{3})) 
             gscaled = NaN;
             return
@@ -1061,15 +1065,15 @@ function [save_vars, model_l, model_g] = ...
         Ng      = length(r{2});
         Nlgz    = length(r{3});
         if ComputeJ
-%             Jscaled = [ speye(Nl),          sparse(Nl,Ng),      sparse(Nl,Nlgz);
-%                         sparse(Ng,Nl),      speye(Ng),          sparse(Ng,Nlgz);
-%                         sparse(Nlgz,Nl),    sparse(Nlgz,Ng),    Srinv{3}*A{3}*Sy(block_ul(1):end, block_ul(1):end) ];
+            Jscaled = [ speye(Nl),          sparse(Nl,Ng),      sparse(Nl,Nlgz);
+                        sparse(Ng,Nl),      speye(Ng),          sparse(Ng,Nlgz);
+                        sparse(Nlgz,Nl),    sparse(Nlgz,Ng),    Srinv{3}*A{3}*Sy(block_ul(1):end, block_ul(1):end) ];
 %             Jscaled = [ speye(Nl),          sparse(Nl,Ng),      sparse(Nl,Nlgz);
 %                         sparse(Ng,Nl),      speye(Ng),          sparse(Ng,Nlgz);
 %                         sparse(Nlgz,Nl),    sparse(Nlgz,Ng),    A{3} ];
 %             Jest    = JacobEst(@(yhat,ComputeJ)ScaledResidualFun(yhat,ComputeJ,is), yscaled, 1e-5);
 %             save('test.mat', 'Jscaled', 'Jest', 'block_ul', 'block_vl', 'block_ug', 'block_vg', 'block_z' )
-            Jscaled   = JacobEst(@(yhat,ComputeJ)ScaledResidualFun(yhat,ComputeJ,is), yscaled, 1e-5);
+%             Jscaled   = JacobEst(@(yhat,ComputeJ)ScaledResidualFun(yhat,ComputeJ,is), yscaled, 1e-5);
         else
             Jscaled   = NaN;
         end
@@ -1258,7 +1262,9 @@ function [save_vars, model_l, model_g] = ...
                                                     @(yhat)PrecResidualFun(yhat,ii), ...
                                                         diag(Sy).\yv_np1, ...
                                                         0.0, sqrt(NDOF)*TolA, NLS_MaxIter, 50);
-%                 [yscaled_np1, nIters, NLSFlag]  = NewtonRaphson(@ScaledResidualFun, diag(Sy).\yv_np1, ...
+%                 [yscaled_np1, nIters, NLSFlag]  = NewtonRaphson(...
+%                                                         @(y,ComputeJ)ScaledResidualFun(y,ComputeJ,ii), ...
+%                                                         diag(Sy).\yv_np1, ...
 %                                                         0.0, sqrt(NDOF)*TolA, NLS_MaxIter);
                 yv_np1              = Sy*yscaled_np1;
                 if NLSFlag<0

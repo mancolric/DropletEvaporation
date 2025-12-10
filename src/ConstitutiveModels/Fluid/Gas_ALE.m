@@ -89,9 +89,66 @@ function [  f, df_du, df_du_dx, ...
     [dg_du, dg_du_dx]       = Cells_Allocate(model.nAlg, model.nVars, ComputeJ, rhoy{1});
     if ComputeJ
         
-        %Derivatives w.r.t. rho and H:
+        %Derivatives w.r.t. rho:
         for II=1:model.nSpecies
-            dg_du{1,II}         = 1.0 + 0.0*u{1}; 
+            
+%             dg_du{1,II}         = 1.0 + 0.0*u{1}; 
+            
+            %Perturb rhoY:
+            delta               = 1e-5;
+            rhoY_pert           = rhoy;
+            rhoY_pert{II}       = rhoy{II} - delta;
+            rho_pert            = rho - delta;
+            
+            %Evaluate rho_bar:
+            Y_pert              = cell(model.nSpecies, 1);
+            for JJ=1:model.nSpecies
+                Y_pert{JJ}      = rhoY_pert{JJ}./rho_pert;
+            end
+            T_pert              = calc_T(H, rhoY_pert, model);
+            rho_bar_pert1       = calc_rho(model, Y_pert, T_pert);
+            
+            %Perturb rhoY again:
+            rhoY_pert           = rhoy;
+            rhoY_pert{II}       = rhoy{II} + delta;
+            rho_pert            = rho + delta;
+            
+            %Evaluate rho_bar:
+            Y_pert              = cell(model.nSpecies, 1);
+            for JJ=1:model.nSpecies
+                Y_pert{JJ}      = rhoY_pert{JJ}./rho_pert;
+            end
+            T_pert              = calc_T(H, rhoY_pert, model);
+            rho_bar_pert2       = calc_rho(model, Y_pert, T_pert);
+            
+            %Add contribution of rho_bar:
+            dg_du{1,II}         = 1.0 - (rho_bar_pert2-rho_bar_pert1)/(2*delta);
+            
+        end
+        
+        %Derivatives w.r.t. H:
+        for II=model.nSpecies+1
+            
+            %Perturb H:
+            delta               = 1e-4;
+            H_pert              = H - delta;
+            
+            %Evaluate rho_bar:
+            Y_pert              = y;
+            T_pert              = calc_T(H_pert, rhoy, model);
+            rho_bar_pert1       = calc_rho(model, Y_pert, T_pert);
+            
+            %Perturb H again:
+            H_pert              = H + delta;
+            
+            %Evaluate rho_bar:
+            Y_pert              = y;
+            T_pert              = calc_T(H_pert, rhoy, model);
+            rho_bar_pert2       = calc_rho(model, Y_pert, T_pert);
+        
+            %Add contribution of rho_bar:
+            dg_du{1,II}         = - (rho_bar_pert2-rho_bar_pert1)/(2*delta);
+            
         end
         
     end
