@@ -6,12 +6,13 @@
 %convergence info msg
 %Plot sol at each NLS iter
 %LU factor
+%Initial condition for vR, w
 
 %TODO:
 % Compute only g in models
 
 function [save_vars, model_l, model_g] = ...
-    droplet_test(nElems_l, nElems_g, hmin_l, hmin_g, p, ...
+    droplet_test_debug(nElems_l, nElems_g, hmin_l, hmin_g, p, ...
         Deltat0, t_final, TimeAdapt, TolT, ...
         PlotRes, Save, fuel_names, mass_fracL, ...
         inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, ...
@@ -43,7 +44,7 @@ function [save_vars, model_l, model_g] = ...
     NF_vl       = 1e-1;         %Characteristic value for liquid velocity
     NF_vg       = 1e-1;         %Characteristic value for gas velocity
     NF_w        = 1e-1;         %Characteristic value for droplet velocity;
-    tau_Baum    = 1e-3;         %Baumgarte's time stabilization parameter
+    tau_Baum    = 1e-6;         %Baumgarte's time stabilization parameter
     
     %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
     
@@ -121,7 +122,8 @@ function [save_vars, model_l, model_g] = ...
     %Initial condition function for the LIQUID phase
     function u = u0_l(x)
               
-        T_l         = T_0.*ones(size(x));
+        T_l         = 0.5*T_0.*ones(size(x));
+        T_l         = 0.5*T_0 + 0.5*T_0*(x/x_lg).^2;
         y_l         = mass_fracL;
 
         rho_l       = calc_rho(model_l,y_l,T_l);
@@ -341,14 +343,16 @@ function [save_vars, model_l, model_g] = ...
         end
         h_g         = calc_h(T_g,y_g,model_g);
         H_g         = h_g.*rho_g;
-        v_g         = 0.008286095019622.*((x_lg./x).^2);
+        vR_0        = 0.008286095019622;
+%         vR_0        = 0.0;
+        v_g         = vR_0*((x_lg./x).^2);
         
         %Initial droplet velocity:
         rho_l       = calc_rho(model_l,y_L,T_0);
         rho_g       = calc_rho(model_g,y_R,T_0);
-        vR_0        = 0.008286095019622;
-        w_0         = -rho_g/(rho_l-rho_g) * vR_0;
-
+%         w_0         = -rho_g/(rho_l-rho_g) * vR_0;
+        w_0         = 0.0;
+        
         %Final vector of initial gas fields
         %u = {ρY1, ..., ρYN, H, v}
         u           = [ rhoy_g; {H_g}; {v_g} ];
@@ -721,7 +725,7 @@ function [save_vars, model_l, model_g] = ...
         mass_g_np1          = MassMatrix(sol_np1.fesg);
         Mm_g_np1            = MassMatrixExpand(mass_g_np1, model_g.nDiff, model_g.nAlg);
         
-        PlotFun(sol_np1)
+%         PlotFun(sol_np1)
         
         %Update boundary conditions. MATLAB works with copies, not pointers, 
         %so this is not already done in CouplingConditions:
@@ -741,10 +745,10 @@ function [save_vars, model_l, model_g] = ...
         
         kmesh_l_RK(:,is)    = wmesh_l_np1;
         kmesh_g_RK(:,is)    = wmesh_g_np1;
-        r_mesh_l            = xmesh_l_np1 - bmesh_l_ii - Deltat_n*RKmethod.aI(is,is)*kmesh_l_RK(:,is);
-        r_mesh_g            = xmesh_g_np1 - bmesh_g_ii - Deltat_n*RKmethod.aI(is,is)*kmesh_g_RK(:,is);
-%         r_mesh_l            = xmesh_l_np1 - sol_n.fesl.mesh.x_faces;
-%         r_mesh_g            = xmesh_g_np1 - sol_n.fesg.mesh.x_faces;
+%         r_mesh_l            = xmesh_l_np1 - bmesh_l_ii - Deltat_n*RKmethod.aI(is,is)*kmesh_l_RK(:,is);
+%         r_mesh_g            = xmesh_g_np1 - bmesh_g_ii - Deltat_n*RKmethod.aI(is,is)*kmesh_g_RK(:,is);
+        r_mesh_l            = xmesh_l_np1 - sol_n.fesl.mesh.x_faces;
+        r_mesh_g            = xmesh_g_np1 - sol_n.fesg.mesh.x_faces;
         
         %------------------------------------------------------------------
         %IMPOSE DAE FOR LIQUID:
@@ -947,165 +951,23 @@ function [save_vars, model_l, model_g] = ...
         %IMPOSE INTERFACE CONDITIONS:
         
         %Allocate r:
-        r_z         = zeros(N_L+N_R+1, 1);
+        r_z                 = zeros(N_L+N_R+1, 1);
 
-        %Mass and energy fluxes at the left:
-        %NOTE: "uwL" is the numerical solution for the liquid, including
-        %the mesh velocity
-        %"qL" is the Dirichlet condition at the boundary,
-        uwL         = EvalSolution(uw_l, sol_np1.fesl, [mesh_l_np1.nElems], 1.0);
-        duwL_dx     = EvalSolution_dx(uw_l, sol_np1.fesl, [mesh_l_np1.nElems], 1.0);
-        [fL, dfL_duwL, dfL_duwL_dx, dfL_dqL] = ...
-            model_l.ftildeN(model_l, sol_np1.t, xmesh_l_np1(end), uwL, duwL_dx, ...
-                    (xmesh_l_np1(end)-xmesh_l_np1(end-1))/sol_np1.fesl.p, ComputeJ);
-        
-        %Mass and energy fluxes at the left:
-        %NOTE: "uwL" is the numerical solution for the liquid, including
-        %the mesh velocity
-        %"qL" is the Dirichlet condition at the boundary,
-        uwR         = EvalSolution(uw_g, sol_np1.fesg, [1], -1.0);
-        duwR_dx     = EvalSolution_dx(uw_g, sol_np1.fesg, [1], -1.0);
-        [fR, dfR_duwR, dfR_duwR_dx, dfR_dqR] = ...
-            model_g.ftilde1(model_g, sol_np1.t, xmesh_g_np1(1), uwR, duwR_dx, ...
-                    (xmesh_g_np1(2)-xmesh_g_np1(1))/sol_np1.fesg.p, ComputeJ);
-                
-        %Flux balance for the differential variables:
-        r_z(1:nDiff_lg) = [zeros(model_g.nInerts,1); CellToVector(fL)]-...
-                            CellToVector(fR); 
+        %Keep constant conditions:
+        r_z(1:N_L)          = sol_np1.qL-sol_n.qL;
+        r_z(N_L+1:N_L+N_R)  = sol_np1.qR-sol_n.qR;
+        r_z(N_L+N_R+1)      = sol_np1.w-sol_n.w;
         if ComputeJ
-
-            %Allocate:
-            J_z.iv      = zeros(0,1);
-            J_z.jv      = zeros(0,1);
-            J_z.sv      = zeros(0,1);
-
-            %Derivatives w.r.t. qL (Dirichlet conditions at the left of the droplet):
-            iv_aux      = zeros(N_L, N_L);
-            jv_aux      = zeros(size(iv_aux));
-            sv_aux      = zeros(size(iv_aux));
-            for II=1:N_L
-                for JJ=1:N_L
-                    iv_aux(II,JJ)   = model_g.nInerts+II;
-                    jv_aux(II,JJ)   = JJ;
-                    sv_aux(II,JJ)   = dfL_dqL{II,JJ};
-                end
-            end
-            J_z.iv      = cat(1, J_z.iv, iv_aux(:));
-            J_z.jv      = cat(1, J_z.jv, jv_aux(:));
-            J_z.sv      = cat(1, J_z.sv, sv_aux(:));
-
-            %Derivatives w.r.t. qR (Dirichlet conditions at the right of the droplet):
-            iv_aux      = zeros(model_g.nDiff, N_R);
-            jv_aux      = zeros(size(iv_aux));
-            sv_aux      = zeros(size(iv_aux));
-            for II=1:model_g.nDiff
-                for JJ=1:N_R
-                    iv_aux(II,JJ)   = II;
-                    jv_aux(II,JJ)   = N_L + JJ;
-                    sv_aux(II,JJ)   = -dfR_dqR{II,JJ};
-                end
-            end
-            J_z.iv      = cat(1, J_z.iv, iv_aux(:));
-            J_z.jv      = cat(1, J_z.jv, jv_aux(:));
-            J_z.sv      = cat(1, J_z.sv, sv_aux(:));
-
-            %Derivatives w.r.t. w_droplet are the derivatives w.r.t. w:
-            iv_aux      = zeros(N_L, 1);
-            jv_aux      = zeros(size(iv_aux));
-            sv_aux      = zeros(size(iv_aux));
-            for II=1:N_L
-                for JJ=1:1
-                    iv_aux(II,JJ)   = model_g.nInerts+II;
-                    jv_aux(II,JJ)   = N_L + N_R + JJ;
-                    sv_aux(II,JJ)   = dfL_duwL{II,end}*1.0 + ...
-                                        dfL_duwL_dx{II,end}*(1.0/(xmesh_l_np1(end)-xmesh_l_np1(1)));
-                end
-            end
-            J_z.iv      = cat(1, J_z.iv, iv_aux(:));
-            J_z.jv      = cat(1, J_z.jv, jv_aux(:));
-            J_z.sv      = cat(1, J_z.sv, sv_aux(:));
-            
-            %Derivatives w.r.t. w_droplet are the derivatives w.r.t. w:
-            iv_aux      = zeros(model_g.nDiff, 1);
-            jv_aux      = zeros(size(iv_aux));
-            sv_aux      = zeros(size(iv_aux));
-            for II=1:model_g.nDiff
-                for JJ=1:1
-                    iv_aux(II,JJ)   = II;
-                    jv_aux(II,JJ)   = N_L + N_R + JJ;
-                    sv_aux(II,JJ)   = -dfR_duwR{II,end}*1.0 - ...
-                                        dfR_duwR_dx{II,end}*(-1.0/(xmesh_g_np1(end)-xmesh_g_np1(1)));
-                end
-            end
-            J_z.iv      = cat(1, J_z.iv, iv_aux(:));
-            J_z.jv      = cat(1, J_z.jv, jv_aux(:));
-            J_z.sv      = cat(1, J_z.sv, sv_aux(:));
-
-            %Derivatives w.r.t. uL (numerical solution at the left of the droplet):
-            iv_aux      = zeros(N_L, nDAE_l, p+1);
-            jv_aux      = zeros(size(iv_aux));
-            sv_aux      = zeros(size(iv_aux));
-            phim        = sol_np1.fesl.NCompute([1.0]);
-            dphim_dxi   = sol_np1.fesl.NCompute([1.0]);
-            for II=1:N_L
-                for JJ=1:nDAE_l
-                    for iDof=1:p+1
-                        iv_aux(II,JJ,iDof)  = model_g.nInerts+II;
-                        jv_aux(II,JJ,iDof)  = (JJ-1)*sol_np1.fesl.nDof + ...
-                                                (mesh_l_np1.nElems-1)*(p+1) + ...
-                                                iDof;
-                        sv_aux(II,JJ,iDof)  = dfL_duwL{II,JJ}*phim(iDof) + ...
-                                                dfL_duwL_dx{II,JJ}*dphim_dxi(iDof)*...
-                                                2/(xmesh_l_np1(end)-xmesh_l_np1(end-1));
-                    end
-                end
-            end
-            J_zl.iv     = iv_aux(:);
-            J_zl.jv     = jv_aux(:);
-            J_zl.sv     = sv_aux(:);
-            
-            %Derivatives w.r.t. uR (numerical solution at the right of the droplet):
-            iv_aux      = zeros(nDiff_lg, nDAE_g, p+1);
-            jv_aux      = zeros(size(iv_aux));
-            sv_aux      = zeros(size(iv_aux));
-            phim        = sol_np1.fesg.NCompute([-1.0]);
-            dphim_dxi   = sol_np1.fesg.NCompute([-1.0]);
-            for II=1:nDiff_lg
-                for JJ=1:nDAE_g
-                    for iDof=1:p+1
-                        iv_aux(II,JJ,iDof)  = II;
-                        jv_aux(II,JJ,iDof)  = (JJ-1)*sol_np1.fesg.nDof + ...
-                                                iDof;
-                        sv_aux(II,JJ,iDof)  = -dfR_duwR{II,JJ}*phim(iDof) - ...
-                                                dfR_duwR_dx{II,JJ}*dphim_dxi(iDof)*...
-                                                2/(xmesh_g_np1(2)-xmesh_g_np1(1));
-                    end
-                end
-            end
-            J_zg.iv     = iv_aux(:);
-            J_zg.jv     = jv_aux(:);
-            J_zg.sv     = sv_aux(:);
-            
-        end
-        
-        %Append equilibrium conditions:
-%         DeltaT_np1              = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
-%         DeltaP_np1              = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
-        DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
-        DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
-        [rEq, JEq]              = EquilibriumConditions(model_l, model_g, ...
-                                    [sol_np1.qL; sol_np1.qR(1:model_g.nDiff)], ...
-                                    DeltaT_np1, DeltaP_np1, NF_l, NF_g, true);
-        r_z(nDiff_lg+1:end)     = rEq;
-        if ComputeJ
-            for II=1:model_l.nSpecies+3
-                for JJ=1:model_l.nDiff+model_g.nDiff
-                    J_z.iv      = cat(1, J_z.iv, nDiff_lg+II);
-                    J_z.jv      = cat(1, J_z.jv, JJ);
-                    J_z.sv      = cat(1, J_z.sv, JEq(II,JJ));
-                end
-            end      
-        end
+            J_zl.iv         = zeros(0,1);
+            J_zl.jv         = zeros(0,1);
+            J_zl.sv         = zeros(0,1);
+            J_zg.iv         = zeros(0,1);
+            J_zg.jv         = zeros(0,1);
+            J_zg.sv         = zeros(0,1);
+            J_z.iv          = (1:N_z).';
+            J_z.jv          = (1:N_z).';
+            J_z.sv          = ones(N_z,1);
+        end 
         
         %------------------------------------------------------------------
         %OUTPUT:
@@ -1113,9 +975,7 @@ function [save_vars, model_l, model_g] = ...
         %Pack variables:
         r       = { r_mesh_l, r_mesh_g, cat(1, r_l, r_g, r_z) };
         if ComputeJ
-%             J   = { J_l,    NaN,    J_lz;
-%                     NaN,    J_g,    J_gz;
-%                     J_zl,   J_zg,   J_z     };
+            
             %Assembly full Jacobian:
             N_l     = N_ul+N_vl;
             N_g     = N_ug+N_vg;
@@ -1258,9 +1118,9 @@ function [save_vars, model_l, model_g] = ...
 %             RKmethod    = calcRKmethod_imex('BPR3');
 %             RKmethod    = calcRKmethod_imex('KC35');
         else
-            RKmethod    = calcRKmethod_imex('ARS443');
+%             RKmethod    = calcRKmethod_imex('ARS443');
 %             RKmethod    = calcRKmethod_imex('BPR3');
-%             RKmethod    = calcRKmethod_imex('KC35');
+            RKmethod    = calcRKmethod_imex('KC35');
         end
         
         %Allocate derivatives:

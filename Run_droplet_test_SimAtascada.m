@@ -10,7 +10,7 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
 nElems_l          = 10;    % Number of elements in the liquid phase
-nElems_g          = 10;    % Number of elements in the gas phase (first part)
+nElems_g          = 100;   % Number of elements in the gas phase (first part)
 hmin_l            = 1e-7;  
 hmin_g            = 1e-7; 
 p                 = 7;     % Degree of the polynomial basis functions
@@ -23,17 +23,17 @@ Deltat0           = 1e-9;  % Initial time step
                            % you may reduce Deltat0 to avoid them
                            % However, this is optional — time step control will automatically handle it
 
-t_final           = 2e0;  % Final simulation time
+t_final           = 0e2;  % Final simulation time
                            % Use the actual time you want the simulation to stop at
                            % If you want the simulation to continue until the droplet disappears, 
                            % set a value larger than the expected final time
 
 TimeAdapt         = true;  % Enable adaptive time-stepping (true/false)
-TolT              = 1e-5;  % Tolerance for temporal error (<1e-3) (used if TimeAdapt = true)
+TolT              = 1e-4;  % Tolerance for temporal error (<1e-3) (used if TimeAdapt = true)
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = true; % Plot intermediate results (true/false)
+PlotRes           = true;  % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
 Save              = true;  % Save results to file (true/false)
@@ -61,7 +61,7 @@ mass_fracG        = {0.79, 0.0, 0.0, 0.21};  % Mass fraction of each inert speci
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 
 % Run the full droplet evaporation simulation from t = 0
-[save_vars] = droplet_test(nElems_l, nElems_g, hmin_l, hmin_g, p, Deltat0, t_final, ...
+[save_vars] = droplet_test_debug(nElems_l, nElems_g, hmin_l, hmin_g, p, Deltat0, t_final, ...
     TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
     n_saves);
