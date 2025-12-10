@@ -23,7 +23,7 @@ Deltat0           = 1e-9;  % Initial time step
                            % you may reduce Deltat0 to avoid them
                            % However, this is optional — time step control will automatically handle it
 
-t_final           = 0e2;  % Final simulation time
+t_final           = 2e2;  % Final simulation time
                            % Use the actual time you want the simulation to stop at
                            % If you want the simulation to continue until the droplet disappears, 
                            % set a value larger than the expected final time

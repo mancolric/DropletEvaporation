@@ -122,8 +122,8 @@ function [save_vars, model_l, model_g] = ...
     %Initial condition function for the LIQUID phase
     function u = u0_l(x)
               
-        T_l         = 0.5*T_0.*ones(size(x));
-        T_l         = 0.5*T_0 + 0.5*T_0*(x/x_lg).^2;
+%         T_l         = 0.8*T_0.*ones(size(x));
+        T_l         = 0.9*T_0 + 0.1*T_0*(x/x_lg).^2;
         y_l         = mass_fracL;
 
         rho_l       = calc_rho(model_l,y_l,T_l);
