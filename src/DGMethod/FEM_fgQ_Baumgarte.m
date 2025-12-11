@@ -308,8 +308,8 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
     
     %Instead of considering the restriction G(U)=0, which yields a DAE2, 
     %we consider
-    %   H(U,V)  = dG/dU(U)*Udot(U,V) + 1/tau*G(U) = 
-    %           = dG/dU(U)*M^{-1}*F(U,V) + 1/tau*G(U) = 0
+    %   H(U,V)  = tau * dG/dU(U)*Udot(U,V) + G(U) = 
+    %           = tau * dG/dU(U)*M^{-1}*F(U,V) + G(U) = 0
     %The term dG/dU(U)*M^{-1}*F(U,V) is estimated via high-order finite
     %differences.
     
@@ -404,7 +404,7 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
     end
     
     %Assemble Gdot + 1/tau*G into F:
-    F(model.nDiff*fes.nDof+1:end)   = Gdot + G/tau;
+    F(model.nDiff*fes.nDof+1:end)   = tau*Gdot + G;
     
     %----------------------------------------------------------------------
     %ASSEMBLY:
@@ -427,7 +427,7 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
                                         model.nAlg*fes.nDof, model.nDiff*fes.nDof);
         [G_U_iv, G_U_jv, G_U_sv]    = find(G_U);
         
-        %H(U,V) := dG/dU(U)*M^{-1}*F(U,V) + 1/tau*G(U)
+        %H(U,V) := tau*dG/dU(U)*M^{-1}*F(U,V) + G(U)
         %The derivatives of dG/dU are neglected.
         
         %Contribution of dG/dU*M^{-1}*dF/d(U,V):
@@ -438,7 +438,7 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
         H_UV                        = G_U * Minv_approx * F_UV;
         [H_UV_iv, H_UV_jv, H_UV_sv] = find(H_UV);
         
-        %We need to add the contribution of 1/tau * dG/dU.
+        %We need to add the contribution of dG/dU.
         
         %(i,j,s) values of full Jacobian. Here we abuse the notation. F
         %means [F,G], U means [U,V,W]:
@@ -446,7 +446,7 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
                             H_UV_iv+model.nDiff*fes.nDof, ...
                             G_U_iv+model.nDiff*fes.nDof        );
         dF_dU.jv    = cat(1, F_UV_jv, H_UV_jv, G_U_jv );
-        dF_dU.sv    = cat(1, F_UV_sv, H_UV_sv, G_U_sv/tau);
+        dF_dU.sv    = cat(1, F_UV_sv, tau*H_UV_sv, G_U_sv);
         
     else
         dF_dU.iv    = zeros(0,0);
