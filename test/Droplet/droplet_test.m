@@ -9,6 +9,7 @@
 
 %TODO:
 % Compute only g in models
+% Try diffusion stabilization in liquid
 
 function [save_vars, model_l, model_g] = ...
     droplet_test(nElems_l, nElems_g, hmin_l, hmin_g, p, ...

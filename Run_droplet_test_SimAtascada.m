@@ -29,7 +29,7 @@ t_final           = 1e3;  % Final simulation time
                            % set a value larger than the expected final time
 
 TimeAdapt         = true;  % Enable adaptive time-stepping (true/false)
-TolT              = 1e-5;  % Tolerance for temporal error (<1e-3) (used if TimeAdapt = true)
+TolT              = 1e-7;  % Tolerance for temporal error (<1e-3) (used if TimeAdapt = true)
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 

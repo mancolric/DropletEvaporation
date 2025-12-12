@@ -34,7 +34,7 @@ function model=Liquid_ALE(fuel_names, frac_masL, comp_inerts, frac_masG)
     model.P           = 101325;
     model.N_polyfit   = 5;
     model.matrix      = Polyfit_properties_pureCompounds(model.gota, model.comp_inerts, model.Tmin, model.Tmax, model.P, model.N_polyfit);
-    model.tau_g       = 1e-3;   %Characteristic time for stabilization restriction; tau_g=Inf disables the latter
+    model.tau_g       = Inf;   %Characteristic time for stabilization restriction; tau_g=Inf disables the latter
     
     %Mandatory fields:
     model.nDiff       = 1+model.nSpecies;  %Number of differential variables

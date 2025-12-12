@@ -6,7 +6,9 @@
 %convergence info msg
 %Plot sol at each NLS iter
 %Initial condition for vR, w
-%open figure in all cases
+%open fig1 in all cases
+%fig2
+%tau_g in models
 
 %TODO:
 % Compute only g in models
@@ -122,8 +124,8 @@ function [save_vars, model_l, model_g] = ...
     %Initial condition function for the LIQUID phase
     function u = u0_l(x)
               
-%         T_l         = 0.8*T_0.*ones(size(x));
-        T_l         = 0.9*T_0 + 0.1*T_0*(x/x_lg).^2;
+        T_l         = T_0.*ones(size(x));
+%         T_l         = 0.9*T_0 + 0.1*T_0*(x/x_lg).^2;
         y_l         = mass_fracL;
 
         rho_l       = calc_rho(model_l,y_l,T_l);
@@ -361,9 +363,9 @@ function [save_vars, model_l, model_g] = ...
     end
 
     function u = u0_g(x)
-%         u       = u0_g_const(x);
+        u       = u0_g_const(x);
 %         u       = u0_g_slopes(x);
-        u       = u0_g_Millan(x);
+%         u       = u0_g_Millan(x);
     end
     
     %Boundary conditions:
@@ -957,8 +959,28 @@ function [save_vars, model_l, model_g] = ...
         r_z                 = zeros(N_L+N_R+1, 1);
 
         %Keep constant conditions:
-        r_z(1:N_L)          = sol_np1.qL-sol_n.qL;
-        r_z(N_L+1:N_L+N_R)  = sol_np1.qR-sol_n.qR;
+        %
+        TL                  = T_inf + (T_0-T_inf)*exp(-sol_n.t/tau_relax);
+        rhoL                = calc_rho(model_l, {[1.0]}, [TL]);
+        [hL,~]              = calc_h([TL], {[1.0]}, model_l);
+        qL                  = [ rhoL; rhoL*hL ];
+        r_z(1:N_L)          = sol_np1.qL-sol_n.qL;  
+%         r_z(1:N_L)          = sol_np1.qL-qL;
+        %
+        TR                  = T_0 + (T_inf-T_0)*exp(-sol_n.t/tau_relax);
+        yR                  = y_inf;
+        rhoR                = calc_rho(model_g, yR, [TR]);
+        [hR,~]              = calc_h([TR], yR, model_g);
+        qR                  = zeros(model_g.nDiff+1, 1);
+        for II=1:model_g.nSpecies
+            qR(II)          = rhoR*yR{II};
+        end
+        qR(model_g.nSpecies+1)  = rhoR*hR;
+        qR(model_g.nSpecies+2)  = 1e-4; 
+        %
+%         r_z(N_L+1:N_L+N_R)  = sol_np1.qR-sol_n.qR;
+        r_z(N_L+1:N_L+N_R)  = sol_np1.qR-qR;
+        %
         r_z(N_L+N_R+1)      = sol_np1.w-sol_n.w;
         if ComputeJ
             J_zl.iv         = zeros(0,1);
@@ -1016,7 +1038,7 @@ function [save_vars, model_l, model_g] = ...
     %Sr and Sy two scaling matrices:
     %The Jacobian is hence Jhat = Sr*df/dy*Sy and we solve
     %g:=Jhat\fhat(yhat)=0
-%     fig2    = figure();
+    fig2    = figure();
     function gscaled = PrecResidualFun(yscaled, istage)
         
         %Compute residual:
@@ -1329,10 +1351,10 @@ function [save_vars, model_l, model_g] = ...
                     Deltat_np1  = Deltat_n;
                     RepeatT     = false;
                 elseif etaT<=TolT
-                    Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(NLS_IterTarget/NLS_iters), 2.0]);
+                    Deltat_np1  = Deltat_n * min([(0.7*TolT/etaT)^(1.0/RKmethod.order), sqrt(NLS_IterTarget/NLS_iters), 1.5]);
                     RepeatT     = false;
                 else
-                    rDeltat     = max(0.5, min((0.8*TolT/etaT)^(1.0/RKmethod.order)));
+                    rDeltat     = max(0.5, min((0.7*TolT/etaT)^(1.0/RKmethod.order)));
                     Deltat_n    = Deltat_n * rDeltat;
                     RepeatT     = true;
                     disp(['Time error (', num2str(etaT), ') too large. ', ...
