@@ -5,12 +5,8 @@
 %tevap
 %convergence info msg
 %Plot sol at each NLS iter
-%LU factor
 %Initial condition for vR, w
-%tauBaum in Srinv
 %open figure in all cases
-%plot vl
-%tau in models
 
 %TODO:
 % Compute only g in models
@@ -355,8 +351,8 @@ function [save_vars, model_l, model_g] = ...
         %Initial droplet velocity:
         rho_l       = calc_rho(model_l,y_L,T_0);
         rho_g       = calc_rho(model_g,y_R,T_0);
-%         w_0         = -rho_g/(rho_l-rho_g) * vR_0;
-        w_0         = 0.0;
+        w_0         = -rho_g/(rho_l-rho_g) * vR_0;
+%         w_0         = 0.0;
         
         %Final vector of initial gas fields
         %u = {ρY1, ..., ρYN, H, v}
@@ -746,10 +742,10 @@ function [save_vars, model_l, model_g] = ...
         
         kmesh_l_RK(:,is)    = wmesh_l_np1;
         kmesh_g_RK(:,is)    = wmesh_g_np1;
-%         r_mesh_l            = xmesh_l_np1 - bmesh_l_ii - Deltat_n*RKmethod.aI(is,is)*kmesh_l_RK(:,is);
-%         r_mesh_g            = xmesh_g_np1 - bmesh_g_ii - Deltat_n*RKmethod.aI(is,is)*kmesh_g_RK(:,is);
-        r_mesh_l            = xmesh_l_np1 - sol_n.fesl.mesh.x_faces;
-        r_mesh_g            = xmesh_g_np1 - sol_n.fesg.mesh.x_faces;
+        r_mesh_l            = xmesh_l_np1 - bmesh_l_ii - Deltat_n*RKmethod.aI(is,is)*kmesh_l_RK(:,is);
+        r_mesh_g            = xmesh_g_np1 - bmesh_g_ii - Deltat_n*RKmethod.aI(is,is)*kmesh_g_RK(:,is);
+%         r_mesh_l            = xmesh_l_np1 - sol_n.fesl.mesh.x_faces;
+%         r_mesh_g            = xmesh_g_np1 - sol_n.fesg.mesh.x_faces;
         
         %------------------------------------------------------------------
         %IMPOSE DAE FOR LIQUID:
