@@ -8,6 +8,9 @@
 %LU factor
 %Initial condition for vR, w
 %tauBaum in Srinv
+%open figure in all cases
+%plot vl
+%tau in models
 
 %TODO:
 % Compute only g in models
@@ -27,8 +30,8 @@ function [save_vars, model_l, model_g] = ...
     %Maximum and target nb of iterations in nonlinear solver:
 %     NLS_MaxIter     = 200;   
 %     NLS_IterTarget  = 120;   
-    NLS_MaxIter     = 400;   
-    NLS_IterTarget  = 300;
+    NLS_MaxIter     = 100;   
+    NLS_IterTarget  = Inf;
     
     % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
     % where NLS_iters is the mean number of nonlinear solver iterations at 
@@ -346,6 +349,7 @@ function [save_vars, model_l, model_g] = ...
         H_g         = h_g.*rho_g;
         vR_0        = 0.008286095019622;
 %         vR_0        = 0.0;
+%         vR_0        = -1e-3;
         v_g         = vR_0*((x_lg./x).^2);
         
         %Initial droplet velocity:
@@ -384,10 +388,10 @@ function [save_vars, model_l, model_g] = ...
     %Create meshes and finite element spaces:
     mesh_l        = Mesh_Spheric_Create(xmesh_l);
     fes_l         = FES_QX_Create(mesh_l, p);
-    fes_lm1       = FES_PX_Create(mesh_l, p-1);
+    fes_lm1       = FES_PX_Create(mesh_l, p);
     mesh_g        = Mesh_Spheric_Create(xmesh_g);
     fes_g         = FES_QX_Create(mesh_g, p);
-    fes_gm1       = FES_PX_Create(mesh_g, p-1);
+    fes_gm1       = FES_PX_Create(mesh_g, p);
     
     %Prolongation matrices for velocity space:
     prolm_l       = PXToQY_Matrix(fes_lm1, fes_l);
@@ -411,9 +415,6 @@ function [save_vars, model_l, model_g] = ...
     %
     [rho_l_ini,y_l_ini] = calc_rho_y(rhoy_l_ini,model_l);
     [rho_g_ini,y_g_ini] = calc_rho_y(rhoy_g_ini,model_g);
-    %
-    uplot_l_ini = [ {rho_l_ini}; {T_l_ini}; {v_l_ini}];
-    uplot_g_ini = [ {rho_g_ini}; {T_g_ini}; {v_g_ini}];
     
     %Calculate estimated evaporation time (if known, add manually):
     % t_evap      = calc_t_evap(T_inf,y_inf,model_l,model_g,mass_fracL,fuel_names,x_lg);
@@ -500,134 +501,133 @@ function [save_vars, model_l, model_g] = ...
         fig1                = figure();
         fig1.Units          = 'normalized';
         fig1.OuterPosition  = [0.5 0 1 1];
+    else
+        fig1                = figure()
     end  
 
     function PlotFun(sol)
         if PlotRes
+            
+            %Define plot nodes and evaluate solution:
             xiplot      = linspace(-1.0, 1.0, (p+1)^2);
             xplot_l     = PhysicalCoordinates(sol.fesl.mesh, xiplot);
             xplot_g     = PhysicalCoordinates(sol.fesg.mesh, xiplot);
             num_sol_l   = EvalSolution(sol.ul, sol.fesl, 1:sol.fesl.mesh.nElems, xiplot);
             num_sol_g   = EvalSolution(sol.ug, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
             
-            rhoy_l      = cell(model_l.nSpecies,1);
-            rhoy_g      = cell(model_g.nSpecies,1);
-            for jj = 1:model_l.nSpecies
-                rhoy_l{jj} = num_sol_l{jj}; 
-            end
-            for jj = 1:model_g.nSpecies
-                rhoy_g{jj} = num_sol_g{jj}; 
-            end
-            
+            %Extract variables:
+            rhoy_l      = num_sol_l(1:model_l.nSpecies);
+            rhoy_g      = num_sol_g(1:model_g.nSpecies);
             [rho_l,y_l] = calc_rho_y(rhoy_l, model_l);
-            [rho_g,~]   = calc_rho_y(rhoy_g, model_g);
+            [rho_g,y_g] = calc_rho_y(rhoy_g, model_g);
             H_l         = num_sol_l{model_l.nDiff};
             H_g         = num_sol_g{model_g.nDiff};
             T_l         = calc_T(H_l,rhoy_l,model_l);
             T_g         = calc_T(H_g,rhoy_g,model_g);
             v_l         = num_sol_l{model_l.nDiff+1};
             v_g         = num_sol_g{model_g.nDiff+1};
+            rhobar_l    = calc_rho(model_l, y_l, T_l);
+            rhobar_g    = calc_rho(model_g, y_g, T_g);
             
-            uplot_l     = [ {rho_l}; {T_l}; {v_l} ];
-            uplot_g     = [ {rho_g}; {T_g}; {v_g} ];
+            %Extract mesh velocities:
+            [xmesh_l, wmesh_l, xmesh_g, wmesh_g] = MeshVelocities(sol);
             
-            figure(fig1)
-
-            vars        = {'rho_L', 'rho_G', 'T_L', 'T_G', 'v_L', 'v_G', 'w', 'Y_L'};
-            for iPlot=1:length(uplot_l)
-                subplot(2,length(uplot_l)+1,iPlot)
-                hold off
-                if iPlot<=2
-                    plot(MatTranspVec(xplot_l_ini), MatTranspVec(uplot_l_ini{iPlot}), 'c')
-                    hold on
-                else
-                    plot(MatTranspVec(xplot_l_ini), MatTranspVec(uplot_l_ini{iPlot}), 'w')
-                    hold on
-                end
-                plot(MatTranspVec(xplot_l), MatTranspVec(uplot_l{iPlot}), 'b')
-                hold on
-                title([vars{2*iPlot-1},', t_n=',num2str(sol.t)])
-                subplot(2,length(uplot_l)+1,iPlot+length(uplot_l)+1)
-                hold off
-                if iPlot<=2
-                    plot(MatTranspVec(xplot_g_ini), MatTranspVec(uplot_g_ini{iPlot}), 'm')
-                    hold on
-                else
-                    plot(MatTranspVec(xplot_g_ini), MatTranspVec(uplot_g_ini{iPlot}), 'w')
-                    hold on
-                end
-                plot(MatTranspVec(xplot_g), MatTranspVec(uplot_g{iPlot}), 'r')
-                hold on
-                title([vars{2*iPlot},', t_n=',num2str(sol.t)])
-            end
-            
-            %Plot mesh velocity:
-            [xmesh_l_n, wmesh_l_n, xmesh_g_n, wmesh_g_n] = MeshVelocities(sol);
-            subplot(2,length(uplot_l)+1,length(uplot_l)+1)
-            hold off
-            plot(xmesh_l_n, wmesh_l_n, 'c')
-            hold on
-            plot(xmesh_g_n, wmesh_g_n, 'm')
-            title([vars{end-1},', t_n=',num2str(sol.t)])
-
-            %Plot liquid mass fractions:
-            colors = lines(model_l.nSpecies*2);
-            subplot(2,length(uplot_l)+1,length(uplot_l)+length(uplot_g)+1+1)
-            hold off
-            for i=1:model_l.nSpecies
-                xlim([0 1.5e-4])
-                plot(MatTranspVec(xplot_l_ini), MatTranspVec(y_l_ini{i}), 'Color', colors(i+model_l.nSpecies, :))
-                hold on
-                plot(MatTranspVec(xplot_l), MatTranspVec(y_l{i}), 'Color', colors(i, :))
-                hold on
-            end
-            title([vars{end},', t_n=',num2str(sol.t)])
-
-            %Plot also boundary conditions:
-            num_sol_ql = sol.qL;
-            num_sol_qg = sol.qR;
-
-            rhoy_ql      = cell(model_l.nSpecies,1);
-            rhoy_qg      = cell(model_g.nSpecies,1);
+            %Extract boundary conditions:
+            num_sol_ql  = sol.qL;
+            num_sol_qg  = sol.qR;
+            rhoy_ql     = cell(model_l.nSpecies,1);
+            rhoy_qg     = cell(model_g.nSpecies,1);
             for jj = 1:model_l.nSpecies
                 rhoy_ql{jj} = num_sol_ql(jj); 
             end
             for jj = 1:model_g.nSpecies
                 rhoy_qg{jj} = num_sol_qg(jj); 
             end
-            [rho_ql,~] = calc_rho_y(rhoy_ql, model_l);
-            [rho_qg,~] = calc_rho_y(rhoy_qg, model_g);
-            H_ql       = sol.qL(model_l.nSpecies+1);
-            H_qg       = sol.qR(model_g.nSpecies+1);
-            T_ql       = calc_T(H_ql,rhoy_ql,model_l);
-            T_qg       = calc_T(H_qg,rhoy_qg,model_g);
-%             disp(['T_ql=', sprintf('%.8f', T_ql), ', T_qg=', sprintf('%.8f', T_qg)])
+            [rho_ql,~]  = calc_rho_y(rhoy_ql, model_l);
+            [rho_qg,~]  = calc_rho_y(rhoy_qg, model_g);
+            H_ql        = sol.qL(model_l.nSpecies+1);
+            H_qg        = sol.qR(model_g.nSpecies+1);
+            T_ql        = calc_T(H_ql,rhoy_ql,model_l);
+            T_qg        = calc_T(H_qg,rhoy_qg,model_g);
+            
+%             %DEBUG:
+%             uw_g        = [ sol.ug; {P1ToQX(wmesh_g, sol.fesg)} ];
+%             num_sol_g   = EvalSolution(uw_g, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
+%             dnum_sol_g  = EvalSolution_dx(uw_g, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
+%             [  ~, ~, ~, ~, ~, ~, ~, dg_du, ~, ~ ] = ...
+%                 model_g.fQg(model_g, sol.t, xplot_g, num_sol_g, dnum_sol_g, true);
+%             Pi_g        = 0.0;
+%             for II=1:model_g.nSpecies+1
+%                 Pi_g    = Pi_g + dg_du{1,II}.*num_sol_g{II};
+%             end
 
-            uplot_ql   = [ {rho_ql}; {T_ql} ];
-            uplot_qg   = [ {rho_qg}; {T_qg} ];
-            for iPlot=1:length(uplot_ql)
-                subplot(2,length(uplot_l)+1,iPlot)
-                plot(xmesh_l_n(end), uplot_ql{iPlot}, "*b")
+            %Select figure:
+            figure(fig1)
+            mPlot       = 2;
+            nPlot       = 3;
+            
+            %Plot densities:
+            subplot(mPlot, nPlot, 1)
+            hold off
+            colorm      = hsv(model_l.nSpecies);
+            for II=1:model_l.nSpecies
+                plot(MatTranspVec(xplot_l), MatTranspVec(rhoy_l{II}), 'color', colorm(II,:))
                 hold on
+                plot(xmesh_l(end), rhoy_ql{II}, 'color', colorm(II,:), 'marker', 'x')
             end
-            for iPlot=1:length(uplot_qg)
-                subplot(2,length(uplot_l)+1,iPlot+length(uplot_l)+1)
-                plot(xmesh_g_n(1), uplot_qg{iPlot}, "*r")
+            plot(MatTranspVec(xplot_l), MatTranspVec(rhobar_l), '+c')
+            plot(MatTranspVec(xplot_l), MatTranspVec(rho_l), 'b')
+            title(['\rho_l, t=', sprintf('%.4E', sol.t)])
+            grid on
+            %
+            subplot(mPlot, nPlot, nPlot+1)
+            hold off
+            colorm      = hsv(model_g.nSpecies);
+            for II=1:model_g.nSpecies
+                plot(MatTranspVec(xplot_g), MatTranspVec(rhoy_g{II}), 'color', colorm(II,:))
                 hold on
+                plot(xmesh_g(1), rhoy_qg{II}, 'color', colorm(II,:), 'marker', 'x')
             end
-
-            title_main = '';
-            for i = 1:length(fuel_names)
-                percentage = mass_fracL{i} * 100; % Convierte a porcentaje
-                if i == 1
-                    % Para el primer componente
-                    title_main = sprintf('%s %.2f%%', fuel_names{i}, percentage);
-                else
-                    % Para los componentes siguientes, añade un espacio y concatena
-                    title_main = sprintf('%s %s %.2f%%', title_main, fuel_names{i}, percentage);
-                end
-            end
-%             sgtitle(title_main);
+            plot(MatTranspVec(xplot_g), MatTranspVec(rhobar_g), '+c')
+            plot(MatTranspVec(xplot_g), MatTranspVec(rho_g), 'r')
+            title(['\rho_g, t=', sprintf('%.4E', sol.t)])
+            grid on
+            
+            %Plot temperatures:
+            subplot(mPlot, nPlot, 2)
+            hold off
+            plot(MatTranspVec(xplot_l), MatTranspVec(T_l), 'b')
+            hold on
+            plot(xmesh_l(end), T_ql, 'color', 'b', 'markersize', 1.0, 'marker', 'x')
+            title(['T_l, t=', sprintf('%.4E', sol.t)])
+            grid on
+            %
+            subplot(mPlot, nPlot, nPlot+2)
+            hold off
+            plot(MatTranspVec(xplot_g), MatTranspVec(T_g), 'r')
+            hold on
+            plot(xmesh_g(1), T_qg, 'color', 'b', 'markersize', 1.0, 'marker', 'x')
+            title(['T_g, t=', sprintf('%.4E', sol.t)])
+            grid on
+            
+            %Plot velocities and mesh velocity:
+            subplot(mPlot, nPlot, 3)
+            hold off
+            plot(MatTranspVec(xplot_l), MatTranspVec(v_l), 'b')
+            hold on
+            plot(xmesh_l, wmesh_l, 'c')
+%             plot(MatTranspVec(xplot_g), MatTranspVec(Pi_g), 'r')
+            title(['v_l, w_l, t=', sprintf('%.4E', sol.t)])
+            grid on
+            %
+            subplot(mPlot, nPlot, nPlot+3)
+            hold off
+            plot(MatTranspVec(xplot_g), MatTranspVec(v_g), 'r')
+            hold on
+            plot(xmesh_g, wmesh_g, 'm')
+            title(['v_g, w_g, t=', sprintf('%.4E', sol.t)])
+            grid on
+            
         end
     end
     PlotFun(sol_n)
@@ -755,11 +755,14 @@ function [save_vars, model_l, model_g] = ...
         %IMPOSE DAE FOR LIQUID:
         
         %Compute term due to fluxes and restriction:
-        [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
-            FEM_fgQ_Baumgarte(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ, ...
-            mass_l_np1, NF_l, tau_Baum);
-%         [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
-%             FEM_fgQ(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ);
+        if tau_Baum>0.0
+            [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
+                FEM_fgQ_Baumgarte(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ, ...
+                mass_l_np1, NF_l, tau_Baum);
+        else
+            [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
+                FEM_fgQ(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ);
+        end
         
         %Residuals and Jacobians:
         r_l                             = Mm_l_np1*CellToVector(sol_np1.ul) - bDAE_l_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_l_RK(:,is);
@@ -850,11 +853,14 @@ function [save_vars, model_l, model_g] = ...
         %IMPOSE DAE FOR GAS:
         
         %Compute term due to fluxes and restriction:
-        [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
-            FEM_fgQ_Baumgarte(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ, ...
-            mass_g_np1, NF_g, tau_Baum);
-%         [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
-%             FEM_fgQ(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ);
+        if tau_Baum>0.0
+            [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
+                FEM_fgQ_Baumgarte(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ, ...
+                mass_g_np1, NF_g, tau_Baum);
+        else
+            [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
+                FEM_fgQ(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ);
+        end
         
         %Residuals and Jacobians:
         r_g                             = Mm_g_np1*CellToVector(sol_np1.ug) - bDAE_g_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_g_RK(:,is);
@@ -1037,14 +1043,19 @@ function [save_vars, model_l, model_g] = ...
         
 %         display(sol_np1.w)
         
-%         figure(fig2)
-%         semilogy(abs(g_lgz), "+-b")
-%         hold on
-%         aux         = block_vl-block_ul(1)+1;
-%         semilogy(aux, abs(g_lgz(aux)), "x-c")
-%         aux         = block_vg-block_ul(1)+1;
-%         semilogy(aux, abs(g_lgz(aux)), "x-m")
-%         hold off
+        if false
+            figure(fig2)
+            hold off
+            blocks      = { block_mesh_l, block_mesh_g, block_ul, block_vl, ...
+                            block_ug, block_vg, block_z };
+            colorm      = hsv(length(blocks));
+            for iblock=1:length(blocks)
+                block   = blocks{iblock};
+                semilogy(block, abs(gscaled(block))+1e-14, 'color', colorm(iblock,:))
+                hold on
+                semilogy(block(1), abs(gscaled(block(1)))+1e-14, 'color', colorm(iblock,:), 'marker', 'o')
+            end
+        end
         
     end
     function [fscaled, Jscaled] = ScaledResidualFun(yscaled, ComputeJ, is)
@@ -1262,7 +1273,7 @@ function [save_vars, model_l, model_g] = ...
                 [yscaled_np1, nIters, NLSFlag]  = Anderson(...
                                                     @(yhat)PrecResidualFun(yhat,ii), ...
                                                         diag(Sy).\yv_np1, ...
-                                                        0.0, sqrt(NDOF)*TolA, NLS_MaxIter, 50);
+                                                        sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50);
 %                 [yscaled_np1, nIters, NLSFlag]  = NewtonRaphson(...
 %                                                         @(y,ComputeJ)ScaledResidualFun(y,ComputeJ,ii), ...
 %                                                         diag(Sy).\yv_np1, ...
@@ -1418,6 +1429,7 @@ function [save_vars, model_l, model_g] = ...
         
         %Save results:
         if Save
+            
             num_sol_l  = EvalSolution(sol_n.ul, sol_n.fesl, 1:sol_n.fesl.mesh.nElems, xiplot);
             num_sol_g  = EvalSolution(sol_n.ug, sol_n.fesg, 1:sol_n.fesg.mesh.nElems, xiplot);
     
@@ -1489,7 +1501,7 @@ function [save_vars, model_l, model_g] = ...
             t = sol_n.t;
             if t==t_final
                 sol_n_save{N_save+1} = sol_n;
-                disp('t has arrived to t_final')
+                disp('t has arrived at t_final')
                 simulationTime       = toc(tStart);
                 save(fullfile(folderName, 'Saved_solutionsEnd.mat'),'sol_n_save','simulationTime')
                 save(fullfile(folderName, 'Saved_varsEnd.mat'),'save_vars','Guide','simulationTime')

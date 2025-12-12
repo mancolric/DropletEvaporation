@@ -35,6 +35,7 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
     model.P           = 101325;
     model.N_polyfit   = 5;
     model.matrix      = Polyfit_properties_pureCompounds(model.gota, model.comp_inerts, model.Tmin, model.Tmax, model.P, model.N_polyfit);
+    model.tau_g       = 1e-3;   %Characteristic time for stabilization restriction; tau_g=Inf disables the latter
     
     %Mandatory fields:
     model.nDiff       = 1+model.nSpecies;  %Number of differential variables
@@ -64,6 +65,7 @@ function [  f, df_du, df_du_dx, ...
     H                       = u{model.nDiff};
     v                       = u{end-1};
     w                       = u{end};
+    T                       = calc_T(H, rhoy, model);
     
     %Diffusive flux: 
     [f, df_du, df_du_dx, ...
@@ -79,45 +81,37 @@ function [  f, df_du, df_du_dx, ...
         end
     end
     
-    T       = calc_T(H, rhoy, model);
+    
     rho_bar = calc_rho(model, y, T);
 
-    %Source and restriction:
+    %Source:
     Q                       = model.Q(t,x);
-    g                       = { rho - rho_bar };
     [dQ_du, dQ_du_dx]       = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, rhoy{1});
+    
+    %Restriction:
+    g                       = { rho - rho_bar };
     [dg_du, dg_du_dx]       = Cells_Allocate(model.nAlg, model.nVars, ComputeJ, rhoy{1});
     if ComputeJ
         
         %Derivatives w.r.t. rho:
         for II=1:model.nSpecies
             
-%             dg_du{1,II}         = 1.0 + 0.0*u{1}; 
-            
             %Perturb rhoY:
             delta               = 1e-5;
             rhoY_pert           = rhoy;
             rhoY_pert{II}       = rhoy{II} - delta;
-            rho_pert            = rho - delta;
             
-            %Evaluate rho_bar:
-            Y_pert              = cell(model.nSpecies, 1);
-            for JJ=1:model.nSpecies
-                Y_pert{JJ}      = rhoY_pert{JJ}./rho_pert;
-            end
+            %Evaluate Y_pert, T_pert and rhobar_pert:
+            [~, Y_pert]         = calc_rho_y(rhoY_pert, model);
             T_pert              = calc_T(H, rhoY_pert, model);
             rho_bar_pert1       = calc_rho(model, Y_pert, T_pert);
             
             %Perturb rhoY again:
             rhoY_pert           = rhoy;
             rhoY_pert{II}       = rhoy{II} + delta;
-            rho_pert            = rho + delta;
             
-            %Evaluate rho_bar:
-            Y_pert              = cell(model.nSpecies, 1);
-            for JJ=1:model.nSpecies
-                Y_pert{JJ}      = rhoY_pert{JJ}./rho_pert;
-            end
+            %Evaluate Y_pert, T_pert and rhobar_pert:
+            [~, Y_pert]         = calc_rho_y(rhoY_pert, model);
             T_pert              = calc_T(H, rhoY_pert, model);
             rho_bar_pert2       = calc_rho(model, Y_pert, T_pert);
             
@@ -151,6 +145,19 @@ function [  f, df_du, df_du_dx, ...
             
         end
         
+    end
+    
+    %Add stabilization for density:
+    for II=1:model.nSpecies
+        Q{II}               = Q{II} - 1/model.tau_g * y{II}.*g{1};
+    end
+    if ComputeJ
+        for II=1:model.nSpecies
+            for JJ=1:model.nDiff
+                dQ_du{II,JJ}    = dQ_du{II,JJ} - 1/model.tau_g * (...
+                                    ((II==JJ)-y{II})./rho.*g{1} + y{II}.*dg_du{1,JJ} );
+            end
+        end
     end
     
     %Maximum Deltat for CFL=1 is of the form:
