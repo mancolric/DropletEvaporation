@@ -58,6 +58,10 @@ function [  f, df_du, df_du_dx, ...
             lambdav                 ] = ...
     fQg(model, t, x, u, du_dx, ComputeJ)
 
+    %DEBUG:
+%     ComputeStab             = true;
+    ComputeStab             = false;
+    
     %Extract variables:
     [rhoy, ~, rho, ~, y]    = aux_rho(model, u, du_dx);
     H                       = u{model.nDiff};
@@ -86,8 +90,8 @@ function [  f, df_du, df_du_dx, ...
     %Restriction:
     rho_bar                 = calc_rho(model, y, T);
     g                       = { rho - rho_bar };
-    [dg_du, dg_du_dx]       = Cells_Allocate(model.nAlg, model.nVars, ComputeJ, rhoy{1});
-    if ComputeJ
+    [dg_du, dg_du_dx]       = Cells_Allocate(model.nAlg, model.nVars, ComputeJ || ComputeStab, rhoy{1});
+    if ComputeJ || ComputeStab
         
         %Derivatives w.r.t. rho:
         for II=1:model.nSpecies
@@ -143,7 +147,7 @@ function [  f, df_du, df_du_dx, ...
         
     end
     
-    %Add stabilization for density:
+    %Add stabilization for density (I):
     for II=1:model.nSpecies
         Q{II}               = Q{II} - 1/model.tau_g * y{II}.*g{1};
     end
@@ -153,6 +157,46 @@ function [  f, df_du, df_du_dx, ...
                 dQ_du{II,JJ}    = dQ_du{II,JJ} - 1/model.tau_g * (...
                                     ((II==JJ)-y{II})./rho.*g{1} + y{II}.*dg_du{1,JJ} );
             end
+        end
+    end
+    
+    %Add stabilization for density (II):
+    if ComputeStab
+        dg_dx               = cell(model.nAlg, 1);
+        for II=1:model.nAlg %nAlg=1 in this model
+            dg_dx{II}       = 0.0*g{II};
+            for JJ=1:model.nVars
+                dg_dx{II}   = dg_du{II,JJ}.*du_dx{JJ}; %we assume that dg/d(du/dx) = 0
+            end
+        end 
+        D_stab              = 1e4*calc_D_rho(T,y,model);
+        for II=1:model.nSpecies
+            f{II}           = f{II} - D_stab .* y{II} .* dg_dx{1};
+        end
+        if ComputeJ
+
+            %Note that
+            %   f_I                 = -D y_I dg/dx = -D y_I dg/du_K * du_K/dx
+            %If we ignore second derivatives of g, then
+            %   df_I/du_J           = -D dy_I/du_J dg/dx
+            %   df_I/d(du_J/dx)     = -D y_I dg/du_J
+            %where 
+            %   dy_I/drho_J         = d(rho_I/rho)/drho_J = delta_IJ/rho -
+            %                                               rho_I/rho^2 * 1_J
+            %                       = 1/rho * (delta_IJ - Y_I 1_J)
+
+            %Mass diffusion flux:
+            for II=1:model.nSpecies
+                for JJ=1:model.nSpecies
+                    df_du{II,JJ}                = df_du{II,JJ} - D_stab .* ((II==JJ)-y{II})./rho .* dg_dx{1};
+                end
+            end
+            for II=1:model.nSpecies
+                for JJ=1:model.nSpecies
+                    df_du_dx{II,JJ}             = df_du_dx{II,JJ} - D_stab .* y{II} .* dg_du{1,JJ};
+                end
+            end
+
         end
     end
     

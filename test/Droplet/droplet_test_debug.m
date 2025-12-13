@@ -384,10 +384,10 @@ function [save_vars, model_l, model_g] = ...
     nDiff_lg      = model_g.nDiff;
     
     %Create meshes and finite element spaces:
-    mesh_l        = Mesh_Spheric_Create(xmesh_l);
+    mesh_l        = Mesh_Cartesian_Create(xmesh_l);
     fes_l         = FES_QX_Create(mesh_l, p);
     fes_lm1       = FES_PX_Create(mesh_l, p);
-    mesh_g        = Mesh_Spheric_Create(xmesh_g);
+    mesh_g        = Mesh_Cartesian_Create(xmesh_g);
     fes_g         = FES_QX_Create(mesh_g, p);
     fes_gm1       = FES_PX_Create(mesh_g, p);
     
@@ -714,12 +714,12 @@ function [save_vars, model_l, model_g] = ...
         sol_np1.w           = z(end);
         
         %Update matrices for new mesh:
-        mesh_l_np1          = Mesh_Spheric_Create(xmesh_l_np1);
+        mesh_l_np1          = Mesh_Cartesian_Create(xmesh_l_np1);
         sol_np1.fesl        = FES_QX_Create(mesh_l_np1, p);
         mass_l_np1          = MassMatrix(sol_np1.fesl);
         Mm_l_np1            = MassMatrixExpand(mass_l_np1, model_l.nDiff, model_l.nAlg);
         %
-        mesh_g_np1          = Mesh_Spheric_Create(xmesh_g_np1);
+        mesh_g_np1          = Mesh_Cartesian_Create(xmesh_g_np1);
         sol_np1.fesg        = FES_QX_Create(mesh_g_np1, p);
         mass_g_np1          = MassMatrix(sol_np1.fesg);
         Mm_g_np1            = MassMatrixExpand(mass_g_np1, model_g.nDiff, model_g.nAlg);
@@ -964,8 +964,8 @@ function [save_vars, model_l, model_g] = ...
         rhoL                = calc_rho(model_l, {[1.0]}, [TL]);
         [hL,~]              = calc_h([TL], {[1.0]}, model_l);
         qL                  = [ rhoL; rhoL*hL ];
-        r_z(1:N_L)          = sol_np1.qL-sol_n.qL;  
-%         r_z(1:N_L)          = sol_np1.qL-qL;
+%         r_z(1:N_L)          = sol_np1.qL-sol_n.qL;  
+        r_z(1:N_L)          = sol_np1.qL-qL;
         %
         TR                  = T_0 + (T_inf-T_0)*exp(-sol_n.t/tau_relax);
         yR                  = y_inf;
@@ -978,8 +978,8 @@ function [save_vars, model_l, model_g] = ...
         qR(model_g.nSpecies+1)  = rhoR*hR;
         qR(model_g.nSpecies+2)  = 1e-4; 
         %
-%         r_z(N_L+1:N_L+N_R)  = sol_np1.qR-sol_n.qR;
-        r_z(N_L+1:N_L+N_R)  = sol_np1.qR-qR;
+        r_z(N_L+1:N_L+N_R)  = sol_np1.qR-sol_n.qR;
+%         r_z(N_L+1:N_L+N_R)  = sol_np1.qR-qR;
         %
         r_z(N_L+N_R+1)      = sol_np1.w-sol_n.w;
         if ComputeJ
@@ -1351,7 +1351,7 @@ function [save_vars, model_l, model_g] = ...
                     Deltat_np1  = Deltat_n;
                     RepeatT     = false;
                 elseif etaT<=TolT
-                    Deltat_np1  = Deltat_n * min([(0.7*TolT/etaT)^(1.0/RKmethod.order), sqrt(NLS_IterTarget/NLS_iters), 1.5]);
+                    Deltat_np1  = Deltat_n * min([(0.7*TolT/etaT)^(1.0/RKmethod.order), sqrt(NLS_IterTarget/NLS_iters), 2.0]);
                     RepeatT     = false;
                 else
                     rDeltat     = max(0.5, min((0.7*TolT/etaT)^(1.0/RKmethod.order)));
