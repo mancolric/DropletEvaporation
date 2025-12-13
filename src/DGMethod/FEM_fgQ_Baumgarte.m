@@ -435,6 +435,7 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
         Minv_diag                   = 1.0./M_diag;
         Minv_approx                 = spdiags( repmat(Minv_diag, model.nDiff, 1), 0, ...
                                         model.nDiff*fes.nDof, model.nDiff*fes.nDof );
+        Minv_approx                 = MassMatrixExpand(inv(Mm), model.nDiff, 0);
         H_UV                        = G_U * Minv_approx * F_UV;
         [H_UV_iv, H_UV_jv, H_UV_sv] = find(H_UV);
         

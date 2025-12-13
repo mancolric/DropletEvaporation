@@ -27,8 +27,8 @@ if model.bool_liq==1 % Liquid
     end
 elseif model.bool_liq==0 % Gas
 %     rho     = 0.2+0*T_m;
-%     rho     = 0.2-0.05*(T_m-300)/500;
-%     return
+    rho     = 0.2-0.05*(T_m-300)/500;
+    return
     Yi_eval = zeros(model.nInerts, size(T_v,2)); 
     for II=1:model.nInerts
         Yi_eval(II,:) = y{II}(:)';

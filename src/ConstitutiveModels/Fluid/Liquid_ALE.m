@@ -169,7 +169,7 @@ function [  f, df_du, df_du_dx, ...
                 dg_dx{II}   = dg_du{II,JJ}.*du_dx{JJ}; %we assume that dg/d(du/dx) = 0
             end
         end 
-        D_stab              = 1e4*calc_D_rho(T,y,model);
+        D_stab              = 0e4*calc_D_rho(T,y,model);
         for II=1:model.nSpecies
             f{II}           = f{II} - D_stab .* y{II} .* dg_dx{1};
         end
@@ -296,9 +296,10 @@ function [f, df_du, df_du_dx, Dmax] = ...
     h_i   = calc_h_i(T,model);
     
     %Diffusive flux:
+    D_stab  = 3*D_rho;
     f = cell(model.nDiff,1);
     for II=1:model.nSpecies
-        f{II}           = - D_rho.* (drhoy_dx{II} - drho_dx.*y{II});
+        f{II}           = - D_rho.* (drhoy_dx{II} - drho_dx.*y{II}) - D_stab.*drhoy_dx{II};
     end
     f{model.nDiff}      = - D_T.* dH_dx;
     for II=1:model.nSpecies
@@ -317,7 +318,7 @@ function [f, df_du, df_du_dx, Dmax] = ...
         end
         for II=1:model.nSpecies
             for JJ=1:model.nSpecies
-                df_du_dx{II,JJ}             = - D_rho.* ((II==JJ) - y{II});
+                df_du_dx{II,JJ}             = - D_rho.* ((II==JJ) - y{II}) - D_stab;
             end
         end
 

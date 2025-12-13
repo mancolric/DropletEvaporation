@@ -1,6 +1,6 @@
 %UNDO!:
 %Fixed mesh
-%Constant density
+%density-temperature relation
 %Initial condition
 %tevap
 %convergence info msg
@@ -9,9 +9,19 @@
 %open fig1 in all cases
 %fig2
 %tau_g in models
+%space for velocity
+%liquid diffusion
+%xlim
+%TolA0
+%Minv in FEM_fQg_Baumgarte
 
 %TODO:
 % Compute only g in models
+
+%MAIN CHANGES:
+% Mesh parameters
+% Space for velocity field
+% drhobar_du computed by finite differences
 
 function [save_vars, model_l, model_g] = ...
     droplet_test_debug(nElems_l, nElems_g, hmin_l, hmin_g, p, ...
@@ -28,7 +38,7 @@ function [save_vars, model_l, model_g] = ...
     %Maximum and target nb of iterations in nonlinear solver:
 %     NLS_MaxIter     = 200;   
 %     NLS_IterTarget  = 120;   
-    NLS_MaxIter     = 100;   
+    NLS_MaxIter     = 300;   
     NLS_IterTarget  = Inf;
     
     % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
@@ -46,7 +56,7 @@ function [save_vars, model_l, model_g] = ...
     NF_vl       = 1e-1;         %Characteristic value for liquid velocity
     NF_vg       = 1e-1;         %Characteristic value for gas velocity
     NF_w        = 1e-1;         %Characteristic value for droplet velocity;
-    tau_Baum    = 0e-3;         %Baumgarte's time stabilization parameter
+    C_Baum      = 1e2;          %Baumgarte's time stabilization parameter t_Baum = C_Baum*Deltat_n
     
     %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
     
@@ -76,7 +86,7 @@ function [save_vars, model_l, model_g] = ...
                         @(r, ComputeJ) MeshFactor(r, hmin_g, nElems_g, x_g-x_lg), ...
                         ((x_g-x_lg)/hmin_g)^(1/(nElems_g-1)), 1e-2*(x_g-x_lg), 0.0, 200);
     if flag<0
-        error('Unable to generate mesh for liquid phase')
+        error('Unable to generate mesh for gas phase')
     end
     %Generate meshes:
     hElems_l        = hmin_l*r_l.^(nElems_l-1:-1:0);
@@ -124,8 +134,8 @@ function [save_vars, model_l, model_g] = ...
     %Initial condition function for the LIQUID phase
     function u = u0_l(x)
               
-        T_l         = T_0.*ones(size(x));
-%         T_l         = 0.9*T_0 + 0.1*T_0*(x/x_lg).^2;
+%         T_l         = T_0.*ones(size(x));
+        T_l         = 0.9*T_0 + 0.1*T_0*(x/x_lg).^2;
         y_l         = mass_fracL;
 
         rho_l       = calc_rho(model_l,y_l,T_l);
@@ -353,8 +363,8 @@ function [save_vars, model_l, model_g] = ...
         %Initial droplet velocity:
         rho_l       = calc_rho(model_l,y_L,T_0);
         rho_g       = calc_rho(model_g,y_R,T_0);
-        w_0         = -rho_g/(rho_l-rho_g) * vR_0;
-%         w_0         = 0.0;
+%         w_0         = -rho_g/(rho_l-rho_g) * vR_0;
+        w_0         = 0.0;
         
         %Final vector of initial gas fields
         %u = {ρY1, ..., ρYN, H, v}
@@ -363,9 +373,9 @@ function [save_vars, model_l, model_g] = ...
     end
 
     function u = u0_g(x)
-        u       = u0_g_const(x);
+%         u       = u0_g_const(x);
 %         u       = u0_g_slopes(x);
-%         u       = u0_g_Millan(x);
+        u       = u0_g_Millan(x);
     end
     
     %Boundary conditions:
@@ -394,6 +404,9 @@ function [save_vars, model_l, model_g] = ...
     %Prolongation matrices for velocity space:
     prolm_l       = PXToQY_Matrix(fes_lm1, fes_l);
     prolm_g       = PXToQY_Matrix(fes_gm1, fes_g);
+    %DEBUG:
+%     prolm_l       = speye(fes_l.nDof);
+%     prolm_g       = speye(fes_g.nDof);
     
     %Values for PlotFun:
     xiplot        = linspace(-1.0, 1.0, (p+1)^2);
@@ -548,16 +561,17 @@ function [save_vars, model_l, model_g] = ...
             T_ql        = calc_T(H_ql,rhoy_ql,model_l);
             T_qg        = calc_T(H_qg,rhoy_qg,model_g);
             
-%             %DEBUG:
-%             uw_g        = [ sol.ug; {P1ToQX(wmesh_g, sol.fesg)} ];
-%             num_sol_g   = EvalSolution(uw_g, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
-%             dnum_sol_g  = EvalSolution_dx(uw_g, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
-%             [  ~, ~, ~, ~, ~, ~, ~, dg_du, ~, ~ ] = ...
-%                 model_g.fQg(model_g, sol.t, xplot_g, num_sol_g, dnum_sol_g, true);
+            %DEBUG:
+            uw_g        = [ sol.ug; {P1ToQX(wmesh_g, sol.fesg)} ];
+            num_sol_g   = EvalSolution(uw_g, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
+            dnum_sol_g  = EvalSolution_dx(uw_g, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
+            [  ~, ~, ~, ~, ~, ~, g, dg_du, ~, ~ ] = ...
+                model_g.fQg(model_g, sol.t, xplot_g, num_sol_g, dnum_sol_g, true);
 %             Pi_g        = 0.0;
 %             for II=1:model_g.nSpecies+1
 %                 Pi_g    = Pi_g + dg_du{1,II}.*num_sol_g{II};
 %             end
+            Pi_g        = g{1};
 
             %Select figure:
             figure(fig1)
@@ -590,6 +604,7 @@ function [save_vars, model_l, model_g] = ...
             plot(MatTranspVec(xplot_g), MatTranspVec(rho_g), 'r')
             title(['\rho_g, t=', sprintf('%.4E', sol.t)])
             grid on
+%             xlim([0,1e-3])
             
             %Plot temperatures:
             subplot(mPlot, nPlot, 2)
@@ -607,14 +622,15 @@ function [save_vars, model_l, model_g] = ...
             plot(xmesh_g(1), T_qg, 'color', 'b', 'markersize', 1.0, 'marker', 'x')
             title(['T_g, t=', sprintf('%.4E', sol.t)])
             grid on
+%             xlim([0,1e-3])
             
             %Plot velocities and mesh velocity:
             subplot(mPlot, nPlot, 3)
             hold off
-            plot(MatTranspVec(xplot_l), MatTranspVec(v_l), 'b')
-            hold on
-            plot(xmesh_l, wmesh_l, 'c')
-%             plot(MatTranspVec(xplot_g), MatTranspVec(Pi_g), 'r')
+%             plot(MatTranspVec(xplot_l), MatTranspVec(v_l), 'b')
+%             hold on
+%             plot(xmesh_l, wmesh_l, 'c')
+            plot(MatTranspVec(xplot_g), MatTranspVec(Pi_g), 'r')
             title(['v_l, w_l, t=', sprintf('%.4E', sol.t)])
             grid on
             %
@@ -625,6 +641,7 @@ function [save_vars, model_l, model_g] = ...
             plot(xmesh_g, wmesh_g, 'm')
             title(['v_g, w_g, t=', sprintf('%.4E', sol.t)])
             grid on
+%             xlim([0,1e-3])
             
         end
     end
@@ -712,6 +729,9 @@ function [save_vars, model_l, model_g] = ...
         sol_np1.qL          = z(1:N_L);
         sol_np1.qR          = z(N_L+1:N_L+N_R);
         sol_np1.w           = z(end);
+        
+        %Characteristic time for Baumgarte's stabilization:
+        tau_Baum            = C_Baum * Deltat_n;
         
         %Update matrices for new mesh:
         mesh_l_np1          = Mesh_Cartesian_Create(xmesh_l_np1);
@@ -964,8 +984,8 @@ function [save_vars, model_l, model_g] = ...
         rhoL                = calc_rho(model_l, {[1.0]}, [TL]);
         [hL,~]              = calc_h([TL], {[1.0]}, model_l);
         qL                  = [ rhoL; rhoL*hL ];
-%         r_z(1:N_L)          = sol_np1.qL-sol_n.qL;  
-        r_z(1:N_L)          = sol_np1.qL-qL;
+        r_z(1:N_L)          = sol_np1.qL-sol_n.qL;  
+%         r_z(1:N_L)          = sol_np1.qL-qL;
         %
         TR                  = T_0 + (T_inf-T_0)*exp(-sol_n.t/tau_relax);
         yR                  = y_inf;
