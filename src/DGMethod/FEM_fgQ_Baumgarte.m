@@ -404,7 +404,7 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
     end
     
     %Assemble Gdot + 1/tau*G into F:
-    F(model.nDiff*fes.nDof+1:end)   = tau*Gdot + G;
+    F(model.nDiff*fes.nDof+1:end)   = Gdot + G/tau;
     
     %----------------------------------------------------------------------
     %ASSEMBLY:
@@ -447,7 +447,7 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
                             H_UV_iv+model.nDiff*fes.nDof, ...
                             G_U_iv+model.nDiff*fes.nDof        );
         dF_dU.jv    = cat(1, F_UV_jv, H_UV_jv, G_U_jv );
-        dF_dU.sv    = cat(1, F_UV_sv, tau*H_UV_sv, G_U_sv);
+        dF_dU.sv    = cat(1, F_UV_sv, H_UV_sv, G_U_sv/tau);
         
     else
         dF_dU.iv    = zeros(0,0);

@@ -1,4 +1,4 @@
-function [F, dF_dU, dF_dq1, dF_dqN] = CG_fgQ(model, t, usol, fes, ComputeJ)
+function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = CG_fgQ(model, t, usol, fes, ComputeJ)
 
     mesh        = fes.mesh;
     p           = fes.p;
@@ -26,7 +26,8 @@ function [F, dF_dU, dF_dq1, dF_dqN] = CG_fgQ(model, t, usol, fes, ComputeJ)
     %Evaluate flux and source terms at quadrature points:
     [f_qp, df_du_qp, df_dgradu_qp, ...
         Q_qp, dQ_du_qp, dQ_dgradu_qp, ...
-        g_qp, dg_du_qp, dg_dgradu_qp]   = model.fQg(model, t, x_qp, u_qp, du_dx_qp, ComputeJ);
+        g_qp, dg_du_qp, dg_dgradu_qp, lambdav] ...
+                = model.fQg(model, t, x_qp, u_qp, du_dx_qp, ComputeJ);
     
     %Load shape functions in reference element at quadrature nodes:
     %Matrix is of size (#quadrature nodes, p+1):
@@ -36,8 +37,9 @@ function [F, dF_dU, dF_dq1, dF_dqN] = CG_fgQ(model, t, usol, fes, ComputeJ)
     %Contribution of flux and source terms in the domain:
     %   int(Q_I*psi_alpha) + int(f_I*dpsi_alpha/dx)
     for II=1:model.nDiff
-        F((II-1)*fes.nDof+fes.ElemsDof)     = (f_qp{II}.*Jinv_qp.*womegaJ_qp) * dpsim + ...
+        f_II_ElemsDof                       = (f_qp{II}.*Jinv_qp.*womegaJ_qp) * dpsim + ...
                                                 (Q_qp{II}.*womegaJ_qp) * psim;
+        F((II-1)*fes.nDof+1:II*fes.nDof)    = fes.AsblyMat*f_II_ElemsDof(:);
     end
     
     %Compute db_(I,alpha)/du_(J,beta). 
@@ -77,14 +79,6 @@ function [F, dF_dU, dF_dq1, dF_dqN] = CG_fgQ(model, t, usol, fes, ComputeJ)
         end
         
     end
-    
-%     if ComputeJ
-%         J       = sparse(iv(:), jv(:), sv(:));
-%     else
-%         J       = zeros(0,0);
-%     end
-%     
-%     return
     
     %----------------------------------------------------------------------
     %FLUXES AT BOUNDARY FACES (I.E., IMPOSITION OF B.C.):
@@ -211,8 +205,9 @@ function [F, dF_dU, dF_dq1, dF_dqN] = CG_fgQ(model, t, usol, fes, ComputeJ)
     
     %int( g psi ):
     for II=1:model.nAlg
-        dof     = (model.nDiff+II-1)*fes.nDof + fes.ElemsDof;
-        F(dof)  = (g_qp{II}.*womegaJ_qp) * psim;
+        f_II_ElemsDof   = (g_qp{II}.*womegaJ_qp) * psim;
+        dof             = (model.nDiff+II-1)*fes.nDof+1:(model.nDiff+II)*fes.nDof;
+        F(dof)          = fes.AsblyMat*f_II_ElemsDof(:);
     end
     if ComputeJ
         
@@ -251,6 +246,22 @@ function [F, dF_dU, dF_dq1, dF_dqN] = CG_fgQ(model, t, usol, fes, ComputeJ)
         dF_dU.sv    = zeros(0,0);
     end
     
+    %----------------------------------------------------------------------
+    %Deltat for CFL=1:
+    
+    %DEBUG:
+%     lambdav{1}      = 0.0*lambdav{1};   %Disable mesh distortion
+%     lambdav{2}      = 0.0*lambdav{2};   %Disable convection
+%     lambdav{3}      = 0.0*lambdav{3};   %Disable diffusion
+    
+    Deltat_CFL      = Inf;
+    hp_elems        = diff(mesh.x_faces)/fes.p;
+    for jj=1:length(lambdav)
+        %Take Linf norm of lambda at each element:
+        lambdav_elems   = max(lambdav{jj}, [], 2);
+        Deltat_CFL      = min(Deltat_CFL, min(hp_elems(:).^(jj-1)./lambdav_elems));
+    end
+    
 end
 
 function C=UpsilonMat(A, B)
@@ -271,7 +282,7 @@ function [imat, jmat] = J_ElemsDof(ElemsDof1, ElemsDof2)
 
     n1      = size(ElemsDof1,2);
     n2      = size(ElemsDof2,2);
-    nElems      = size(ElemsDof1,1);
+    nElems  = size(ElemsDof1,1);
     
     imat    = zeros(nElems, n1*n2);
     jmat    = zeros(nElems, n1*n2);

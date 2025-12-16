@@ -9,7 +9,7 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
-nElems_l          = 50;    % Number of elements in the liquid phase
+nElems_l          = 100;    % Number of elements in the liquid phase
 nElems_g          = 20;    % Number of elements in the gas phase
 hmin_l            = 1e-7;  
 hmin_g            = 1e-7; 
@@ -45,7 +45,7 @@ n_saves           = 2;    % Number of intermediate "safety saves" during simulat
 % ---------------------- INITIAL AND BOUNDARY CONDITIONS ------------------
 
 R_0               = 0.00025; % Initial droplet radius [m]
-XRad              = 150;        % Domain size (in gas phase) as a multiple of the initial radius
+XRad              = 150*10;        % Domain size (in gas phase) as a multiple of the initial radius
 R_end_percent     = 0.2;       % Final droplet size as a fraction of initial radius (when Save = true)
 
 T_0               = 300;        % Initial temperature at the center of the droplet [K]
@@ -61,7 +61,7 @@ mass_fracG        = {0.79, 0.0, 0.0, 0.21};  % Mass fraction of each inert speci
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 
 % Run the full droplet evaporation simulation from t = 0
-[save_vars] = droplet_test_debug(nElems_l, nElems_g, hmin_l, hmin_g, p, Deltat0, t_final, ...
+[save_vars] = droplet_test_debug2(nElems_l, nElems_g, hmin_l, hmin_g, p, Deltat0, t_final, ...
     TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
     n_saves);

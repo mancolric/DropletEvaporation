@@ -59,8 +59,8 @@ function [  f, df_du, df_du_dx, ...
     fQg(model, t, x, u, du_dx, ComputeJ)
 
     %DEBUG:
-%     ComputeStab             = true;
-    ComputeStab             = false;
+    ComputeStab             = true;
+%     ComputeStab             = false;
     
     %Extract variables:
     [rhoy, ~, rho, ~, y]    = aux_rho(model, u, du_dx);
@@ -147,21 +147,23 @@ function [  f, df_du, df_du_dx, ...
         
     end
     
-    %Add stabilization for density (I):
-    for II=1:model.nSpecies
-        Q{II}               = Q{II} - 1/model.tau_g * y{II}.*g{1};
-    end
-    if ComputeJ
+    %Add stabilization for differential variables:
+    if ComputeStab
         for II=1:model.nSpecies
-            for JJ=1:model.nDiff
-                dQ_du{II,JJ}    = dQ_du{II,JJ} - 1/model.tau_g * (...
-                                    ((II==JJ)-y{II})./rho.*g{1} + y{II}.*dg_du{1,JJ} );
+            Q{II}               = Q{II} - 1/model.tau_g * dg_du{II}.*g{1};
+        end
+        if ComputeJ
+            for II=1:model.nSpecies
+                for JJ=1:model.nDiff
+                    dQ_du{II,JJ}    = dQ_du{II,JJ} - 1/model.tau_g * ...
+                                        dg_du{II} .* dg_du{JJ};
+                end
             end
         end
     end
     
     %Add stabilization for density (II):
-    if ComputeStab
+    if false
         dg_dx               = cell(model.nAlg, 1);
         for II=1:model.nAlg %nAlg=1 in this model
             dg_dx{II}       = 0.0*g{II};
@@ -169,7 +171,7 @@ function [  f, df_du, df_du_dx, ...
                 dg_dx{II}   = dg_du{II,JJ}.*du_dx{JJ}; %we assume that dg/d(du/dx) = 0
             end
         end 
-        D_stab              = 0e4*calc_D_rho(T,y,model);
+        D_stab              = 0.0*calc_D_rho(T,y,model);
         for II=1:model.nSpecies
             f{II}           = f{II} - D_stab .* y{II} .* dg_dx{1};
         end
@@ -368,7 +370,19 @@ function [f, df_duL, df_duR] = f_penalty(model, uL, uR, hp, ComputeJ)
     f       = cell(model.nDiff, 1);
     df_duL  = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uL{1});
     df_duR  = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uR{1});
-    for II=1:model.nDiff
+    if model.nSpecies==1
+        i0  = model.nDiff;
+    else
+        i0  = 1;
+    end
+    for II=1:i0-1
+        f{II}               = 0.0*(uL{II}-uR{II})./hp;
+        if ComputeJ
+            df_duL{II,II}   = + 0.0./hp;
+            df_duR{II,II}   = - 0.0./hp;
+        end
+    end
+    for II=i0:model.nDiff
         f{II}               = sigma*(uL{II}-uR{II})./hp;
         if ComputeJ
             df_duL{II,II}   = + sigma./hp;

@@ -384,7 +384,7 @@ function [imat, jmat] = J_ElemsDof(ElemsDof1, ElemsDof2)
 
     n1      = size(ElemsDof1,2);
     n2      = size(ElemsDof2,2);
-    nElems      = size(ElemsDof1,1);
+    nElems  = size(ElemsDof1,1);
     
     imat    = zeros(nElems, n1*n2);
     jmat    = zeros(nElems, n1*n2);

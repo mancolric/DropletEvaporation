@@ -8,19 +8,18 @@ function Pm = PXToQY_Matrix(fesP, fesQ)
         error('Number of elements associated with both spaces must be the same')
     end
     
-    %Load quadrature rules:
-    QR      = fesQ.QuadRule;
+    %Check spaces orders:
+    if fesP.p>fesQ.p
+        error('Cannot prolongate onto a space of smaller dimension')
+    end
     
-    %u(x) = L_j(x) u_j = phi_j(x) a_j. If we project onto phi_i:
-    %   (phi_i, L_j) u_j = (phi_i, phi_j) a_j
+    %u(x) = L_j(x) u_j = phi_j(x) a_j. If we evaluate this expresion at the
+    %interpolation nodes x_k:
+    %   delta_jk u_j = u_k = phi_j(x_k) a_j
     %So 
-    %   a = ( phiphi \ phiL ) * u
-    phim        = fesQ.NCompute(QR.xi);
-    Lm          = fesP.NCompute(QR.xi);
-    wm          = diag(QR.w);
-    phiL        = phim.'*wm*Lm;
-    phiphi      = phim.'*wm*phim;
-    prolm_elem  = phiphi\phiL;
+    %   a = phim(x_nodes) \ u
+    prolm_elem                  = zeros(fesQ.p+1, fesP.p+1);
+    prolm_elem(1:fesP.p+1,:)    = fesP.Lag_Leg(1:fesP.p+1,:);
     
     %Loop elements and assemble psim:
     nElems          = fesP.mesh.nElems;

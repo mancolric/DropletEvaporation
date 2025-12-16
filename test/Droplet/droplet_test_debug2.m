@@ -14,7 +14,7 @@
 %xlim
 %TolA0
 %Minv in FEM_fQg_Baumgarte
-%NF_tau
+%f_II_elemsDof in FEM_fgQ
 
 %TODO:
 % Compute only g in models
@@ -25,7 +25,7 @@
 % drhobar_du computed by finite differences
 
 function [save_vars, model_l, model_g] = ...
-    droplet_test_debug(nElems_l, nElems_g, hmin_l, hmin_g, p, ...
+    droplet_test_debug2(nElems_l, nElems_g, hmin_l, hmin_g, p, ...
         Deltat0, t_final, TimeAdapt, TolT, ...
         PlotRes, Save, fuel_names, mass_fracL, ...
         inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, ...
@@ -57,8 +57,7 @@ function [save_vars, model_l, model_g] = ...
     NF_vl       = 1e-1;         %Characteristic value for liquid velocity
     NF_vg       = 1e-1;         %Characteristic value for gas velocity
     NF_w        = 1e-1;         %Characteristic value for droplet velocity;
-    NF_tau      = 1.0;          %Characteristic time;
-    C_Baum      = Inf;          %Baumgarte's time stabilization parameter t_Baum = C_Baum*Deltat_n
+    C_Baum      = 2e2;          %Baumgarte's time stabilization parameter t_Baum = C_Baum*Deltat_n
     
     %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
     
@@ -275,18 +274,15 @@ function [save_vars, model_l, model_g] = ...
     
     %Create meshes and finite element spaces:
     mesh_l        = Mesh_Cartesian_Create(xmesh_l);
-    fes_l         = FES_QX_Create(mesh_l, p);
+    fes_l         = FES_PX_Create(mesh_l, p);
     fes_lm1       = FES_PX_Create(mesh_l, p);
     mesh_g        = Mesh_Cartesian_Create(xmesh_g);
-    fes_g         = FES_QX_Create(mesh_g, p);
+    fes_g         = FES_PX_Create(mesh_g, p);
     fes_gm1       = FES_PX_Create(mesh_g, p);
     
     %Prolongation matrices for velocity space:
-    prolm_l       = PXToQY_Matrix(fes_lm1, fes_l);
-    prolm_g       = PXToQY_Matrix(fes_gm1, fes_g);
-    %DEBUG:
-%     prolm_l       = speye(fes_l.nDof);
-%     prolm_g       = speye(fes_g.nDof);
+    prolm_l       = speye(fes_l.nDof);
+    prolm_g       = speye(fes_g.nDof);
     
     %Values for PlotFun:
     xiplot        = linspace(-1.0, 1.0, (p+1)^2);
@@ -442,7 +438,7 @@ function [save_vars, model_l, model_g] = ...
             T_qg        = calc_T(H_qg,rhoy_qg,model_g);
             
             %DEBUG:
-            uw_g        = [ sol.ug; {P1ToQX(wmesh_g, sol.fesg)} ];
+            uw_g        = [ sol.ug; {P1ToPX(wmesh_g, sol.fesg)} ];
             num_sol_g   = EvalSolution(uw_g, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
             dnum_sol_g  = EvalSolution_dx(uw_g, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
             [  ~, ~, ~, ~, ~, ~, g, dg_du, ~, ~ ] = ...
@@ -484,7 +480,7 @@ function [save_vars, model_l, model_g] = ...
             plot(MatTranspVec(xplot_g), MatTranspVec(rho_g), 'r')
             title(['\rho_g, t=', sprintf('%.4E', sol.t)])
             grid on
-            xlim([0,2e-2])
+%             xlim([0,1e-3])
             
             %Plot temperatures:
             subplot(mPlot, nPlot, 2)
@@ -502,7 +498,7 @@ function [save_vars, model_l, model_g] = ...
             plot(xmesh_g(1), T_qg, 'color', 'b', 'markersize', 1.0, 'marker', 'x')
             title(['T_g, t=', sprintf('%.4E', sol.t)])
             grid on
-            xlim([0,2e-2])
+%             xlim([0,1e-3])
             
             %Plot velocities and mesh velocity:
             subplot(mPlot, nPlot, 3)
@@ -521,7 +517,7 @@ function [save_vars, model_l, model_g] = ...
             plot(xmesh_g, wmesh_g, 'm')
             title(['v_g, w_g, t=', sprintf('%.4E', sol.t)])
             grid on
-            xlim([0,2e-2])
+%             xlim([0,1e-3])
             
         end
     end
@@ -615,12 +611,12 @@ function [save_vars, model_l, model_g] = ...
         
         %Update matrices for new mesh:
         mesh_l_np1          = Mesh_Cartesian_Create(xmesh_l_np1);
-        sol_np1.fesl        = FES_QX_Create(mesh_l_np1, p);
+        sol_np1.fesl        = FES_PX_Create(mesh_l_np1, p);
         mass_l_np1          = MassMatrix(sol_np1.fesl);
         Mm_l_np1            = MassMatrixExpand(mass_l_np1, model_l.nDiff, model_l.nAlg);
         %
         mesh_g_np1          = Mesh_Cartesian_Create(xmesh_g_np1);
-        sol_np1.fesg        = FES_QX_Create(mesh_g_np1, p);
+        sol_np1.fesg        = FES_PX_Create(mesh_g_np1, p);
         mass_g_np1          = MassMatrix(sol_np1.fesg);
         Mm_g_np1            = MassMatrixExpand(mass_g_np1, model_g.nDiff, model_g.nAlg);
         
@@ -636,8 +632,8 @@ function [save_vars, model_l, model_g] = ...
         %Update mesh velocity for current solution:
         
         [~, wmesh_l_np1, ~, wmesh_g_np1] = MeshVelocities(sol_np1);
-        uw_l                = [ sol_np1.ul; {P1ToQX(wmesh_l_np1, sol_np1.fesl)} ];
-        uw_g                = [ sol_np1.ug; {P1ToQX(wmesh_g_np1, sol_np1.fesg)} ];
+        uw_l                = [ sol_np1.ul; {P1ToPX(wmesh_l_np1, sol_np1.fesl)} ];
+        uw_g                = [ sol_np1.ug; {P1ToPX(wmesh_g_np1, sol_np1.fesg)} ];
         
         %------------------------------------------------------------------
         %MESH MOTION EQUATION:
@@ -653,15 +649,9 @@ function [save_vars, model_l, model_g] = ...
         %IMPOSE DAE FOR LIQUID:
         
         %Compute term due to fluxes and restriction:
-        if tau_Baum>0.0
-            [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
-                FEM_fgQ_Baumgarte(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ, ...
-                mass_l_np1, NF_l, tau_Baum);
-        else
-            [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
-                FEM_fgQ(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ);
-        end
-        
+        [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
+                CG_fgQ(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ);
+            
         %Residuals and Jacobians:
         r_l                             = Mm_l_np1*CellToVector(sol_np1.ul) - bDAE_l_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_l_RK(:,is);
         r_l(N_ul+1:N_ul+N_vl)           = - RKmethod.aI(is,is)*Deltat_n * kDAE_l_RK(N_ul+1:N_ul+N_vl,is);
@@ -681,7 +671,7 @@ function [save_vars, model_l, model_g] = ...
             
             %Derivatives w.r.t. w:
             aux                         = dfDAE_duw_l.jv>nDAE_l*sol_np1.fesl.nDof;
-            dfDAE_dwLeg                 = sparse(dfDAE_duw_l.iv(aux), ...
+            dfDAE_dwLag                 = sparse(dfDAE_duw_l.iv(aux), ...
                                                     dfDAE_duw_l.jv(aux)-nDAE_l*sol_np1.fesl.nDof, ...
                                                     dfDAE_duw_l.sv(aux), ...
                                                     nDAE_l*sol_np1.fesl.nDof, ...
@@ -689,7 +679,7 @@ function [save_vars, model_l, model_g] = ...
             dwnodes_dw                  = (xmesh_l_np1-xmesh_l_np1(1))/...
                                             (xmesh_l_np1(end)-xmesh_l_np1(1));
             %df_i/dw = df_i/dwLeg_j * dwLeg_j/dwNodes_k * dwNodes_k/dw: 
-            dfDAE_dw                    = dfDAE_dwLeg*P1ToQX(dwnodes_dw, sol_np1.fesl);
+            dfDAE_dw                    = dfDAE_dwLag*P1ToPX(dwnodes_dw, sol_np1.fesl);
             J_lz.iv                     = cat(1, J_lz.iv, (1:nDAE_l*sol_np1.fesl.nDof).' );
             J_lz.jv                     = cat(1, J_lz.jv, repmat(N_L+N_R+1, nDAE_l*sol_np1.fesl.nDof, 1));
             J_lz.sv                     = cat(1, J_lz.sv, -RKmethod.aI(2,2)*Deltat_n*dfDAE_dw);
@@ -725,40 +715,45 @@ function [save_vars, model_l, model_g] = ...
             J_l.sv                      = cat(1, J_l.sv, Jterm);
         end
         
-%         %Impose known velocity:
-%         mass_l                      = MassMatrix(sol_np1.feslm1);
-%         function v_l=v_l_fun(x)
-%             v_l                     = { 0.0*x };
-%         end
-%         b_vl                        = ProjectFun(@v_l_fun, sol_n.feslm1);
-%         block_vl_aux                = block_vl-block_ul(1)+1;
-%         r_l(block_vl_aux)           = Deltat_n*(mass_l*y(block_vl) - b_vl);
-%         if ComputeJ
-%             %Delete previous components:
-%             aux                     = find((J_l.iv>=block_vl_aux(1)) & (J_l.iv<=block_vl_aux(end)));
-%             J_l.sv(aux)             = 0.0;
-%             %New components:
-%             [Mm_iv, Mm_jv, Mm_sv]   = find(mass_l);
-%             J_l.iv                  = cat(1, J_l.iv, Mm_iv+block_vl_aux(1)-1);
-%             J_l.jv                  = cat(1, J_l.jv, Mm_jv+block_vl_aux(1)-1);
-%             J_l.sv                  = cat(1, J_l.sv, Deltat_n*Mm_sv);
-%             %Delete previous components:
-%             aux                     = find((J_lz.iv>=block_vl_aux(1)) & (J_lz.iv<=block_vl_aux(end)));
-%             J_lz.sv(aux)            = 0.0;
-%         end 
+        %Impose known velocity:
+        mass_l                      = MassMatrix(sol_np1.feslm1);
+        function v_l=v_l_fun(x)
+            v_l                     = { 0.0*x };
+        end
+        b_vl                        = ProjectFun(@v_l_fun, sol_n.feslm1);
+        block_vl_aux                = block_vl-block_ul(1)+1;
+        r_l(block_vl_aux)           = Deltat_n*(mass_l*y(block_vl) - b_vl);
+        if ComputeJ
+            %Delete previous components:
+            aux                     = find((J_l.iv>=block_vl_aux(1)) & (J_l.iv<=block_vl_aux(end)));
+            J_l.sv(aux)             = 0.0;
+            %New components:
+            [Mm_iv, Mm_jv, Mm_sv]   = find(mass_l);
+            J_l.iv                  = cat(1, J_l.iv, Mm_iv+block_vl_aux(1)-1);
+            J_l.jv                  = cat(1, J_l.jv, Mm_jv+block_vl_aux(1)-1);
+            J_l.sv                  = cat(1, J_l.sv, Deltat_n*Mm_sv);
+            %Delete previous components:
+            aux                     = find((J_lz.iv>=block_vl_aux(1)) & (J_lz.iv<=block_vl_aux(end)));
+            J_lz.sv(aux)            = 0.0;
+        end 
         
         %------------------------------------------------------------------
         %IMPOSE DAE FOR GAS:
         
         %Compute term due to fluxes and restriction:
-        if tau_Baum>0.0
-            [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
-                FEM_fgQ_Baumgarte(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ, ...
-                mass_g_np1, NF_g, tau_Baum);
-        else
-            [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
-                FEM_fgQ(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ);
-        end
+        [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
+                CG_fgQ(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ);
+        
+        %DEBUG:
+%         fesQ            = FES_QX_Create(mesh_g_np1, p);
+%         prolm_II        = PXToQY_Matrix(sol_np1.fesg, fesQ);
+%         prolm           = MassMatrixExpand(prolm_II, model_g.nDiff+model_g.nAlg, 0);
+%         uw_g_DG         = cell(model_g.nVars,1);
+%         for II=1:model_g.nVars
+%             uw_g_DG{II}     = prolm_II*uw_g{II};
+%         end
+%         [k_is,dfDAE_duw_g_is,dfDAE_dqR_is,~,Deltat_CFL_g_is]   = ...
+%                 FEM_fgQ(model_g, sol_np1.t, uw_g_DG, fesQ, ComputeJ);
         
         %Residuals and Jacobians:
         r_g                             = Mm_g_np1*CellToVector(sol_np1.ug) - bDAE_g_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_g_RK(:,is);
@@ -779,7 +774,7 @@ function [save_vars, model_l, model_g] = ...
             
             %Derivatives w.r.t. w:
             aux                         = dfDAE_duw_g.jv>nDAE_g*sol_np1.fesg.nDof;
-            dfDAE_dwLeg                 = sparse(dfDAE_duw_g.iv(aux), ...
+            dfDAE_dwLag                 = sparse(dfDAE_duw_g.iv(aux), ...
                                                     dfDAE_duw_g.jv(aux)-nDAE_g*sol_np1.fesg.nDof, ...
                                                     dfDAE_duw_g.sv(aux), ...
                                                     nDAE_g*sol_np1.fesg.nDof, ...
@@ -787,7 +782,7 @@ function [save_vars, model_l, model_g] = ...
             dwnodes_dw                  = (xmesh_g_np1-xmesh_g_np1(end))/...
                                             (xmesh_g_np1(1)-xmesh_g_np1(end));
             %df_i/dw = df_i/dwLeg_j * dwLeg_j/dwNodes_k * dwNodes_k/dw: 
-            dfDAE_dw                    = dfDAE_dwLeg*P1ToQX(dwnodes_dw, sol_np1.fesg);
+            dfDAE_dw                    = dfDAE_dwLag*P1ToPX(dwnodes_dw, sol_np1.fesg);
             J_gz.iv                     = cat(1, J_gz.iv, (1:nDAE_g*sol_np1.fesg.nDof).' );
             J_gz.jv                     = cat(1, J_gz.jv, repmat(N_L+N_R+1, nDAE_g*sol_np1.fesg.nDof, 1));
             J_gz.sv                     = cat(1, J_gz.sv, -RKmethod.aI(2,2)*Deltat_n*dfDAE_dw);
@@ -875,8 +870,8 @@ function [save_vars, model_l, model_g] = ...
         for II=1:model_g.nSpecies
             qR(II)          = rhoR*yR{II};
         end
-%         qR(model_g.nSpecies+1)  = rhoR*hR;
-%         qR(model_g.nSpecies+2)  = 1e-4; 
+        qR(model_g.nSpecies+1)  = rhoR*hR;
+        qR(model_g.nSpecies+2)  = 1e-4; 
         %
         r_z(N_L+1:N_L+N_R)  = sol_np1.qR-sol_n.qR;
 %         r_z(N_L+1:N_L+N_R)  = sol_np1.qR-qR;
