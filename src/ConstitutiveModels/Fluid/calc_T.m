@@ -39,7 +39,7 @@ end
 
 T = reshape(T,m,n); % T[nElems x (2*p+1)] = T_m
 
-if false && flag<0
+if true && flag<0
 %     warning('Evaluation of temperature failed')
     %Newton-Raphson already gives warning
     T               = T*NaN;    
@@ -51,7 +51,7 @@ elseif flag<0
     display(Tv(imax))
     
     %Plot h vs T:
-    Tv              = linspace(590, 650, 1000);
+    Tv              = linspace(0.5*min(Tv), 2.0*max(Tv), 1000);
     y2              = cell(size(y));
     rhoy2           = cell(size(y));
     for ii=1:length(y)
@@ -65,6 +65,7 @@ elseif flag<0
     plot(Tv, rho_m(imax)*hv-H_m(imax))
     
     T       = T*NaN;
+    error('debug please')
 end
 
 end

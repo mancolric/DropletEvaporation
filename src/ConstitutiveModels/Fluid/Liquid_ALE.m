@@ -34,7 +34,8 @@ function model=Liquid_ALE(fuel_names, frac_masL, comp_inerts, frac_masG)
     model.P           = 101325;
     model.N_polyfit   = 5;
     model.matrix      = Polyfit_properties_pureCompounds(model.gota, model.comp_inerts, model.Tmin, model.Tmax, model.P, model.N_polyfit);
-    model.tau_g       = Inf;   %Characteristic time for stabilization restriction; tau_g=Inf disables the latter
+    model.tau_g       = 1e-6;   %Characteristic time for stabilization restriction; tau_g=Inf disables the latter
+    model.NF          = [];     %Normalization factors
     
     %Mandatory fields:
     model.nDiff       = 1+model.nSpecies;  %Number of differential variables
@@ -148,22 +149,29 @@ function [  f, df_du, df_du_dx, ...
     end
     
     %Add stabilization for differential variables:
-    if ComputeStab
-        for II=1:model.nSpecies
-            Q{II}               = Q{II} - 1/model.tau_g * dg_du{II}.*g{1};
+    if ComputeStab && 1
+        for II=1:model.nDiff
+            %Note: stabilization term is normalized so that it has
+            %dimensions of 1/time * dimension of u_II. Note that g has
+            %dimensions of density:
+            Q{II}               = Q{II} - 1/model.tau_g * ...
+                                            (model.NF(II)/model.NF(1))^2 * ...
+                                            dg_du{II}.*g{1};
         end
         if ComputeJ
-            for II=1:model.nSpecies
+            for II=1:model.nDiff
                 for JJ=1:model.nDiff
-                    dQ_du{II,JJ}    = dQ_du{II,JJ} - 1/model.tau_g * ...
-                                        dg_du{II} .* dg_du{JJ};
+                    dQ_du{II,JJ}    = dQ_du{II,JJ} - ...
+                                        1/model.tau_g * ...
+                                        (model.NF(II)/model.NF(1))^2 * ...
+                                        dg_du{1, II} .* dg_du{1, JJ};
                 end
             end
         end
     end
     
     %Add stabilization for density (II):
-    if false
+    if ComputeStab && 0
         dg_dx               = cell(model.nAlg, 1);
         for II=1:model.nAlg %nAlg=1 in this model
             dg_dx{II}       = 0.0*g{II};
@@ -171,34 +179,20 @@ function [  f, df_du, df_du_dx, ...
                 dg_dx{II}   = dg_du{II,JJ}.*du_dx{JJ}; %we assume that dg/d(du/dx) = 0
             end
         end 
-        D_stab              = 0.0*calc_D_rho(T,y,model);
+        D_stab              = 100/model.tau_g;
         for II=1:model.nSpecies
-            f{II}           = f{II} - D_stab .* y{II} .* dg_dx{1};
+            f{II}           = f{II} - D_stab * (model.NF(II)/model.NF(1))^2 .* ...
+                                        dg_du{1, II} .* dg_dx{1};
         end
         if ComputeJ
 
-            %Note that
-            %   f_I                 = -D y_I dg/dx = -D y_I dg/du_K * du_K/dx
-            %If we ignore second derivatives of g, then
-            %   df_I/du_J           = -D dy_I/du_J dg/dx
-            %   df_I/d(du_J/dx)     = -D y_I dg/du_J
-            %where 
-            %   dy_I/drho_J         = d(rho_I/rho)/drho_J = delta_IJ/rho -
-            %                                               rho_I/rho^2 * 1_J
-            %                       = 1/rho * (delta_IJ - Y_I 1_J)
-
-            %Mass diffusion flux:
-            for II=1:model.nSpecies
-                for JJ=1:model.nSpecies
-                    df_du{II,JJ}                = df_du{II,JJ} - D_stab .* ((II==JJ)-y{II})./rho .* dg_dx{1};
+            for II=1:model.nDiff
+                for JJ=1:model.nDiff
+                    df_du_dx{II,JJ} = df_du_dx{II,JJ} - D_stab * (model.NF(II)/model.NF(1))^2 .* ...
+                                        dg_du{1,II} .* dg_du{1,JJ};
                 end
             end
-            for II=1:model.nSpecies
-                for JJ=1:model.nSpecies
-                    df_du_dx{II,JJ}             = df_du_dx{II,JJ} - D_stab .* y{II} .* dg_du{1,JJ};
-                end
-            end
-
+            
         end
     end
     
@@ -298,7 +292,7 @@ function [f, df_du, df_du_dx, Dmax] = ...
     h_i   = calc_h_i(T,model);
     
     %Diffusive flux:
-    D_stab  = 3*D_rho;
+    D_stab  = 0*D_rho;
     f = cell(model.nDiff,1);
     for II=1:model.nSpecies
         f{II}           = - D_rho.* (drhoy_dx{II} - drho_dx.*y{II}) - D_stab.*drhoy_dx{II};
@@ -370,18 +364,18 @@ function [f, df_duL, df_duR] = f_penalty(model, uL, uR, hp, ComputeJ)
     f       = cell(model.nDiff, 1);
     df_duL  = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uL{1});
     df_duR  = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uR{1});
-%     if model.nSpecies==1
-%         i0  = model.nDiff;
-%     else
-%         i0  = 1;
-%     end
-%     for II=1:i0-1
-%         f{II}               = 0.0*(uL{II}-uR{II})./hp;
-%         if ComputeJ
-%             df_duL{II,II}   = + 0.0./hp;
-%             df_duR{II,II}   = - 0.0./hp;
-%         end
-%     end
+    if model.nSpecies==1
+        i0  = model.nDiff;
+    else
+        i0  = 1;
+    end
+    for II=1:i0-1
+        f{II}               = 0.0*(uL{II}-uR{II})./hp;
+        if ComputeJ
+            df_duL{II,II}   = + 0.0./hp;
+            df_duR{II,II}   = - 0.0./hp;
+        end
+    end
     for II=1:model.nDiff
         f{II}               = sigma*(uL{II}-uR{II})./hp;
         if ComputeJ

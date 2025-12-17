@@ -8,6 +8,15 @@ function u_Lq = LqNorm(u_h, NF, fes, q)
     uh_qp       = EvalSolution(u_h, fes, 1:mesh.nElems, QuadRule.xi);
     nVars       = length(uh_qp);
 
+    %Return maximum value if q=Inf
+    if q==Inf
+        u_Lq    = 0.0;
+        for II=1:nVars
+            u_Lq    = max(u_Lq, norm(uh_qp{II}(:), Inf)/NF(II));
+        end
+        return
+    end
+    
     %nVars u_Lq^q |Omega| = int( sum_I (u_I^h/NF_I)^q ) 
     omega_qp    = mesh.omega(x_qp);
     uq_qp       = zeros(mesh.nElems, QuadRule.N);

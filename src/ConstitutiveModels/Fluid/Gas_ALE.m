@@ -36,6 +36,7 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
     model.N_polyfit   = 5;
     model.matrix      = Polyfit_properties_pureCompounds(model.gota, model.comp_inerts, model.Tmin, model.Tmax, model.P, model.N_polyfit);
     model.tau_g       = Inf;   %Characteristic time for stabilization restriction; tau_g=Inf disables the latter
+    model.NF          = [];    %Normalization factors
     
     %Mandatory fields:
     model.nDiff       = 1+model.nSpecies;  %Number of differential variables

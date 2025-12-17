@@ -59,11 +59,13 @@ function [save_vars, model_l, model_g] = ...
     NF_w        = 1e-1;         %Characteristic value for droplet velocity;
     NF_tau      = 1.0;          %Characteristic time;
     C_Baum      = Inf;          %Baumgarte's time stabilization parameter t_Baum = C_Baum*Deltat_n
-    
     %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
     
+    model_l.tau_g   = Inf;
+    model_g.tau_g   = Inf;
+    
     %Algebraic tolerance for first time level:
-    TolA0       = 1e-4;
+    TolA0       = 1e-8;
     
     %Domain limits:
     x_l         = 0.0;
@@ -274,10 +276,10 @@ function [save_vars, model_l, model_g] = ...
     nDiff_lg      = model_g.nDiff;
     
     %Create meshes and finite element spaces:
-    mesh_l        = Mesh_Cartesian_Create(xmesh_l);
+    mesh_l        = Mesh_Spheric_Create(xmesh_l);
     fes_l         = FES_QX_Create(mesh_l, p);
     fes_lm1       = FES_PX_Create(mesh_l, p);
-    mesh_g        = Mesh_Cartesian_Create(xmesh_g);
+    mesh_g        = Mesh_Spheric_Create(xmesh_g);
     fes_g         = FES_QX_Create(mesh_g, p);
     fes_gm1       = FES_PX_Create(mesh_g, p);
     
@@ -375,6 +377,10 @@ function [save_vars, model_l, model_g] = ...
     NF_l(1:model_l.nSpecies)    = max(NF_l(1:model_l.nSpecies));
     NF_g(1:model_g.nSpecies)    = max(NF_g(1:model_g.nSpecies));
     
+    %Save NF in model:
+    model_l.NF  = NF_l;
+    model_g.NF  = NF_g;
+
     %First Save:
     if Save
         folderName = 'results';
@@ -614,12 +620,12 @@ function [save_vars, model_l, model_g] = ...
         tau_Baum            = C_Baum * Deltat_n;
         
         %Update matrices for new mesh:
-        mesh_l_np1          = Mesh_Cartesian_Create(xmesh_l_np1);
+        mesh_l_np1          = Mesh_Spheric_Create(xmesh_l_np1);
         sol_np1.fesl        = FES_QX_Create(mesh_l_np1, p);
         mass_l_np1          = MassMatrix(sol_np1.fesl);
         Mm_l_np1            = MassMatrixExpand(mass_l_np1, model_l.nDiff, model_l.nAlg);
         %
-        mesh_g_np1          = Mesh_Cartesian_Create(xmesh_g_np1);
+        mesh_g_np1          = Mesh_Spheric_Create(xmesh_g_np1);
         sol_np1.fesg        = FES_QX_Create(mesh_g_np1, p);
         mass_g_np1          = MassMatrix(sol_np1.fesg);
         Mm_g_np1            = MassMatrixExpand(mass_g_np1, model_g.nDiff, model_g.nAlg);
@@ -860,7 +866,7 @@ function [save_vars, model_l, model_g] = ...
 
         %Keep constant conditions:
         %
-        TL                  = T_inf + (T_0-T_inf)*exp(-sol_n.t/tau_relax);
+        TL                  = 500 + (T_0-500)*exp(-sol_n.t/tau_relax);
         rhoL                = calc_rho(model_l, {[1.0]}, [TL]);
         [hL,~]              = calc_h([TL], {[1.0]}, model_l);
         qL                  = [ rhoL; rhoL*hL ];
@@ -875,11 +881,10 @@ function [save_vars, model_l, model_g] = ...
         for II=1:model_g.nSpecies
             qR(II)          = rhoR*yR{II};
         end
-%         qR(model_g.nSpecies+1)  = rhoR*hR;
-%         qR(model_g.nSpecies+2)  = 1e-4; 
-        %
-        r_z(N_L+1:N_L+N_R)  = sol_np1.qR-sol_n.qR;
-%         r_z(N_L+1:N_L+N_R)  = sol_np1.qR-qR;
+        qR(model_g.nSpecies+1)  = rhoR*hR;
+        qR(model_g.nSpecies+2)  = vR_0;
+%         r_z(N_L+1:N_L+N_R)  = sol_np1.qR-sol_n.qR;
+        r_z(N_L+1:N_L+N_R)  = sol_np1.qR-qR;
         %
         r_z(N_L+N_R+1)      = sol_np1.w-sol_n.w;
         if ComputeJ
@@ -1183,7 +1188,7 @@ function [save_vars, model_l, model_g] = ...
                 if sol_n.t==0
                     TolA            = TolA0;
                 elseif TimeAdapt
-                    TolA            = max(5e-3*TolT, 0.01*etaT_nm1);
+                    TolA            = max(1e-8, 0.01*etaT_nm1);
                 else
                     TolA            = 1e-8;
                 end
@@ -1191,17 +1196,15 @@ function [save_vars, model_l, model_g] = ...
                 [yscaled_np1, nIters, NLSFlag]  = Anderson(...
                                                     @(yhat)PrecResidualFun(yhat,ii), ...
                                                         diag(Sy).\yv_np1, ...
-                                                        0.0, sqrt(NDOF)*TolA, NLS_MaxIter, 50);
+                                                        sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50, 'final');
 %                 [yscaled_np1, nIters, NLSFlag]  = NewtonRaphson(...
 %                                                         @(y,ComputeJ)ScaledResidualFun(y,ComputeJ,ii), ...
 %                                                         diag(Sy).\yv_np1, ...
 %                                                         0.0, sqrt(NDOF)*TolA, NLS_MaxIter);
                 yv_np1              = Sy*yscaled_np1;
                 if NLSFlag<0
-                    disp(['Nonlinear solver did not converge at stage ', num2str(ii)])
                     break
                 else
-                    disp(['Nonlinear solver converged in ', num2str(nIters), ' iterations'])
                 end
                 NLS_iters           = NLS_iters + nIters/(RKmethod.s-1);
                 

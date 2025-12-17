@@ -1,8 +1,6 @@
-function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, usol, fes, ComputeJ, ...
-    Mm, NF, tau)
+function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = CG_fgQ_DAE1(model, t, usol, fes, ComputeJ, ...
+    Mm)
 
-    %NOTE: This function is only valid for DG.
-    
     mesh        = fes.mesh;
     p           = fes.p;
     QuadRule    = fes.QuadRule;
@@ -40,8 +38,9 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
     %Contribution of flux and source terms in the domain:
     %   int(Q_I*psi_alpha) + int(f_I*dpsi_alpha/dx)
     for II=1:model.nDiff
-        F((II-1)*fes.nDof+fes.ElemsDof)     = (f_qp{II}.*Jinv_qp.*womegaJ_qp) * dpsim + ...
+        f_II_ElemsDof                       = (f_qp{II}.*Jinv_qp.*womegaJ_qp) * dpsim + ...
                                                 (Q_qp{II}.*womegaJ_qp) * psim;
+        F((II-1)*fes.nDof+1:II*fes.nDof)    = fes.AsblyMat*f_II_ElemsDof(:);
     end
     
     %Compute db_(I,alpha)/du_(J,beta). 
@@ -83,122 +82,19 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
     end
     
     %----------------------------------------------------------------------
-    %FLUXES AT INTERNAL FACES:
-    
-    %Solution at west and east faces:
-    u_w         = EvalSolution(usol, fes, 2:nElems, [-1.0]); %cell(nVars,1)
-    du_dx_w     = EvalSolution_dx(usol, fes, 2:nElems, [-1.0]); %cell(nVars,1)
-    u_e         = EvalSolution(usol, fes, 1:nElems-1, [1.0]); %cell(nVars,1)
-    du_dx_e     = EvalSolution_dx(usol, fes, 1:nElems-1, [1.0]); %cell(nVars,1)
-    psim_w      = fes.NCompute([-1.0]);
-    psim_e      = fes.NCompute([1.0]);
-    dpsim_w     = fes.dNCompute([-1.0]);
-    dpsim_e     = fes.dNCompute([1.0]);
-    Jinv_elems  = 1.0./mesh.J;
-    omega_faces = mesh.omega(mesh.x_faces(2:end-1));
-    hp_elems    = diff(mesh.x_faces)/fes.p;
-    hp_faces    = 2.0./(1.0./hp_elems(1:nElems-1)+1.0./hp_elems(2:nElems));
-
-    %Fluxes at the nElems-1 internal faces:
-    [fhat, dfhat_du_e, dfhat_dgradu_e, ...
-        dfhat_du_w, dfhat_dgradu_w]     = model.ftilde(model, t, mesh.x_faces(2:end-1), ...
-                                            u_e, du_dx_e, u_w, du_dx_w, hp_faces, ...
-                                            ComputeJ);
-                                        
-    %Fluxes are leaving the elements 1:nElems-1 at the east faces:
-    for II=1:model.nDiff
-        dof         = (II-1)*fes.nDof+fes.ElemsDof(1:nElems-1,:);
-        F(dof)      = F(dof) - (fhat{II}.*omega_faces) * psim_e;
-    end
-    if ComputeJ
-        
-        %Variations of leaving fluxes w.r.t. variations at left:
-        iv_ee           = zeros(nElems-1, (p+1)*(p+1), model.nDiff, nVars);
-        jv_ee           = zeros(size(iv_ee));
-        sv_ee           = zeros(size(iv_ee));
-        UpsilonNN       = UpsilonMat(psim_e, psim_e);
-        UpsilonNG       = UpsilonMat(psim_e, dpsim_e);
-        [imat, jmat]    = J_ElemsDof(fes.ElemsDof(1:nElems-1,:), fes.ElemsDof(1:nElems-1,:));
-        for II=1:model.nDiff
-            for JJ=1:nVars
-                iv_ee(:,:,II,JJ)    = imat + (II-1)*fes.nDof;
-                jv_ee(:,:,II,JJ)    = jmat + (JJ-1)*fes.nDof;
-                sv_ee(:,:,II,JJ)    = - (dfhat_du_e{II,JJ}.*omega_faces) * UpsilonNN - ...
-                                        (dfhat_dgradu_e{II,JJ}.*Jinv_elems(1:nElems-1).*omega_faces) * UpsilonNG;
-            end
-        end
-       
-        %Variations of leaving fluxes w.r.t. variations at the right:
-        iv_ew           = zeros(nElems-1, (p+1)*(p+1), model.nDiff, nVars);
-        jv_ew           = zeros(size(iv_ew));
-        sv_ew           = zeros(size(iv_ew));
-        UpsilonNN       = UpsilonMat(psim_e, psim_w);
-        UpsilonNG       = UpsilonMat(psim_e, dpsim_w);
-        [imat, jmat]    = J_ElemsDof(fes.ElemsDof(1:nElems-1,:), fes.ElemsDof(2:nElems,:));
-        for II=1:model.nDiff
-            for JJ=1:nVars
-                iv_ew(:,:,II,JJ)    = imat + (II-1)*fes.nDof;
-                jv_ew(:,:,II,JJ)    = jmat + (JJ-1)*fes.nDof;
-                sv_ew(:,:,II,JJ)    = - (dfhat_du_w{II,JJ}.*omega_faces) * UpsilonNN - ...
-                                        (dfhat_dgradu_w{II,JJ}.*Jinv_elems(2:nElems).*omega_faces) * UpsilonNG;
-            end
-        end
-        
-    end
-    
-    %Fluxes are entering the elements 2:nElems at the west faces:
-    for II=1:model.nDiff
-        dof         = (II-1)*fes.nDof+fes.ElemsDof(2:nElems,:);
-        F(dof)      = F(dof) + (fhat{II}.*omega_faces) * psim_w;
-    end
-    if ComputeJ
-        
-        %Variations of entering fluxes w.r.t. variations at left:
-        iv_we           = zeros(nElems-1, (p+1)*(p+1), model.nDiff, nVars);
-        jv_we           = zeros(size(iv_we));
-        sv_we           = zeros(size(iv_we));
-        UpsilonNN       = UpsilonMat(psim_w, psim_e);
-        UpsilonNG       = UpsilonMat(psim_w, dpsim_e);
-        [imat, jmat]    = J_ElemsDof(fes.ElemsDof(2:nElems,:), fes.ElemsDof(1:nElems-1,:));
-        for II=1:model.nDiff
-            for JJ=1:nVars
-                iv_we(:,:,II,JJ)    = imat + (II-1)*fes.nDof;
-                jv_we(:,:,II,JJ)    = jmat + (JJ-1)*fes.nDof;
-                sv_we(:,:,II,JJ)    = + (dfhat_du_e{II,JJ}.*omega_faces) * UpsilonNN + ...
-                                        (dfhat_dgradu_e{II,JJ}.*Jinv_elems(1:nElems-1).*omega_faces) * UpsilonNG;
-            end
-        end
-       
-        %Variations of entering fluxes w.r.t. variations at the right:
-        iv_ww           = zeros(nElems-1, (p+1)*(p+1), model.nDiff, nVars);
-        jv_ww           = zeros(size(iv_ww));
-        sv_ww           = zeros(size(iv_ww));
-        UpsilonNN       = UpsilonMat(psim_w, psim_w);
-        UpsilonNG       = UpsilonMat(psim_w, dpsim_w);
-        [imat, jmat]    = J_ElemsDof(fes.ElemsDof(2:nElems,:), fes.ElemsDof(2:nElems,:));
-        for II=1:model.nDiff
-            for JJ=1:nVars
-                iv_ww(:,:,II,JJ)    = imat + (II-1)*fes.nDof;
-                jv_ww(:,:,II,JJ)    = jmat + (JJ-1)*fes.nDof;
-                sv_ww(:,:,II,JJ)    = + (dfhat_du_w{II,JJ}.*omega_faces) * UpsilonNN + ...
-                                        (dfhat_dgradu_w{II,JJ}.*Jinv_elems(2:nElems).*omega_faces) * UpsilonNG;
-            end
-        end
-        
-    end
-    
-    %----------------------------------------------------------------------
     %FLUXES AT BOUNDARY FACES (I.E., IMPOSITION OF B.C.):
     
     %Left boundary:
     u1              = EvalSolution(usol, fes, [1], [-1.0]); %cell(nVars,1)
     du1_dx          = EvalSolution_dx(usol, fes, [1], [-1.0]); %cell(nVars,1)
     omega_face1     = mesh.omega(mesh.x_faces(1));
+    psim_w          = fes.NCompute([-1.0]);
+    dpsim_w         = fes.dNCompute([-1.0]);
     
     %Flux at left boundary is entering the first element:
     [f1, df1_du1, df1_du1_dx, df1_dq1] = ...
         model.ftilde1(model, t, mesh.x_faces(1), ...
-                        u1, du1_dx, hp_elems(1), ComputeJ);
+                        u1, du1_dx, (mesh.x_faces(2)-mesh.x_faces(1))/p, ComputeJ);
     for II=1:model.nDiff
         dof     = fes.ElemsDof(1,:) + (II-1)*fes.nDof;
         F(dof)  = F(dof) + reshape((f1{II}.*omega_face1) * psim_w, [], 1); %reshape is necessary because it is only one element
@@ -218,7 +114,7 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
                 jv_11(:,:,II,JJ)    = jmat + (JJ-1)*fes.nDof;
                 sv_11(:,:,II,JJ)    = (df1_du1{II,JJ} .* omega_face1) * ...
                                         UpsilonNN + ...
-                                        (df1_du1_dx{II,JJ} .* Jinv_elems(1) .* omega_face1) * ...
+                                        (df1_du1_dx{II,JJ} ./ mesh.J(1) .* omega_face1) * ...
                                         UpsilonNG;
             end
         end
@@ -250,11 +146,13 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
     uN              = EvalSolution(usol, fes, [nElems], [1.0]); %cell(nVars,1)
     duN_dx          = EvalSolution_dx(usol, fes, [nElems], [1.0]); %cell(nVars,1)
     omega_faceN     = mesh.omega(mesh.x_faces(nElems+1));
+    psim_e          = fes.NCompute([1.0]);
+    dpsim_e         = fes.dNCompute([1.0]);
     
     %Flux at right boundary is leaving the last element:
     [fN, dfN_duN, dfN_duN_dx, dfN_dqN] = ...
         model.ftildeN(model, t, mesh.x_faces(end), ...
-                        uN, duN_dx, hp_elems(nElems), ComputeJ);
+                        uN, duN_dx, (mesh.x_faces(end)-mesh.x_faces(end-1))/p, ComputeJ);
     for II=1:model.nDiff
         dof     = fes.ElemsDof(nElems,:) + (II-1)*fes.nDof;
         F(dof)  = F(dof) - reshape((fN{II}.*omega_faceN) * psim_e, [], 1); %reshape is necessary because it is only one element
@@ -275,7 +173,7 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
                 jv_22(:,:,II,JJ)    = jmat + (JJ-1)*fes.nDof;
                 sv_22(:,:,II,JJ)    = - (dfN_duN{II,JJ} .* omega_faceN) * ...
                                         UpsilonNN - ...
-                                        (dfN_duN_dx{II,JJ} .* Jinv_elems(nElems) .* omega_faceN) * ...
+                                        (dfN_duN_dx{II,JJ} ./ mesh.J(end) .* omega_faceN) * ...
                                         UpsilonNG;
             end
         end
@@ -308,16 +206,17 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
     
     %Instead of considering the restriction G(U)=0, which yields a DAE2, 
     %we consider
-    %   H(U,V)  = dG/dU(U)*Udot(U,V) + G(U)/tau = 
-    %           = dG/dU(U)*M^{-1}*F(U,V) + G(U)/tau = 0
+    %   H(U,V)  = dG/dU(U)*Udot(U,V) = 
+    %           = dG/dU(U)*M^{-1}*F(U,V) = 0
     %The term dG/dU(U)*M^{-1}*F(U,V) is estimated via high-order finite
     %differences.
     
     %Compute G(U) and derivatives:
     G           = zeros(model.nAlg*fes.nDof, 1);
     for II=1:model.nAlg
-        dof     = (II-1)*fes.nDof + fes.ElemsDof;
-        G(dof)  = (g_qp{II}.*womegaJ_qp) * psim;
+        dof             = (II-1)*fes.nDof+1:II*fes.nDof;
+        g_II_ElemsDof   = (g_qp{II}.*womegaJ_qp) * psim;
+        G(dof)          = fes.AsblyMat*g_II_ElemsDof(:);
     end
     if ComputeJ
         
@@ -350,7 +249,7 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
     for II=1:model.nDiff
         dof             = (II-1)*fes.nDof + (1:fes.nDof);
         Udot{II}        = LUSolve(Mm_F, F(dof));
-        Udot_rnorm(II)  = norm(Udot{II},Inf)/NF(II);
+        Udot_rnorm(II)  = norm(Udot{II},Inf)/model.NF(II);
     end
     udot_qp         = EvalSolution(Udot, fes, 1:mesh.nElems, QuadRule.xi);
     dudot_dx_qp     = EvalSolution_dx(Udot, fes, 1:mesh.nElems, QuadRule.xi);
@@ -388,8 +287,9 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
             [~, ~, ~, ~, ~, ~, g_qp, ~, ~, ~] = ...
                 model.fQg(model, t, x_qp, upert_qp, dupert_dx_qp, false);
             for II=1:model.nAlg
-                dof         = (II-1)*fes.nDof + fes.ElemsDof;
-                Gpert(dof)  = (g_qp{II}.*womegaJ_qp) * psim;
+                dof                 = (II-1)*fes.nDof + (1:fes.nDof);
+                Gpert_II_ElemsDof   = (g_qp{II}.*womegaJ_qp) * psim;
+                Gpert(dof)          = fes.AsblyMat*Gpert_II_ElemsDof(:);
             end
             
         else
@@ -403,52 +303,43 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
         
     end
     
-    %Assemble Gdot + 1/tau*G into F:
-    F(model.nDiff*fes.nDof+1:end)   = Gdot + G/tau;
+    %Assemble Gdot into F:
+    F(model.nDiff*fes.nDof+1:end)   = Gdot(:);
     
-    %----------------------------------------------------------------------
-    %ASSEMBLY:
-    
+    %Jacobian:
     if ComputeJ
         
-        %Note: there are three blocks: differential variables, algebraic 
-        %variables, other variables (such as mesh velocity). Block U
-        %contains diff variables, V block contains the rest.
+        %H(U,V) := dG/dU(U)*M^{-1}*F(U,V)
+        %The derivatives of dG/dU are neglected.
         
         %Jacobian of differential equations:
-        F_UV_iv         = cat(1, iv(:), iv_ee(:), iv_ew(:), iv_we(:), iv_ww(:), iv_11(:), iv_22(:));
-        F_UV_jv         = cat(1, jv(:), jv_ee(:), jv_ew(:), jv_we(:), jv_ww(:), jv_11(:), jv_22(:));
-        F_UV_sv         = cat(1, sv(:), sv_ee(:), sv_ew(:), sv_we(:), sv_ww(:), sv_11(:), sv_22(:));
+        F_UV_iv         = cat(1, iv(:), iv_11(:), iv_22(:));
+        F_UV_jv         = cat(1, jv(:), jv_11(:), jv_22(:));
+        F_UV_sv         = cat(1, sv(:), sv_11(:), sv_22(:));
         F_UV            = sparse(F_UV_iv, F_UV_jv, F_UV_sv, ...
                             model.nDiff*fes.nDof, model.nVars*fes.nDof);
                         
         %Jacobian of restriction:
         G_U                         = sparse(iv_g(:), jv_g(:), sv_g(:), ...
                                         model.nAlg*fes.nDof, model.nDiff*fes.nDof);
-        [G_U_iv, G_U_jv, G_U_sv]    = find(G_U);
-        
-        %H(U,V) := tau*dG/dU(U)*M^{-1}*F(U,V) + G(U)
-        %The derivatives of dG/dU are neglected.
         
         %Contribution of dG/dU*M^{-1}*dF/d(U,V):
         M_diag                      = diag(Mm);
         Minv_diag                   = 1.0./M_diag;
         Minv_approx                 = spdiags( repmat(Minv_diag, model.nDiff, 1), 0, ...
                                         model.nDiff*fes.nDof, model.nDiff*fes.nDof );
-        Minv_approx                 = MassMatrixExpand(inv(Mm), model.nDiff, 0);
         H_UV                        = G_U * Minv_approx * F_UV;
         [H_UV_iv, H_UV_jv, H_UV_sv] = find(H_UV);
         
-        %We need to add the contribution of dG/dU.
+    end
         
-        %(i,j,s) values of full Jacobian. Here we abuse the notation. F
-        %means [F,G], U means [U,V,W]:
-        dF_dU.iv    = cat(1, F_UV_iv, ...
-                            H_UV_iv+model.nDiff*fes.nDof, ...
-                            G_U_iv+model.nDiff*fes.nDof        );
-        dF_dU.jv    = cat(1, F_UV_jv, H_UV_jv, G_U_jv );
-        dF_dU.sv    = cat(1, F_UV_sv, H_UV_sv, G_U_sv/tau);
-        
+    %----------------------------------------------------------------------
+    %ASSEMBLY:
+    
+    if ComputeJ
+        dF_dU.iv    = cat(1, iv(:), iv_11(:), iv_22(:), model.nDiff*fes.nDof+H_UV_iv(:));
+        dF_dU.jv    = cat(1, jv(:), jv_11(:), jv_22(:), H_UV_jv(:));
+        dF_dU.sv    = cat(1, sv(:), sv_11(:), sv_22(:), H_UV_sv(:));                    
     else
         dF_dU.iv    = zeros(0,0);
         dF_dU.jv    = zeros(0,0);
@@ -464,6 +355,7 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, us
 %     lambdav{3}      = 0.0*lambdav{3};   %Disable diffusion
     
     Deltat_CFL      = Inf;
+    hp_elems        = diff(mesh.x_faces)/fes.p;
     for jj=1:length(lambdav)
         %Take Linf norm of lambda at each element:
         lambdav_elems   = max(lambdav{jj}, [], 2);
@@ -490,7 +382,7 @@ function [imat, jmat] = J_ElemsDof(ElemsDof1, ElemsDof2)
 
     n1      = size(ElemsDof1,2);
     n2      = size(ElemsDof2,2);
-    nElems      = size(ElemsDof1,1);
+    nElems  = size(ElemsDof1,1);
     
     imat    = zeros(nElems, n1*n2);
     jmat    = zeros(nElems, n1*n2);
