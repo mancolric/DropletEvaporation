@@ -10,11 +10,11 @@
 %fig2
 %tau_g in models
 %space for velocity
-%liquid diffusion
+%liquid artificial diffusion
 %xlim
 %TolA0
 %Minv in FEM_fQg_Baumgarte
-%f_II_elemsDof in FEM_fgQ
+%D_T
 
 %TODO:
 % Compute only g in models
@@ -263,7 +263,7 @@ function [save_vars, model_l, model_g] = ...
 
     %Minimum time step:
     Deltat_min  = 1e-12;
-                    
+    
     %----------------------------------------------------------------------
     %INITIAL CONDITION (EXACT FOR DIFFERENTIAL VARIABLES, GUESS FOR ALGEBRAIC ONES):
 
@@ -443,10 +443,10 @@ function [save_vars, model_l, model_g] = ...
             dnum_sol_g  = EvalSolution_dx(uw_g, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
             [  ~, ~, ~, ~, ~, ~, g, dg_du, ~, ~ ] = ...
                 model_g.fQg(model_g, sol.t, xplot_g, num_sol_g, dnum_sol_g, true);
-            Pi_g        = 0.0;
-            for II=1:model_g.nSpecies+1
-                Pi_g    = Pi_g + dg_du{1,II}.*num_sol_g{II};
-            end
+%             Pi_g        = 0.0;
+%             for II=1:model_g.nSpecies+1
+%                 Pi_g    = Pi_g + dg_du{1,II}.*num_sol_g{II};
+%             end
 %             Pi_g        = g{1};
 
             %Select figure:
@@ -503,10 +503,11 @@ function [save_vars, model_l, model_g] = ...
             %Plot velocities and mesh velocity:
             subplot(mPlot, nPlot, 3)
             hold off
-            plot(MatTranspVec(xplot_l), MatTranspVec(v_l), 'b')
-            hold on
-            plot(xmesh_l, wmesh_l, 'c')
+%             plot(MatTranspVec(xplot_l), MatTranspVec(v_l), 'b')
+%             hold on
+%             plot(xmesh_l, wmesh_l, 'c')
 %             plot(MatTranspVec(xplot_g), MatTranspVec(Pi_g), 'r')
+            plot(MatTranspVec(xplot_l), MatTranspVec(H_l), 'b')
             title(['v_l, w_l, t=', sprintf('%.4E', sol.t)])
             grid on
             %
@@ -855,7 +856,7 @@ function [save_vars, model_l, model_g] = ...
 
         %Keep constant conditions:
         %
-        TL                  = T_inf + (T_0-T_inf)*exp(-sol_n.t/tau_relax);
+        TL                  = 500 + (T_0-500)*exp(-sol_n.t/tau_relax);
         rhoL                = calc_rho(model_l, {[1.0]}, [TL]);
         [hL,~]              = calc_h([TL], {[1.0]}, model_l);
         qL                  = [ rhoL; rhoL*hL ];
@@ -1186,17 +1187,15 @@ function [save_vars, model_l, model_g] = ...
                 [yscaled_np1, nIters, NLSFlag]  = Anderson(...
                                                     @(yhat)PrecResidualFun(yhat,ii), ...
                                                         diag(Sy).\yv_np1, ...
-                                                        0.0, sqrt(NDOF)*TolA, NLS_MaxIter, 50);
+                                                        sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50, 'final');
 %                 [yscaled_np1, nIters, NLSFlag]  = NewtonRaphson(...
 %                                                         @(y,ComputeJ)ScaledResidualFun(y,ComputeJ,ii), ...
 %                                                         diag(Sy).\yv_np1, ...
 %                                                         0.0, sqrt(NDOF)*TolA, NLS_MaxIter);
                 yv_np1              = Sy*yscaled_np1;
                 if NLSFlag<0
-                    disp(['Nonlinear solver did not converge at stage ', num2str(ii)])
                     break
                 else
-                    disp(['Nonlinear solver converged in ', num2str(nIters), ' iterations'])
                 end
                 NLS_iters           = NLS_iters + nIters/(RKmethod.s-1);
                 

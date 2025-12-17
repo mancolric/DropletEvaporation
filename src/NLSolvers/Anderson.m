@@ -13,7 +13,7 @@
 %saved.
 %
 %fun receives the argument x and returns g(x)
-function [x_n, nIters, flag] = Anderson(fun, x0, TolX, TolG, MaxIter, m)
+function [x_n, nIters, flag] = Anderson(fun, x0, TolX, TolG, MaxIter, m, Display)
 
     %First iteration:
     nIters      = 0;
@@ -24,6 +24,11 @@ function [x_n, nIters, flag] = Anderson(fun, x0, TolX, TolG, MaxIter, m)
     Xm          = zeros(length(x0),m);  %memory matrices
     Gm          = zeros(length(x0),m);
     mXG         = 0;                    %nb of saved solutions
+    
+    %Save info:
+    g_0         = norm(g_n);
+    
+    %Iterate:
     while true
 
         %Exit loop:
@@ -84,6 +89,23 @@ function [x_n, nIters, flag] = Anderson(fun, x0, TolX, TolG, MaxIter, m)
         gamma                   = V*(S_inv*(transpose(U)*g_n));
         p_n                     = -g_n - Xm*gamma + Gm*gamma;
         
+    end
+    
+    %Display info:
+    if Display=="final"
+        if flag>0
+            disp(['Anderson converged in ', sprintf('%d', nIters), ...
+                ', |x|=', sprintf('%.3E', norm(x_n)), ...
+                ', |p|=', sprintf('%.3E', norm(p_n)), ...
+                ', |g0|=', sprintf('%.3E', g_0), ...
+                ', |g|=', sprintf('%.3E', norm(g_n))])
+        else
+            disp(['Anderson failed after ', sprintf('%d', nIters), ...
+                ', |x|=', sprintf('%.3E', norm(x_n)), ...
+                ', |p|=', sprintf('%.3E', norm(p_n)), ...
+                ', |g0|=', sprintf('%.3E', g_0), ...
+                ', |g|=', sprintf('%.3E', norm(g_n))])
+        end
     end
     
 end

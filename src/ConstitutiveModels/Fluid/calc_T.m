@@ -34,13 +34,14 @@ function g = PrecResidual(T)
 end
 
 % [T, Iteration, flag]    = NewtonRaphsonLS(@Residual, T0, 0.0, 1e-8, 100, 100);
-[T, Iteration, flag]    = NewtonRaphson(@Residual, T0, 0.0, 1e-8, 10);
+[T, Iteration, flag]    = NewtonRaphson(@Residual, T0, 0.0, 1e-8, 100);
 % [T, Iteration, flag]    = Anderson(@PrecResidual, T0, 1e-8, 100, 0);
 
 T = reshape(T,m,n); % T[nElems x (2*p+1)] = T_m
 
-if true && flag<0
-    warning('Evaluation of temperature failed')
+if false && flag<0
+%     warning('Evaluation of temperature failed')
+    %Newton-Raphson already gives warning
     T               = T*NaN;    
 elseif flag<0
 %     error("Error en el cálculo de T, Máximo iteraciones Newton-Raphson")
@@ -50,7 +51,7 @@ elseif flag<0
     display(Tv(imax))
     
     %Plot h vs T:
-    Tv              = linspace(10.0, 4000, 1000);
+    Tv              = linspace(590, 650, 1000);
     y2              = cell(size(y));
     rhoy2           = cell(size(y));
     for ii=1:length(y)

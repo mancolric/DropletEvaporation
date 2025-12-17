@@ -11,8 +11,8 @@ T_v     = T_m(:)'; % T_v[1 x nElems*(2*p+1)]
 
 if model.bool_liq==1 % Liquid
 %     rho     = 711+0*T_m;
-    rho     = 711-5*(T_m-300)/1200;
-    return
+%     rho     = 711-5*(T_m-300)/1200;
+%     return
     Yi_eval = zeros(size(model.comp_inerts,2), size(T_v,2));
     Yf_eval = zeros(model.nSpecies, size(T_v,2));
     for II=1:model.nSpecies

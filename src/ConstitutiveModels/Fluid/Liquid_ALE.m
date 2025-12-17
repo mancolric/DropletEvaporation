@@ -370,19 +370,19 @@ function [f, df_duL, df_duR] = f_penalty(model, uL, uR, hp, ComputeJ)
     f       = cell(model.nDiff, 1);
     df_duL  = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uL{1});
     df_duR  = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uR{1});
-    if model.nSpecies==1
-        i0  = model.nDiff;
-    else
-        i0  = 1;
-    end
-    for II=1:i0-1
-        f{II}               = 0.0*(uL{II}-uR{II})./hp;
-        if ComputeJ
-            df_duL{II,II}   = + 0.0./hp;
-            df_duR{II,II}   = - 0.0./hp;
-        end
-    end
-    for II=i0:model.nDiff
+%     if model.nSpecies==1
+%         i0  = model.nDiff;
+%     else
+%         i0  = 1;
+%     end
+%     for II=1:i0-1
+%         f{II}               = 0.0*(uL{II}-uR{II})./hp;
+%         if ComputeJ
+%             df_duL{II,II}   = + 0.0./hp;
+%             df_duR{II,II}   = - 0.0./hp;
+%         end
+%     end
+    for II=1:model.nDiff
         f{II}               = sigma*(uL{II}-uR{II})./hp;
         if ComputeJ
             df_duL{II,II}   = + sigma./hp;
