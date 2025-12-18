@@ -9,13 +9,13 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
-nElems_l          = 100;    % Number of elements in the liquid phase
-nElems_g          = 20;    % Number of elements in the gas phase
+nElems_l          = 20;    % Number of elements in the liquid phase
+nElems_g          = 50;    % Number of elements in the gas phase
 hmin_l            = 1e-7;  
 hmin_g            = 1e-7; 
 p                 = 5;     % Degree of the polynomial basis functions
 
-Deltat0           = 1e-9;  % Initial time step
+Deltat0           = 1e-6;  % Initial time step
                            % If you get warnings like:
                            %   “Nonlinear solver did not converge at stage 2. Reducing time step”
                            %   or

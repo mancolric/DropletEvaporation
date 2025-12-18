@@ -40,7 +40,7 @@ end
 T = reshape(T,m,n); % T[nElems x (2*p+1)] = T_m
 
 if true && flag<0
-%     warning('Evaluation of temperature failed')
+    warning('Evaluation of temperature failed')
     %Newton-Raphson already gives warning
     T               = T*NaN;    
 elseif flag<0

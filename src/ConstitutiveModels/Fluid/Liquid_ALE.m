@@ -61,7 +61,6 @@ function [  f, df_du, df_du_dx, ...
 
     %DEBUG:
     ComputeStab             = true;
-%     ComputeStab             = false;
     
     %Extract variables:
     [rhoy, ~, rho, ~, y]    = aux_rho(model, u, du_dx);
