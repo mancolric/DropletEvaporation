@@ -45,8 +45,8 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
     model.fQg         = @fQg;              %Function to compute flux, source terms and restriction
     model.ftilde      = @ftilde;           %Function to compute numerical flux at the internal faces
     model.ftilde1     = @ftilde1;          %Function to compute numerical flux at face 1, i.e., impose bondary condition
+%     model.ftilde1     = @ftilde1_TotalFlux;
     model.ftildeN     = @ftildeN_Dirichlet;%Function to compute numerical flux at last face, i.e., impose bondary condition
-%     model.ftildeN     = @ftildeN_NoFlux;    %Function to compute numerical flux at last face, i.e., impose bondary condition
     model.f_diffusive = @f_diffusive;
     
 end
@@ -410,11 +410,6 @@ function [f, df_du, df_du_dx, df_dq] = ...
     [fR, dfR_duR, dfR_duR_dx]   = f_diffusive(model, uR, duR_dx, ComputeJ);
     [fp, dfp_duL, dfp_duR]      = f_penalty(model, uL, uR, hp, ComputeJ);
     
-%     disp('gas-flux1')
-%     disp(fc)
-%     disp(fR)
-%     disp(fp)
-    
     %Compute total flux:
     f           = cell(model.nDiff, 1);
     df_duL      = cell(model.nDiff, model.nVars);
@@ -516,6 +511,31 @@ function [f, df_du, df_du_dx, df_dq] = ...
                 df_dq{II,JJ}    = df_duR{II,JJ};
             end
         end
+    end
+    
+end
+
+%df_dq means derivatives of flux w.r.t. the parameters that define the
+%boundary condition (flux for each conservative variable in this case, 
+%and also vbar in order to keep compatibility with the code):
+function [f, df_du, df_du_dx, df_dq] = ...
+    ftilde1_TotalFlux(model, t, x, u, du_dx, hp, ComputeJ)
+    
+    %Get fluxes from BC:
+    q1          = model.u1(t); 
+    
+    %Impose fluxes:
+    f           = Cells_Allocate(model.nDiff, 1, true, u{1});
+    for II=model.nDiff
+        f{II}   = q1{II};
+    end
+    
+    %Compute derivatives:
+    df_du   = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, u{1});
+    df_du_dx= Cells_Allocate(model.nDiff, model.nVars, ComputeJ, u{1});
+    df_dq   = Cells_Allocate(model.nDiff, model.nDiff+model.nAlg, ComputeJ, u{1});
+    for II=1:model.nDiff
+        df_dq{II,II}    = 0.0;
     end
     
 end

@@ -60,7 +60,7 @@ function [  f, df_du, df_du_dx, ...
     fQg(model, t, x, u, du_dx, ComputeJ)
 
     %DEBUG:
-    ComputeStab             = true;
+    ComputeStab             = (model.tau_g~=Inf);
     
     %Extract variables:
     [rhoy, ~, rho, ~, y]    = aux_rho(model, u, du_dx);

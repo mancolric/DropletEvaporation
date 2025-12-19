@@ -17,11 +17,12 @@
 %h_i, c_p
 
 %TODO:
-% Compute only g in models
-% Add stabilization for v?
+% Add stabilization based on grad g or on grad (u_I g)
 % Odd polinomials for interpolation
+% Rosenbrock--Wanner
 
 %MAIN CHANGES:
+% Deltat0 must be larger
 % Mesh parameters
 % Space for velocity field
 % drhobar_du computed by finite differences
@@ -66,7 +67,8 @@ function [save_vars, model_l, model_g] = ...
     
     %Stabilization parameters:
     C_Baum      = 2e2;          %Baumgarte's time stabilization parameter t_Baum = C_Baum*Deltat_n
-    C_Stab      = 0.1;
+%     C_Stab      = 0.01;
+    C_Stab      = Inf;
     
     %Algebraic tolerance for first time level:
     TolA0       = 1e-8;
@@ -449,11 +451,11 @@ function [save_vars, model_l, model_g] = ...
             T_qg        = calc_T(H_qg,rhoy_qg,model_g);
             
             %DEBUG:
-            uw_g        = [ sol.ug; {P1ToPX(wmesh_g, sol.fesg)} ];
-            num_sol_g   = EvalSolution(uw_g, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
-            dnum_sol_g  = EvalSolution_dx(uw_g, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
-            [  ~, ~, ~, ~, ~, ~, g, dg_du, ~, ~ ] = ...
-                model_g.fQg(model_g, sol.t, xplot_g, num_sol_g, dnum_sol_g, true);
+%             uw_g        = [ sol.ug; {P1ToPX(wmesh_g, sol.fesg)} ];
+%             num_sol_g   = EvalSolution(uw_g, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
+%             dnum_sol_g  = EvalSolution_dx(uw_g, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
+%             [  ~, ~, ~, ~, ~, ~, g, dg_du, ~, ~ ] = ...
+%                 model_g.fQg(model_g, sol.t, xplot_g, num_sol_g, dnum_sol_g, true);
 %             Pi_g        = 0.0;
 %             for II=1:model_g.nSpecies+1
 %                 Pi_g    = Pi_g + dg_du{1,II}.*num_sol_g{II};
@@ -475,7 +477,8 @@ function [save_vars, model_l, model_g] = ...
                 plot(xmesh_l(end), rhoy_ql{II}, 'color', colorm(II,:), 'marker', 'x')
             end
             plot(MatTranspVec(xplot_l), MatTranspVec(rhobar_l), '+c')
-            plot(MatTranspVec(xplot_l), MatTranspVec(rho_l), 'b')
+            plot(MatTranspVec(xplot_l), MatTranspVec(rho_l), 'k')
+            plot(xmesh_l(end), rho_ql, 'color', 'k', 'marker', 'x')
             title(['\rho_l, t=', sprintf('%.4E', sol.t)])
             grid on
             %
@@ -488,7 +491,8 @@ function [save_vars, model_l, model_g] = ...
                 plot(xmesh_g(1), rhoy_qg{II}, 'color', colorm(II,:), 'marker', 'x')
             end
             plot(MatTranspVec(xplot_g), MatTranspVec(rhobar_g), '+c')
-            plot(MatTranspVec(xplot_g), MatTranspVec(rho_g), 'r')
+            plot(MatTranspVec(xplot_g), MatTranspVec(rho_g), 'k')
+            plot(xmesh_g(1), rho_qg, 'color', 'k', 'marker', 'x')
             title(['\rho_g, t=', sprintf('%.4E', sol.t)])
             grid on
 %             xlim([0,1e-2])
@@ -636,6 +640,9 @@ function [save_vars, model_l, model_g] = ...
         %left bc for liquid cannot be applied 
         model_l.uN          = @(t) cat(1, VectorToCell(sol_np1.qL, model_l.nDiff));
         model_g.u1          = @(t) cat(1, VectorToCell(sol_np1.qR, nDAE_g));
+%         aux                 = zeros(model_g.nDiff,1);
+%         aux                 = sol_n.qR(1:end-1)*(sol_n.qR(end)-sol_n.w);
+%         model_g.u1          = @(t) cat(1, VectorToCell(aux, model_g.nDiff));
         
         %------------------------------------------------------------------
         %Update mesh velocity for current solution:
@@ -710,10 +717,10 @@ function [save_vars, model_l, model_g] = ...
         
         %Impose null velocity at origin:
         Jterm                           = 1.0/(Srinv{3}(N_ul+1, N_ul+1) * ...
-                                               Sy(block_vl(1), block_vl(1)) );
+                                               Sy(block_vl(1), block_vl(1)) ) * Deltat_n;
         r_l(N_ul+1)                     = y(block_vl(1)) * Jterm;
         %Jterm is chosen in such a way that, after aplying scaling
-        %matrices, the corresponding scale term is 1.
+        %matrices, the corresponding scale term is Deltat_n/NF_tau.
         if ComputeJ
             %Delete previous components:
             J_l.sv(J_l.iv==N_ul+1)      = 0.0;
@@ -723,6 +730,29 @@ function [save_vars, model_l, model_g] = ...
             J_l.jv                      = cat(1, J_l.jv, N_ul+1);
             J_l.sv                      = cat(1, J_l.sv, Jterm);
         end
+        
+%         %Impose Dirichlet conditions essentially:
+%         for II=1:model_l.nDiff
+%             row                         = II*sol_np1.fesl.nDof;
+%             Jterm                       = 1.0/(Srinv{3}(row, row) * ...
+%                                                Sy(block_ul(1)-1+row, block_ul(1)-1+row) ) * Deltat_n;
+% %             Jterm                       = 1.0;
+%             Jterm                       = NF_omega_l;
+%             r_l(row)                    = (y(row)-sol_np1.qL(II)) * Jterm;
+%             if ComputeJ
+%                 %Delete previous components:
+%                 J_l.sv(J_l.iv==row)         = 0.0;
+%                 J_lz.sv(J_lz.iv==row)       = 0.0;
+%                 %New components:
+%                 J_l.iv                      = cat(1, J_l.iv, row);
+%                 J_l.jv                      = cat(1, J_l.jv, row);
+%                 J_l.sv                      = cat(1, J_l.sv, Jterm);
+%                 J_lz.iv                     = cat(1, J_lz.iv, row);
+%                 J_lz.jv                     = cat(1, J_lz.jv, II);
+%                 J_lz.sv                     = cat(1, J_lz.sv, -Jterm);
+%             end
+%         end
+        
         
 %         %Impose known velocity:
 %         mass_l                      = MassMatrix(sol_np1.feslm1);
@@ -802,9 +832,9 @@ function [save_vars, model_l, model_g] = ...
         
         %Impose velocity at droplet surface:
         Jterm                           = 1.0/(Srinv{3}(N_ul+N_vl+N_ug+1, N_ul+N_vl+N_ug+1) * ...
-                                               Sy(block_vg(1), block_vg(1)) );
+                                               Sy(block_vg(1), block_vg(1)) ) * Deltat_n;
         %Jterm is chosen in such a way that, after aplying scaling
-        %matrices, the corresponding scaled term is 1.
+        %matrices, the corresponding scaled term is Deltat_n/NF_tau:
         r_g(N_ug+1)                     = (y(block_vg(1))-sol_np1.qR(end)) * Jterm;
         if ComputeJ
             %Delete previous components:
@@ -845,14 +875,13 @@ function [save_vars, model_l, model_g] = ...
 %             J_gz.sv                 = cat(1, J_gz.sv, -Deltat_n*b_vg);
 %         end 
         
-        %------------------------------------------------------------------
-        %IMPOSE INTERFACE CONDITIONS:
-        
+%         %------------------------------------------------------------------
+%         %IMPOSE INTERFACE CONDITIONS:
+%         
 %         %Allocate r:
 %         r_z                 = zeros(N_L+N_R+1, 1);
 % 
 %         %Keep constant conditions:
-%         %
 %         TL                  = 500 + (T_0-500)*exp(-(sol_n.t/tau_relax)^2);
 %         rhoL                = calc_rho(model_l, {[1.0]}, [TL]);
 %         [hL,~]              = calc_h([TL], {[1.0]}, model_l);
@@ -870,6 +899,7 @@ function [save_vars, model_l, model_g] = ...
 %         qR(model_g.nSpecies+1)  = rhoR*hR;
 %         qR(model_g.nSpecies+2)  = 1*vR_0 + 0*1e-4; 
 %         %
+% %         r_z(N_L+1:N_L+N_R)  = sol_np1.qR-sol_n.qR;
 %         r_z(N_L+1:N_L+N_R)  = sol_np1.qR-qR;
 %         %
 %         r_z(N_L+N_R+1)      = sol_np1.w-sol_n.w;
@@ -995,8 +1025,7 @@ function [save_vars, model_l, model_g] = ...
                     for iDof=1:p+1
                         iv_aux(II,JJ,iDof)  = model_g.nInerts+II;
                         jv_aux(II,JJ,iDof)  = (JJ-1)*sol_np1.fesl.nDof + ...
-                                                (mesh_l_np1.nElems-1)*(p+1) + ...
-                                                iDof;
+                                                sol_np1.fesl.ElemsDof(sol_np1.fesl.mesh.nElems,iDof);
                         sv_aux(II,JJ,iDof)  = dfL_duwL{II,JJ}*phim(iDof) + ...
                                                 dfL_duwL_dx{II,JJ}*dphim_dxi(iDof)*...
                                                 2/(xmesh_l_np1(end)-xmesh_l_np1(end-1));
@@ -1018,7 +1047,7 @@ function [save_vars, model_l, model_g] = ...
                     for iDof=1:p+1
                         iv_aux(II,JJ,iDof)  = II;
                         jv_aux(II,JJ,iDof)  = (JJ-1)*sol_np1.fesg.nDof + ...
-                                                iDof;
+                                                sol_np1.fesg.ElemsDof(1,iDof);
                         sv_aux(II,JJ,iDof)  = -dfR_duwR{II,JJ}*phim(iDof) - ...
                                                 dfR_duwR_dx{II,JJ}*dphim_dxi(iDof)*...
                                                 2/(xmesh_g_np1(2)-xmesh_g_np1(1));
@@ -1066,12 +1095,12 @@ function [save_vars, model_l, model_g] = ...
             J.jv    = cat(1, J_l.jv, J_lz.jv+N_l+N_g, ...
                             J_g.jv+N_l, J_gz.jv+N_l+N_g, ...
                             J_zl.jv, J_zg.jv+N_l, J_z.jv+N_l+N_g);
-%             J.sv    = cat(1, J_l.sv, 0.0*J_lz.sv, ... 
-%                             J_g.sv, 0.0*J_gz.sv, ...
-%                             0.0*J_zl.sv, 0.0*J_zg.sv, J_z.sv);
-            J.sv    = cat(1, J_l.sv, J_lz.sv, ... 
-                            J_g.sv, J_gz.sv, ...
-                            J_zl.sv, J_zg.sv, J_z.sv);
+            J.sv    = cat(1, J_l.sv, 1.0*J_lz.sv, ... 
+                            J_g.sv, 1.0*J_gz.sv, ...
+                            0.0*J_zl.sv, 0.0*J_zg.sv, J_z.sv);
+%             J.sv    = cat(1, J_l.sv, J_lz.sv, ... 
+%                             J_g.sv, J_gz.sv, ...
+%                             J_zl.sv, J_zg.sv, J_z.sv);
             J       = { 1.0, ...
                         1.0, ...
                         sparse(J.iv(:), J.jv(:), J.sv(:), ...
@@ -1157,8 +1186,8 @@ function [save_vars, model_l, model_g] = ...
 %             Jscaled = [ speye(Nl),          sparse(Nl,Ng),      sparse(Nl,Nlgz);
 %                         sparse(Ng,Nl),      speye(Ng),          sparse(Ng,Nlgz);
 %                         sparse(Nlgz,Nl),    sparse(Nlgz,Ng),    A{3} ];
-%             Jest    = JacobEst(@(yhat,ComputeJ)ScaledResidualFun(yhat,ComputeJ,is), yscaled, 1e-5);
-%             save('test.mat', 'Jscaled', 'Jest', 'block_ul', 'block_vl', 'block_ug', 'block_vg', 'block_z' )
+            Jest    = JacobEst(@(yhat,ComputeJ)ScaledResidualFun(yhat,ComputeJ,is), yscaled, 1e-5);
+            save('test.mat', 'Jscaled', 'Jest', 'block_ul', 'block_vl', 'block_ug', 'block_vg', 'block_z' )
 %             Jscaled   = JacobEst(@(yhat,ComputeJ)ScaledResidualFun(yhat,ComputeJ,is), yscaled, 1e-5);
         else
             Jscaled   = NaN;
@@ -1238,8 +1267,8 @@ function [save_vars, model_l, model_g] = ...
             
             %Stabilization parameters:
 %             model_l.tau_g   = C_Stab*Deltat_n;
-            model_l.tau_g   = Inf;
-%             model_l.tau_g   = 1e-3;
+%             model_l.tau_g   = Inf;
+            model_l.tau_g   = max(1e-6, C_Stab*Deltat_n);
             tau_Baum        = C_Baum*Deltat_n;
 
             %Scaling vectors and multiplicity:
@@ -1297,11 +1326,6 @@ function [save_vars, model_l, model_g] = ...
 %             A_n_fact        = { 1.0; 
 %                                 1.0;
 %                                 LUFactorization(sparse(Jscaled(block_ul(1):end, block_ul(1):end))) };
-            
-%             %DEBUG: Evaluate Jacobian numerically:
-%             ScaledResidualFun(yv_np1, true, 2);
-%             ScaledResidualFun(diag(Sy).\yv_np1, true, 2);
-%             error(' ')
             
             %Loop stages:
             NLS_iters       = 0;
