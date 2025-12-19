@@ -35,7 +35,6 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
     model.P           = 101325;
     model.N_polyfit   = 5;
     model.matrix      = Polyfit_properties_pureCompounds(model.gota, model.comp_inerts, model.Tmin, model.Tmax, model.P, model.N_polyfit);
-    model.tau_g       = Inf;   %Characteristic time for stabilization restriction; tau_g=Inf disables the latter
     model.NF          = [];    %Normalization factors
     
     %Mandatory fields:
@@ -45,7 +44,6 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
     model.fQg         = @fQg;              %Function to compute flux, source terms and restriction
     model.ftilde      = @ftilde;           %Function to compute numerical flux at the internal faces
     model.ftilde1     = @ftilde1;          %Function to compute numerical flux at face 1, i.e., impose bondary condition
-%     model.ftilde1     = @ftilde1_TotalFlux;
     model.ftildeN     = @ftildeN_Dirichlet;%Function to compute numerical flux at last face, i.e., impose bondary condition
     model.f_diffusive = @f_diffusive;
     
@@ -146,19 +144,6 @@ function [  f, df_du, df_du_dx, ...
             
         end
         
-    end
-    
-    %Add stabilization for density:
-    for II=1:model.nSpecies
-        Q{II}               = Q{II} - 1/model.tau_g * y{II}.*g{1};
-    end
-    if ComputeJ
-        for II=1:model.nSpecies
-            for JJ=1:model.nDiff
-                dQ_du{II,JJ}    = dQ_du{II,JJ} - 1/model.tau_g * (...
-                                    ((II==JJ)-y{II})./rho.*g{1} + y{II}.*dg_du{1,JJ} );
-            end
-        end
     end
     
     %Maximum Deltat for CFL=1 is of the form:

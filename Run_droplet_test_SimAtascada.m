@@ -30,6 +30,9 @@ t_final           = 1e2;   % Final simulation time
 
 TimeAdapt         = true;  % Enable adaptive time-stepping (true/false)
 TolT              = 1e-4;  % Tolerance for temporal error (<1e-3) (used if TimeAdapt = true)
+C_Stab            = Inf;   % Baumgarte-like stabilization. Avoids large errors in the density at the origin.
+                           % C_Stab=Inf to deactivate it, C_Stab=0.01 as
+                           % recommended value otherwise
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
@@ -61,8 +64,8 @@ mass_fracG        = {0.79, 0.0, 0.0, 0.21};  % Mass fraction of each inert speci
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 
 % Run the full droplet evaporation simulation from t = 0
-[save_vars] = droplet_test_debug2(nElems_l, nElems_g, hmin_l, hmin_g, p, Deltat0, t_final, ...
-    TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
+[save_vars] = droplet_test(nElems_l, nElems_g, hmin_l, hmin_g, p, Deltat0, t_final, ...
+    TimeAdapt, TolT, PlotRes, C_Stab, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
     n_saves);
 return

@@ -17,9 +17,9 @@
 %h_i, c_p
 
 %TODO:
-% Add stabilization based on grad g or on grad (u_I g)
 % Odd polinomials for interpolation
 % Rosenbrock--Wanner
+% Time step controller
 
 %MAIN CHANGES:
 % Deltat0 must be larger
@@ -44,7 +44,7 @@ function [save_vars, model_l, model_g] = ...
     %Maximum and target nb of iterations in nonlinear solver:
 %     NLS_MaxIter     = 200;   
 %     NLS_IterTarget  = 120;   
-    NLS_MaxIter     = 300;   
+    NLS_MaxIter     = 100;   
     NLS_IterTarget  = Inf;
     
     % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
