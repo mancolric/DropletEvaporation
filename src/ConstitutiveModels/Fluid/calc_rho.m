@@ -10,9 +10,6 @@ T_v     = T_m(:)'; % T_v[1 x nElems*(2*p+1)]
 % Each row is a compoundYi_eval = zeros(size(model.comp_inerts,2), size(T_v,2)); % Liq (Yi_eval[nInerts x nElems*(2*p+1)])
 
 if model.bool_liq==1 % Liquid
-%     rho     = 711+0*T_m;
-%     rho     = 711-5*(T_m-300)/1200;
-%     return
     Yi_eval = zeros(size(model.comp_inerts,2), size(T_v,2));
     Yf_eval = zeros(model.nSpecies, size(T_v,2));
     for II=1:model.nSpecies
@@ -26,9 +23,6 @@ if model.bool_liq==1 % Liquid
         vector_rho = MixtureRules('rho_liq', T_v, Yi_liquid, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
     end
 elseif model.bool_liq==0 % Gas
-%     rho     = 0.2+0*T_m;
-%     rho     = 0.2-0.05*(T_m-300)/500;
-%     return
     Yi_eval = zeros(model.nInerts, size(T_v,2)); 
     for II=1:model.nInerts
         Yi_eval(II,:) = y{II}(:)';

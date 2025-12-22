@@ -1,33 +1,25 @@
 %UNDO!:
-%Fixed mesh
-%density-temperature relation
 %Initial condition
 %tevap
-%convergence info msg
 %Plot sol at each NLS iter
-%Initial condition for vR, w
 %open fig1 in all cases
 %fig2
 %tau_g in models
-%space for velocity
-%liquid artificial diffusion
 %xlim
-%TolA0
-%Minv in FEM_fQg_Baumgarte
-%h_i, c_p
 
 %TODO:
 % Odd polinomials for interpolation
 % Rosenbrock--Wanner
-% Time step controller
+% Viscosity based stabilization
 
 %MAIN CHANGES:
 % Deltat0 must be larger
 % Mesh parameters
-% Space for velocity field
+% CG, Space for velocity field
 % drhobar_du computed by finite differences
-% CG
-% Stabilization for liquid
+% Stabilization for liquid ??
+% New time step controller
+% w included in sol.ul and sol.ug
 
 function [save_vars, model_l, model_g] = ...
     droplet_test(nElems_l, nElems_g, hmin_l, hmin_g, p, ...
@@ -60,8 +52,8 @@ function [save_vars, model_l, model_g] = ...
     NF_vl       = 1e-1;         %Characteristic value for liquid velocity
     NF_vg       = 1e-1;         %Characteristic value for gas velocity
     NF_w        = 1e-1;         %Characteristic value for droplet velocity;
-    NF_tau      = 1e-3;         %Characteristic time
-    %NOTE: Higher product NF_v: less iterations, less accuracy in the velocity
+%     NF_tau      = 1e-3;         %Characteristic time
+    %NOTE: Higher NF_v: less iterations, less accuracy in the velocity
     
     %Algebraic tolerance:
     TolA        = 1e-8;
@@ -321,18 +313,16 @@ function [save_vars, model_l, model_g] = ...
     sol_n.w     = w_0;
     
     %Normalization factors for differential and algebraic variables: 
-    NF_l        = max(1e-6, Lqmean(sol_n.ul, sol_n.fesl, 2));
-    NF_g        = max(1e-6, Lqmean(sol_n.ug, sol_n.fesg, 2));
-    NF_l(end)   = NF_vl;
-    NF_g(end)   = NF_vg;
-    
-    %Set same NF for all densities:
-    NF_l(1:model_l.nSpecies)    = max(NF_l(1:model_l.nSpecies));
-    NF_g(1:model_g.nSpecies)    = max(NF_g(1:model_g.nSpecies));
-    
-    %Save NF in model:
-    model_l.NF  = NF_l;
-    model_g.NF  = NF_g;
+    NF_l                        = zeros(model_l.nDiff+model_l.nAlg, 1);
+    NF_g                        = zeros(model_g.nDiff+model_g.nAlg, 1);
+    NF_l(1:model_l.nSpecies)    = Lqmean({rho_l_ini}, sol_n.fesl, 2);
+    NF_g(1:model_g.nSpecies)    = Lqmean({rho_g_ini}, sol_n.fesg, 2);
+    NF_l(model_l.nSpecies+1)    = Lqmean({H_l_ini}, sol_n.fesl, 2);
+    NF_g(model_g.nSpecies+1)    = Lqmean({H_g_ini}, sol_n.fesg, 2);
+    NF_l(end)                   = NF_vl;
+    NF_g(end)                   = NF_vg;
+    model_l.NF                  = NF_l;
+    model_g.NF                  = NF_g;
     
     %First Save:
     if Save
@@ -381,9 +371,8 @@ function [save_vars, model_l, model_g] = ...
             v_g         = num_sol_g{model_g.nDiff+1};
             rhobar_l    = calc_rho(model_l, y_l, T_l);
             rhobar_g    = calc_rho(model_g, y_g, T_g);
-            
-            %Extract mesh velocities:
-            [xmesh_l, wmesh_l, xmesh_g, wmesh_g] = MeshVelocities(sol);
+            w_l         = num_sol_l{model_l.nDiff+2};
+            w_g         = num_sol_g{model_g.nDiff+2};
             
             %Extract boundary conditions:
             num_sol_ql  = sol.qL;
@@ -402,6 +391,10 @@ function [save_vars, model_l, model_g] = ...
             H_qg        = sol.qR(model_g.nSpecies+1);
             T_ql        = calc_T(H_ql,rhoy_ql,model_l);
             T_qg        = calc_T(H_qg,rhoy_qg,model_g);
+            
+            %Extract mesh coordinates:
+            sol_xmesh_l = sol.fesl.mesh.x_faces;
+            sol_xmesh_g = sol.fesg.mesh.x_faces;
 
             %Select figure:
             figure(fig1)
@@ -415,11 +408,11 @@ function [save_vars, model_l, model_g] = ...
             for II=1:model_l.nSpecies
                 plot(MatTranspVec(xplot_l), MatTranspVec(rhoy_l{II}), 'color', colorm(II,:))
                 hold on
-                plot(xmesh_l(end), rhoy_ql{II}, 'color', colorm(II,:), 'marker', 'x')
+                plot(sol_xmesh_l(end), rhoy_ql{II}, 'color', colorm(II,:), 'marker', 'x')
             end
             plot(MatTranspVec(xplot_l), MatTranspVec(rhobar_l), '+c')
             plot(MatTranspVec(xplot_l), MatTranspVec(rho_l), 'k')
-            plot(xmesh_l(end), rho_ql, 'color', 'k', 'marker', 'x')
+            plot(sol_xmesh_l(end), rho_ql, 'color', 'k', 'marker', 'x')
             title(['\rho_l, t=', sprintf('%.4E', sol.t)])
             grid on
             %
@@ -429,11 +422,11 @@ function [save_vars, model_l, model_g] = ...
             for II=1:model_g.nSpecies
                 plot(MatTranspVec(xplot_g), MatTranspVec(rhoy_g{II}), 'color', colorm(II,:))
                 hold on
-                plot(xmesh_g(1), rhoy_qg{II}, 'color', colorm(II,:), 'marker', 'x')
+                plot(sol_xmesh_g(1), rhoy_qg{II}, 'color', colorm(II,:), 'marker', 'x')
             end
             plot(MatTranspVec(xplot_g), MatTranspVec(rhobar_g), '+c')
             plot(MatTranspVec(xplot_g), MatTranspVec(rho_g), 'k')
-            plot(xmesh_g(1), rho_qg, 'color', 'k', 'marker', 'x')
+            plot(sol_xmesh_g(1), rho_qg, 'color', 'k', 'marker', 'x')
             title(['\rho_g, t=', sprintf('%.4E', sol.t)])
             grid on
 %             xlim([0,1e-2])
@@ -443,7 +436,7 @@ function [save_vars, model_l, model_g] = ...
             hold off
             plot(MatTranspVec(xplot_l), MatTranspVec(T_l), 'b')
             hold on
-            plot(xmesh_l(end), T_ql, 'color', 'b', 'marker', 'x')
+            plot(sol_xmesh_l(end), T_ql, 'color', 'b', 'marker', 'x')
             title(['T_l, t=', sprintf('%.4E', sol.t)])
             grid on
             %
@@ -451,7 +444,7 @@ function [save_vars, model_l, model_g] = ...
             hold off
             plot(MatTranspVec(xplot_g), MatTranspVec(T_g), 'r')
             hold on
-            plot(xmesh_g(1), T_qg, 'color', 'r', 'marker', 'x')
+            plot(sol_xmesh_g(1), T_qg, 'color', 'r', 'marker', 'x')
             title(['T_g, t=', sprintf('%.4E', sol.t)])
             grid on
 %             xlim([0,1e-2])
@@ -461,9 +454,7 @@ function [save_vars, model_l, model_g] = ...
             hold off
             plot(MatTranspVec(xplot_l), MatTranspVec(v_l), 'b')
             hold on
-            plot(xmesh_l, wmesh_l, 'c')
-%             plot(MatTranspVec(xplot_g), MatTranspVec(Pi_g), 'r')
-%             plot(MatTranspVec(xplot_l), MatTranspVec(H_l), 'b')
+            plot(MatTranspVec(xplot_l), MatTranspVec(w_l), 'c')
             title(['v_l, w_l, t=', sprintf('%.4E', sol.t)])
             grid on
             %
@@ -471,7 +462,7 @@ function [save_vars, model_l, model_g] = ...
             hold off
             plot(MatTranspVec(xplot_g), MatTranspVec(v_g), 'r')
             hold on
-            plot(xmesh_g, wmesh_g, 'm')
+            plot(MatTranspVec(xplot_g), MatTranspVec(w_g), 'm')
             title(['v_g, w_g, t=', sprintf('%.4E', sol.t)])
             grid on
 %             xlim([0,1e-4])
@@ -479,8 +470,6 @@ function [save_vars, model_l, model_g] = ...
         end
     end
     PlotFun(sol_n)
-       
-    HERE!!
     
     %----------------------------------------------------------------------
     %MARCH IN TIME:
@@ -503,9 +492,9 @@ function [save_vars, model_l, model_g] = ...
     nNodes_l        = sol_n.fesl.mesh.nElems+1;
     nNodes_g        = sol_n.fesg.mesh.nElems+1;
     N_ul            = model_l.nDiff*sol_n.fesl.nDof;
-    N_vl            = model_l.nAlg*sol_n.feslm1.nDof;
+    N_vl            = model_l.nAlg*sol_n.fesl.nDof;
     N_ug            = model_g.nDiff*sol_n.fesg.nDof;
-    N_vg            = model_g.nAlg*sol_n.fesgm1.nDof;
+    N_vg            = model_g.nAlg*sol_n.fesg.nDof;
     N_L             = model_l.nDiff;
     N_R             = nDAE_g;
     N_z             = N_L+N_R+1;
@@ -516,25 +505,6 @@ function [save_vars, model_l, model_g] = ...
     block_ug        = block_vl(end)+1:block_vl(end)+N_ug;
     block_vg        = block_ug(end)+1:block_ug(end)+N_vg;
     block_z         = block_vg(end)+1:block_vg(end)+N_L+N_R+1;
-    
-    %Prolongation matrix for liquid and gas systems:
-    [prolm_l_iv, prolm_l_jv, prolm_l_sv]    = find(prolm_l);
-    prolm_ll_iv     = cat(2, 1:N_ul, ...
-                            N_ul+prolm_l_iv.');
-    prolm_ll_jv     = cat(2, 1:N_ul, ...
-                            N_ul+prolm_l_jv.');
-    prolm_ll_sv     = cat(2, ones(1,N_ul), prolm_l_sv.');
-    prolm_ll        = sparse(prolm_ll_iv, prolm_ll_jv, prolm_ll_sv, ...
-                            nDAE_l*sol_n.fesl.nDof, N_ul+N_vl);
-    
-    [prolm_g_iv, prolm_g_jv, prolm_g_sv]    = find(prolm_g);
-    prolm_gg_iv     = cat(2, 1:N_ug, ...
-                            N_ug+prolm_g_iv.');
-    prolm_gg_jv     = cat(2, 1:N_ug, ...
-                            N_ug+prolm_g_jv.');
-    prolm_gg_sv     = cat(2, ones(1,N_ug), prolm_g_sv.');
-    prolm_gg        = sparse(prolm_gg_iv, prolm_gg_jv, prolm_gg_sv, ...
-                            nDAE_g*sol_n.fesg.nDof, N_ug+N_vg);
      
     %Function that evaluates the residual and the Jacobian of the full
     %system of nonlinear equations at each Runge--Kutta stage. 
@@ -547,23 +517,24 @@ function [save_vars, model_l, model_g] = ...
     %sol_np1 correspond to the values of y in the last function call.
     function [r,J] = ResidualFun(y, ComputeJ, is) %is=istage
         
-        %Extract variables: 
+        %Extract DAE variables: 
         xmesh_l_np1                         = y(block_mesh_l);
         xmesh_g_np1                         = y(block_mesh_g);
         sol_np1.ul(1:model_l.nDiff)         = VectorToCell(y(block_ul), model_l.nDiff);
-        sol_np1.vl(1:model_l.nAlg)          = VectorToCell(y(block_vl), model_l.nAlg);
-        for II=1:model_l.nAlg
-            sol_np1.ul{model_l.nDiff+II}    = prolm_l*sol_np1.vl{II};
-        end
+        sol_np1.ul(model_l.nDiff+1:nDAE_l)  = VectorToCell(y(block_vl), model_l.nAlg);
         sol_np1.ug(1:model_g.nDiff)         = VectorToCell(y(block_ug), model_g.nDiff);
-        sol_np1.vg(1:model_g.nAlg)          = VectorToCell(y(block_vg), model_g.nAlg);
-        for II=1:model_g.nAlg
-            sol_np1.ug{model_g.nDiff+II}    = prolm_g*sol_np1.vg{II};
-        end
+        sol_np1.ug(model_g.nDiff+1:nDAE_g)  = VectorToCell(y(block_vg), model_g.nAlg);
+        
+        %Extract interface variables:
         z                   = y(block_z);
         sol_np1.qL          = z(1:N_L);
         sol_np1.qR          = z(N_L+1:N_L+N_R);
         sol_np1.w           = z(end);
+        
+        %Extract mesh velocity:
+        [~, wmesh_l_np1, ~, wmesh_g_np1]    = MeshVelocities(sol_np1);
+        sol_np1.ul{nDAE_l+1}                = P1ToPX(wmesh_l_np1, sol_np1.fesl);
+        sol_np1.ug{nDAE_g+1}                = P1ToPX(wmesh_g_np1, sol_np1.fesg);
         
         %Update matrices for new mesh:
         mesh_l_np1          = Mesh_Spheric_Create(xmesh_l_np1);
@@ -578,21 +549,11 @@ function [save_vars, model_l, model_g] = ...
         
 %         PlotFun(sol_np1)
         
-        %Update boundary conditions. MATLAB works with copies, not pointers, 
-        %so this is not already done in CouplingConditions:
+        %Update iterface boundary conditions. MATLAB works with copies, not pointers, 
+        %so this is not already done.
         %left bc for liquid cannot be applied 
         model_l.uN          = @(t) cat(1, VectorToCell(sol_np1.qL, model_l.nDiff));
         model_g.u1          = @(t) cat(1, VectorToCell(sol_np1.qR, nDAE_g));
-%         aux                 = zeros(model_g.nDiff,1);
-%         aux                 = sol_n.qR(1:end-1)*(sol_n.qR(end)-sol_n.w);
-%         model_g.u1          = @(t) cat(1, VectorToCell(aux, model_g.nDiff));
-        
-        %------------------------------------------------------------------
-        %Update mesh velocity for current solution:
-        
-        [~, wmesh_l_np1, ~, wmesh_g_np1] = MeshVelocities(sol_np1);
-        uw_l                = [ sol_np1.ul; {P1ToPX(wmesh_l_np1, sol_np1.fesl)} ];
-        uw_g                = [ sol_np1.ug; {P1ToPX(wmesh_g_np1, sol_np1.fesg)} ];
         
         %------------------------------------------------------------------
         %MESH MOTION EQUATION:
@@ -601,18 +562,16 @@ function [save_vars, model_l, model_g] = ...
         kmesh_g_RK(:,is)    = wmesh_g_np1;
         r_mesh_l            = xmesh_l_np1 - bmesh_l_ii - Deltat_n*RKmethod.aI(is,is)*kmesh_l_RK(:,is);
         r_mesh_g            = xmesh_g_np1 - bmesh_g_ii - Deltat_n*RKmethod.aI(is,is)*kmesh_g_RK(:,is);
-%         r_mesh_l            = xmesh_l_np1 - sol_n.fesl.mesh.x_faces;
-%         r_mesh_g            = xmesh_g_np1 - sol_n.fesg.mesh.x_faces;
         
         %------------------------------------------------------------------
         %IMPOSE DAE FOR LIQUID:
         
         %Compute term due to fluxes and restriction:
         [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
-                CG_fgQ(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ);
+                CG_fgQ(model_l, sol_np1.t, sol_np1.ul, sol_np1.fesl, ComputeJ);
             
         %Residuals and Jacobians:
-        r_l                             = Mm_l_np1*CellToVector(sol_np1.ul) - bDAE_l_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_l_RK(:,is);
+        r_l                             = Mm_l_np1*CellToVector(sol_np1.ul(1:nDAE_l)) - bDAE_l_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_l_RK(:,is);
         r_l(N_ul+1:N_ul+N_vl)           = - RKmethod.aI(is,is)*Deltat_n * kDAE_l_RK(N_ul+1:N_ul+N_vl,is);
         if ComputeJ
             
@@ -645,22 +604,9 @@ function [save_vars, model_l, model_g] = ...
             
         end
         
-        %Apply restriction for algebraic dofs:
-        r_l                             = prolm_ll.' * r_l;
-        if ComputeJ
-            %Compute Jacobians and apply restriction:
-            J_l_mat                     = sparse(J_l.iv, J_l.jv, J_l.sv, nDAE_l*sol_np1.fesl.nDof, nDAE_l*sol_np1.fesl.nDof);
-            J_lz_mat                    = sparse(J_lz.iv, J_lz.jv, J_lz.sv, nDAE_l*sol_np1.fesl.nDof, N_z);
-            J_l_mat                     = prolm_ll.' * J_l_mat * prolm_ll;
-            J_lz_mat                    = prolm_ll.' * J_lz_mat;
-            %Extract values again:
-            [J_l.iv, J_l.jv, J_l.sv]    = find(J_l_mat);
-            [J_lz.iv, J_lz.jv, J_lz.sv] = find(J_lz_mat);
-        end
-        
         %Impose null velocity at origin:
         Jterm                           = 1.0/(Srinv{3}(N_ul+1, N_ul+1) * ...
-                                               Sy(block_vl(1), block_vl(1)) ) * Deltat_n;
+                                               Sy(block_vl(1), block_vl(1)) ) * Deltat_n/NF_tau;
         r_l(N_ul+1)                     = y(block_vl(1)) * Jterm;
         %Jterm is chosen in such a way that, after aplying scaling
         %matrices, the corresponding scale term is Deltat_n/NF_tau.
@@ -679,10 +625,10 @@ function [save_vars, model_l, model_g] = ...
         
         %Compute term due to fluxes and restriction:
         [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
-                    CG_fgQ(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ);
+                    CG_fgQ(model_g, sol_np1.t, sol_np1.ug, sol_np1.fesg, ComputeJ);
         
         %Residuals and Jacobians:
-        r_g                             = Mm_g_np1*CellToVector(sol_np1.ug) - bDAE_g_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_g_RK(:,is);
+        r_g                             = Mm_g_np1*CellToVector(sol_np1.ug(1:nDAE_g)) - bDAE_g_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_g_RK(:,is);
         r_g(N_ug+1:N_ug+N_vg)           = - RKmethod.aI(is,is)*Deltat_n * kDAE_g_RK(N_ug+1:N_ug+N_vg,is);
         if ComputeJ
             
@@ -715,22 +661,9 @@ function [save_vars, model_l, model_g] = ...
             
         end
         
-        %Apply restriction for algebraic dofs:
-        r_g                             = prolm_gg.' * r_g;
-        if ComputeJ
-            %Compute Jacobians and apply restriction:
-            J_g_mat                     = sparse(J_g.iv, J_g.jv, J_g.sv, nDAE_g*sol_np1.fesg.nDof, nDAE_g*sol_np1.fesg.nDof);
-            J_gz_mat                    = sparse(J_gz.iv, J_gz.jv, J_gz.sv, nDAE_g*sol_np1.fesg.nDof, N_z);
-            J_g_mat                     = prolm_gg.' * J_g_mat * prolm_gg;
-            J_gz_mat                    = prolm_gg.' * J_gz_mat;
-            %Extract values again:
-            [J_g.iv, J_g.jv, J_g.sv]    = find(J_g_mat);
-            [J_gz.iv, J_gz.jv, J_gz.sv] = find(J_gz_mat);
-        end
-        
         %Impose velocity at droplet surface:
         Jterm                           = 1.0/(Srinv{3}(N_ul+N_vl+N_ug+1, N_ul+N_vl+N_ug+1) * ...
-                                               Sy(block_vg(1), block_vg(1)) ) * Deltat_n;
+                                               Sy(block_vg(1), block_vg(1)) ) * Deltat_n/NF_tau;
         %Jterm is chosen in such a way that, after aplying scaling
         %matrices, the corresponding scaled term is Deltat_n/NF_tau:
         r_g(N_ug+1)                     = (y(block_vg(1))-sol_np1.qR(end)) * Jterm;
@@ -757,8 +690,8 @@ function [save_vars, model_l, model_g] = ...
         %NOTE: "uwL" is the numerical solution for the liquid, including
         %the mesh velocity
         %"qL" is the Dirichlet condition at the boundary,
-        uwL         = EvalSolution(uw_l, sol_np1.fesl, [mesh_l_np1.nElems], 1.0);
-        duwL_dx     = EvalSolution_dx(uw_l, sol_np1.fesl, [mesh_l_np1.nElems], 1.0);
+        uwL         = EvalSolution(sol_np1.ul, sol_np1.fesl, [mesh_l_np1.nElems], 1.0);
+        duwL_dx     = EvalSolution_dx(sol_np1.ul, sol_np1.fesl, [mesh_l_np1.nElems], 1.0);
         [fL, dfL_duwL, dfL_duwL_dx, dfL_dqL] = ...
             model_l.ftildeN(model_l, sol_np1.t, xmesh_l_np1(end), uwL, duwL_dx, ...
                     (xmesh_l_np1(end)-xmesh_l_np1(end-1))/sol_np1.fesl.p, ComputeJ);
@@ -767,8 +700,8 @@ function [save_vars, model_l, model_g] = ...
         %NOTE: "uwL" is the numerical solution for the liquid, including
         %the mesh velocity
         %"qL" is the Dirichlet condition at the boundary,
-        uwR         = EvalSolution(uw_g, sol_np1.fesg, [1], -1.0);
-        duwR_dx     = EvalSolution_dx(uw_g, sol_np1.fesg, [1], -1.0);
+        uwR         = EvalSolution(sol_np1.ug, sol_np1.fesg, [1], -1.0);
+        duwR_dx     = EvalSolution_dx(sol_np1.ug, sol_np1.fesg, [1], -1.0);
         [fR, dfR_duwR, dfR_duwR_dx, dfR_dqR] = ...
             model_g.ftilde1(model_g, sol_np1.t, xmesh_g_np1(1), uwR, duwR_dx, ...
                     (xmesh_g_np1(2)-xmesh_g_np1(1))/sol_np1.fesg.p, ComputeJ);
@@ -1051,14 +984,16 @@ function [save_vars, model_l, model_g] = ...
     yv_n            = cat(1,    sol_n.fesl.mesh.x_faces, ...
                                 sol_n.fesg.mesh.x_faces, ...
                                 CellToVector(sol_n.ul(1:model_l.nDiff)), ...
-                                CellToVector(sol_n.vl), ...
+                                CellToVector(sol_n.ul(model_l.nDiff+1:nDAE_l)), ...
                                 CellToVector(sol_n.ug(1:model_g.nDiff)), ...
-                                CellToVector(sol_n.vg), ...
+                                CellToVector(sol_n.ug(model_g.nDiff+1:nDAE_g)), ...
                                 sol_n.qL, ...
                                 sol_n.qR, ...
                                 sol_n.w ) ;
     Deltat_n        = Deltat0;
     Deltat_CFL_n    = NaN;
+    tau_err_nm1     = NaN;  %ln( tau/err^(1/q) ) = ln(tau) - ln(err)/q
+    tau_err_n       = NaN;
     while sol_n.t<t_final
         
         %Load RK coefficients:
@@ -1079,17 +1014,18 @@ function [save_vars, model_l, model_g] = ...
         while RepeatT
             
             %Set time step:
-            t_np1       = sol_n.t + Deltat_n;
+            t_np1           = sol_n.t + Deltat_n;
             if t_np1>=t_final
-                t_np1   = t_final;
+                t_np1       = t_final;
             end
-            Deltat_n    = t_np1-sol_n.t;
+            Deltat_n        = t_np1-sol_n.t;
 
             %Characteristic element volumes and maximum radius:
             NF_omega_l      = sum(sol_n.fesl.mesh.V_cells)/sol_n.fesl.mesh.nElems;
             NF_omega_g      = sum(sol_n.fesg.mesh.V_cells)/sol_n.fesg.mesh.nElems;
             R_l             = sol_n.fesl.mesh.x_faces(end);
             R_g             = sol_n.fesg.mesh.x_faces(end);
+            NF_tau          = Deltat_n;
             
             %Stabilization parameters:
             model_l.tau_g   = max(1e-6, C_Stab*Deltat_n);
@@ -1099,9 +1035,9 @@ function [save_vars, model_l, model_g] = ...
                                 NF_w ];
             Sy_mult         = [ nNodes_l; nNodes_g; ...
                                 repmat(sol_n.fesl.nDof, model_l.nDiff, 1); ...
-                                repmat(sol_n.feslm1.nDof, model_l.nAlg, 1); ...
+                                repmat(sol_n.fesl.nDof, model_l.nAlg, 1); ...
                                 repmat(sol_n.fesg.nDof, model_g.nDiff, 1); ...
-                                repmat(sol_n.fesgm1.nDof, model_g.nAlg, 1); ...
+                                repmat(sol_n.fesg.nDof, model_g.nAlg, 1); ...
                                 repmat(1, N_L, 1); repmat(1, N_R, 1); 1 ];
             Srinv_factors   = 1.0 ./ [ ...
                                 NF_omega_l*NF_l(1:end-1); NF_omega_l*NF_l(1)*NF_tau; ...
@@ -1109,9 +1045,9 @@ function [save_vars, model_l, model_g] = ...
                                 NF_g(end)*NF_g(1:end-1)*NF_tau; ...
                                 max(DeltaT_0,300)*NF_tau; max(DeltaP_0,1e5)*NF_tau; NF_l(1)*NF_tau; NF_g(1)*NF_tau ];
             Srinv_mult      = [ repmat(sol_n.fesl.nDof, model_l.nDiff, 1);
-                                repmat(sol_n.feslm1.nDof, model_l.nAlg, 1); ...
+                                repmat(sol_n.fesl.nDof, model_l.nAlg, 1); ...
                                 repmat(sol_n.fesg.nDof, model_g.nDiff, 1);
-                                repmat(sol_n.fesgm1.nDof, model_g.nAlg, 1); ...
+                                repmat(sol_n.fesg.nDof, model_g.nAlg, 1); ...
                                 repmat(1, nDiff_lg, 1); 
                                 1; repmat(1, model_l.nSpecies, 1); 1; 1 ]; 
             
@@ -1138,7 +1074,6 @@ function [save_vars, model_l, model_g] = ...
             bDAE_g_ii       = My1_g;
         
             %Save derivatives k(:,1) and Jacobian for first stage:
-%             sol_np1.t       = sol_n.t + Deltat_n*RKmethod.c(2);
             [~,A_n]         = ResidualFun(yv_np1, true, 1);
             A_n_fact        = { 1.0; 
                                 1.0;
@@ -1179,10 +1114,6 @@ function [save_vars, model_l, model_g] = ...
                 end
                 NLS_iters           = NLS_iters + nIters/(RKmethod.s-1);
                 
-%                 %Plot results:
-%                 PlotFun(sol_np1)
-%                 drawnow()
-                
             end
         
             %Save CFL for present time step:
@@ -1220,13 +1151,29 @@ function [save_vars, model_l, model_g] = ...
                 %Total error:
                 etaT            = max(etaT_l, etaT_g);
                 
+                %Save logarithm of ratio tau/err^(1/q):
+                tau_err_n       = log(Deltat_n)-log(etaT)/RKmethod.order;
+                
                 %Apply controler:
                 if sol_n.t==0
-                    %Go to next time level:
+                    %Go directly to next time level:
                     Deltat_np1  = Deltat_n;
                     RepeatT     = false;
+                    %Delete tau_err_n:
+                    tau_err_n   = NaN;
                 elseif etaT<=TolT
-                    Deltat_np1  = Deltat_n * min([(0.7*TolT/etaT)^(1.0/RKmethod.order), sqrt(NLS_IterTarget/NLS_iters), 2.0]);
+                    %Predict log(tau/err^(1/q)) at t^(n+1):
+                    if isnan(tau_err_nm1)
+                        %Constant extrapolation:
+                        tau_err_np1     = tau_err_n;
+                    else
+                        %Minimum from constant and linear extrapolations:
+                        tau_err_np1     = min(tau_err_n, 2*tau_err_n - tau_err_nm1);
+                    end
+                    %log(tau^(n+1)) = log(tau/err^(1/q) * (SF*TolT)^(1/q) )
+                    %               = log(tau/err^(1/q)) + 1/q*log(SF*TolT)
+                    Deltat_np1  = exp( tau_err_np1 + log(0.7*TolT)/RKmethod.order );
+                    Deltat_np1  = min( [Deltat_np1, Deltat_n*sqrt(NLS_IterTarget/NLS_iters), 2.0*Deltat_n] );
                     RepeatT     = false;
                 else
                     rDeltat     = max(0.5, min((0.7*TolT/etaT)^(1.0/RKmethod.order)));
@@ -1248,7 +1195,6 @@ function [save_vars, model_l, model_g] = ...
                 Deltat_n        = Deltat_n*0.5;
                 if Deltat_n<Deltat_min
                     sol_np1     = sol_n;
-%                     PlotFun(sol_np1)
                     error('Time step too small')
                 end
                 RepeatT         = true;
@@ -1300,7 +1246,7 @@ function [save_vars, model_l, model_g] = ...
                 ', w=', sprintf('%.5E', sol_np1.w) ] );
         
         %Print summary:
-        disp([  't=', sprintf('%.2E',sol_n.t),...
+        disp([  't=', sprintf('%.2E',sol_np1.t),...
                 ', tau=', sprintf('%.2E',Deltat_n), ...
                 ', CFL=', sprintf('%.2E',CFL_n), ...
                 ', errT=', sprintf('%.2E',etaT), ...
@@ -1314,7 +1260,7 @@ function [save_vars, model_l, model_g] = ...
         Deltat_n    = Deltat_np1;
         sol_n       = sol_np1;
         yv_n        = yv_np1;
-        etaT_nm1    = etaT;
+        tau_err_nm1 = tau_err_n;
         
         %Plot results:
         PlotFun(sol_n)

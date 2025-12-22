@@ -42,6 +42,7 @@ function model=Liquid_ALE(fuel_names, frac_masL, comp_inerts, frac_masG)
     model.nAlg        = 1;                 %Number of algebraic variables
     model.nVars       = model.nSpecies+3;  %Total number of variables (nSpecies + H + v + mesh velocity(w))
     model.fQg         = @fQg;              %Function to compute flux, source terms and restriction
+    model.ftilde      = @ftilde;           %Function to compute numerical flux at the internal faces
     model.ftilde1     = @ftilde1;          %Function to compute numerical flux at face 1, i.e., impose bondary condition
     model.ftildeN     = @ftildeN;          %Function to compute numerical flux at last face, i.e., impose bondary condition
     model.f_diffusive = @f_diffusive;
@@ -233,23 +234,44 @@ function [rhoy, drhoy_dx, rho, sum_drhoy_dx, y] = aux_rho(model, u, du_dx)
 
 end
 
-%Convective flux:
-function [f, df_du] = f_ALE(model, u, ComputeJ)
-    
-    %Extract velocities:
-    v       = u{model.nVars-1};
-    w       = u{model.nVars};
-    vw      = v-w;
+%Rusanov-ALE flux for convective term (from Badwaik et al. 2019, Mishra et al.):
+%   f       = 0.5*(fL+fR) + 0.5*lambda*(uL-uR),
+%   lambda  = max(|vL-wL|, |vR-wR|)
+%In order to compute the Jacobian in an easier way, we write lambda as
+%   lambda  = CL*SL*(vL-wL) + CR*SR*(vR-wR)
+%Since fL=(vL-wL)*uL, fR=(vR-wR)*uR, then
+%   f       = 0.5*(vL-wL)*uL + 0.5*(vR-wR)*uR +
+%               0.5*(CL*SL*(vL-wL)+CR*SR*(vR-wR))* (uL-uR)
+function [f, df_duL, df_duR] = f_Rusanov(model, uL, uR, ComputeJ)
+
+    %Relative velocities:
+    vwL     = uL{end-1}-uL{end};
+    vwR     = uR{end-1}-uR{end};
+    if abs(vwL)>=abs(vwR)
+        CL  = 1.0;
+        CR  = 0.0;
+    else
+        CL  = 0.0;
+        CR  = 1.0;
+    end
+    SL      = sign(vwL);
+    SR      = sign(vwR);
+    lambda  = CL.*SL.*vwL+CR.*SR.*vwR;
     
     %Compute fluxes:
     f       = cell(model.nDiff, 1);
-    df_du   = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, u{1});
+    df_duL  = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uL{1});
+    df_duR  = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uR{1});
     for II=1:model.nDiff
-        f{II}                       = u{II}*vw;
+        f{II}                   = 0.5.*vwL.*uL{II} + 0.5.*vwR.*uR{II} + ...
+                                    0.5.*lambda.*(uL{II}-uR{II});
         if ComputeJ
-            df_du{II,II}            = vw;
-            df_du{II,model.nVars-1} = u{II};
-            df_du{II,model.nVars}   = -u{II};
+            df_duL{II,II}       = + 0.5.*vwL + 0.5.*lambda;
+            df_duL{II,end-1}    = + 0.5.*uL{II} + 0.5.*CL.*SL.*(uL{II}-uR{II});
+            df_duL{II,end}      = - 0.5.*uL{II} - 0.5.*CL.*SL.*(uL{II}-uR{II});
+            df_duR{II,II}       = + 0.5.*vwR - 0.5.*lambda;
+            df_duR{II,end-1}    = + 0.5.*uR{II} + 0.5.*CR.*SR.*(uL{II}-uR{II});
+            df_duR{II,end}      = - 0.5.*uR{II} - 0.5.*CR.*SR.*(uL{II}-uR{II});
         end
     end
     
@@ -260,14 +282,13 @@ function [f, df_du, df_du_dx, Dmax] = ...
     
     %Extract variables:
     [rhoy, drhoy_dx, rho, drho_dx, y] = aux_rho(model, u, du_dx);
-    H                                 = u{model.nDiff};
-    dH_dx                             = du_dx{model.nDiff};
+    H               = u{model.nDiff};
+    dH_dx           = du_dx{model.nDiff};
     
-    %Compute dependent variables:
-    T                   = calc_T(H, rhoy, model);
-    D_T                 = calc_D_T(T,y,model);
-    D_rho               = calc_D_rho(T,y,model);
-    h_i                 = calc_h_i(T,model);
+    T     = calc_T(H, rhoy, model);
+    D_T   = calc_D_T(T,y,model);
+    D_rho = calc_D_rho(T,y,model);
+    h_i   = calc_h_i(T,model);
     
     %Diffusive flux:
     f = cell(model.nDiff,1);
@@ -324,33 +345,74 @@ function [f, df_duL, df_duR] = f_penalty(model, uL, uR, hp, ComputeJ)
     end
     
     %Diffusion due to penalty:
-    function Dv=Dfun(u)
+    function Dmax=Dmaxfun(u)
+        %its value is not necessary
         [rhoy, ~, ~, ~, y]  = aux_rho(model, u, du_dx);
         H                   = u{model.nSpecies+1};
         T                   = calc_T(H, rhoy, model);
         D_T                 = calc_D_T(T,y,model);
         D_rho               = calc_D_rho(T,y,model);
-        Dv                  = cat(1, repmat(D_rho, model.nSpecies, 1), D_T);              
+        Dmax                = max([D_T, D_rho]);
     end
-    sigmav                  = model.CW*max([Dfun(uL),Dfun(uR)],[],2);
-    
-    %Set penalty to zero if there is only one specie:
-    if model.nSpecies==1
-        sigmav(1)           = 0.0;
-    end
+    DmaxL                   = Dmaxfun(uL);
+    DmaxR                   = Dmaxfun(uR);
+    sigma                   = model.CW*max([DmaxL, DmaxR]);
     
     %Penalty terms:
     f       = cell(model.nDiff, 1);
     df_duL  = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uL{1});
     df_duR  = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uR{1});
-    for II=1:model.nDiff
-        f{II}               = sigmav(II)*(uL{II}-uR{II})./hp;
+    if model.nSpecies==1
+        i0  = model.nDiff;
+    else
+        i0  = 1;
+    end
+    for II=1:i0-1
+        f{II}               = 0.0*(uL{II}-uR{II})./hp;
         if ComputeJ
-            df_duL{II,II}   = + sigmav(II)./hp;
-            df_duR{II,II}   = - sigmav(II)./hp;
+            df_duL{II,II}   = + 0.0./hp;
+            df_duR{II,II}   = - 0.0./hp;
+        end
+    end
+    for II=1:model.nDiff
+        f{II}               = sigma*(uL{II}-uR{II})./hp;
+        if ComputeJ
+            df_duL{II,II}   = + sigma./hp;
+            df_duR{II,II}   = - sigma./hp;
         end
     end
     
+end
+
+function [f, df_duL, df_duL_dx, df_duR, df_duR_dx] = ...
+    ftilde(model, ~, ~, uL, duL_dx, uR, duR_dx, hp, ComputeJ)
+    
+    %Evaluate convective, diffusive and penalty fluxes:
+    [fc, dfc_duL, dfc_duR]      = f_Rusanov(model, uL, uR, ComputeJ);
+    [fL, dfL_duL, dfL_duL_dx]   = f_diffusive(model, uL, duL_dx, ComputeJ);
+    [fR, dfR_duR, dfR_duR_dx]   = f_diffusive(model, uR, duR_dx, ComputeJ);
+    [fp, dfp_duL, dfp_duR]      = f_penalty(model, uL, uR, hp, ComputeJ);
+    
+    %Compute total flux:
+    f           = cell(model.nDiff, 1);
+    df_duL      = cell(model.nDiff, model.nVars);
+    df_duL_dx   = cell(model.nDiff, model.nVars);
+    df_duR      = cell(model.nDiff, model.nVars);
+    df_duR_dx   = cell(model.nDiff, model.nVars);
+    for II=1:model.nDiff
+        f{II}   = fc{II} + 0.5*(fL{II} + fR{II}) + fp{II};
+    end
+    if ComputeJ
+       for II=1:model.nDiff
+           for JJ=1:model.nVars
+               df_duL{II,JJ}    = dfc_duL{II,JJ} + 0.5*dfL_duL{II,JJ} + dfp_duL{II,JJ};
+               df_duR{II,JJ}    = dfc_duR{II,JJ} + 0.5*dfR_duR{II,JJ} + dfp_duR{II,JJ};
+               df_duL_dx{II,JJ} = 0.5*dfL_duL_dx{II,JJ};
+               df_duR_dx{II,JJ} = 0.5*dfR_duR_dx{II,JJ};
+           end
+       end
+    end
+        
 end
 
 %df_dq means derivatives of flux w.r.t. the parameters that define the
@@ -363,21 +425,21 @@ function [f, df_du, df_du_dx, df_dq] = ...
     %   -Velocity is imposed
     %   -Mesh velocity is extrapolated from solution
     %Diffusive flux is extrapolated.
-    u1                  = model.u1(t);                      
-    uL                  = cell(model.nVars,1);
+    u1              = model.u1(t);                      
+    uL              = cell(model.nVars,1);
     for II=1:model.nDiff
-        uL{II}          = u1{II};
+        uL{II}      = u1{II};
     end
     uL{model.nDiff+1}   = u1{model.nDiff+1};
     uL{model.nVars}     = u{model.nVars};
     
     %Right state is the numerical solution:
-    uR                  = u;
-    duR_dx              = du_dx;    
+    uR              = u;
+    duR_dx          = du_dx;    
     
     %Evaluate convective, diffusive and penalty fluxes:
-    [fc, dfc_duL]               = f_ALE(model, uL, ComputeJ);
-    [fd, dfd_duR, dfd_duR_dx]   = f_diffusive(model, uR, duR_dx, ComputeJ);
+    [fc, dfc_duL, dfc_duR]      = f_Rusanov(model, uL, uR, ComputeJ);
+    [fR, dfR_duR, dfR_duR_dx]   = f_diffusive(model, uR, duR_dx, ComputeJ);
     [fp, dfp_duL, dfp_duR]      = f_penalty(model, uL, uR, hp, ComputeJ);
     
     %Compute total flux:
@@ -387,14 +449,14 @@ function [f, df_du, df_du_dx, df_dq] = ...
     df_duR      = cell(model.nDiff, model.nVars);
     df_duR_dx   = cell(model.nDiff, model.nVars);
     for II=1:model.nDiff
-        f{II}   = fc{II} + fd{II} + fp{II};
+        f{II}   = fc{II} + fR{II} + fp{II};
     end
     if ComputeJ
        for II=1:model.nDiff
            for JJ=1:model.nVars
                df_duL{II,JJ}    = dfc_duL{II,JJ} + dfp_duL{II,JJ};
-               df_duR{II,JJ}    = dfd_duR{II,JJ} + dfp_duR{II,JJ};
-               df_duR_dx{II,JJ} = dfd_duR_dx{II,JJ};
+               df_duR{II,JJ}    = dfc_duR{II,JJ} + dfR_duR{II,JJ} + dfp_duR{II,JJ};
+               df_duR_dx{II,JJ} = dfR_duR_dx{II,JJ};
            end
        end
     end
@@ -433,18 +495,36 @@ function [f, df_du, df_du_dx, df_dq] = ...
     %   -Velocity is extrapolated
     %   -Mesh velocity is extrapolated from solution
     %Diffusive flux is extrapolated:
-    uN                  = model.uN(t);                      
-    uR                  = cell(model.nVars,1);
+    uN              = model.uN(t);                      
+    uR              = cell(model.nVars,1);
     for II=1:model.nDiff
-        uR{II}          = uN{II};
+        uR{II}      = uN{II};
     end
     uR{model.nDiff+1}   = u{model.nDiff+1};
     uR{model.nVars}     = u{model.nVars};
     
+    %Convection based on left state:
+    fc              = cell(model.nDiff,1);
+    dfc_duL         = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uL{1});
+    dfc_duR         = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, uR{1});
+    for II=1:model.nDiff
+        fc{II}                  = (uL{end-1}-uL{end}).*uL{II};
+        if ComputeJ
+            dfc_duL{II,II}      = uL{end-1}-uL{end};
+            dfc_duL{II,end-1}   = uL{II};
+            dfc_duL{II,end}     = -uL{II};
+        end
+    end
+    
     %Evaluate convective, diffusive and penalty fluxes:
-    [fc, dfc_duL]               = f_ALE(model, uL, ComputeJ);
-    [fd, dfd_duL, dfd_duL_dx]   = f_diffusive(model, uL, duL_dx, ComputeJ);
+%     [fc, dfc_duL, dfc_duR]      = f_Rusanov(model, uL, uR, ComputeJ);
+    [fL, dfL_duL, dfL_duL_dx]   = f_diffusive(model, uL, duL_dx, ComputeJ);
     [fp, dfp_duL, dfp_duR]      = f_penalty(model, uL, uR, hp, ComputeJ);
+    
+%     disp('liquid-flux1')
+%     disp(fc)
+%     disp(fL)
+%     disp(fp)
     
     %Compute total flux:
     f           = cell(model.nDiff, 1);
@@ -453,14 +533,14 @@ function [f, df_du, df_du_dx, df_dq] = ...
     df_duR      = cell(model.nDiff, model.nVars);
     %df_duR_dx  = 0.0
     for II=1:model.nDiff
-        f{II}   = fc{II} + fd{II} + fp{II};
+        f{II}   = fc{II} + fL{II} + fp{II};
     end
     if ComputeJ
        for II=1:model.nDiff
            for JJ=1:model.nVars
-               df_duL{II,JJ}    = dfc_duL{II,JJ} + dfd_duL{II,JJ} +  dfp_duL{II,JJ};
-               df_duR{II,JJ}    = dfp_duR{II,JJ};
-               df_duL_dx{II,JJ} = dfd_duL_dx{II,JJ};
+               df_duL{II,JJ}    = dfc_duL{II,JJ} + dfL_duL{II,JJ} +  dfp_duL{II,JJ};
+               df_duR{II,JJ}    = dfc_duR{II,JJ} + dfp_duR{II,JJ};
+               df_duL_dx{II,JJ} = dfL_duL_dx{II,JJ};
            end
        end
     end
