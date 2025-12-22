@@ -1,29 +1,20 @@
-%UNDO!:
-%Initial condition
-%tevap
-%Plot sol at each NLS iter
-%open fig1 in all cases
-%fig2
-%tau_g in models
-%xlim
-
 %TODO:
-% Odd polinomials for interpolation
+% Odd polinomials for interpolation of h(T)
 % Rosenbrock--Wanner
 % Viscosity based stabilization
+% well-posed initial condition
 
 %MAIN CHANGES:
 % Deltat0 must be larger
 % Mesh parameters
 % CG, Space for velocity field
 % drhobar_du computed by finite differences
-% Stabilization for liquid ??
 % New time step controller
 % w included in sol.ul and sol.ug
 
 function [save_vars, model_l, model_g] = ...
     droplet_test(nElems_l, nElems_g, hmin_l, hmin_g, p, ...
-        Deltat0, t_final, TimeAdapt, TolT, C_Stab, ...
+        Deltat0, t_final, TimeAdapt, TolT, ...
         PlotRes, Save, fuel_names, mass_fracL, ...
         inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, ...
         x_lg, XRad, R_end_percent, n_saves)
@@ -52,7 +43,6 @@ function [save_vars, model_l, model_g] = ...
     NF_vl       = 1e-1;         %Characteristic value for liquid velocity
     NF_vg       = 1e-1;         %Characteristic value for gas velocity
     NF_w        = 1e-1;         %Characteristic value for droplet velocity;
-%     NF_tau      = 1e-3;         %Characteristic time
     %NOTE: Higher NF_v: less iterations, less accuracy in the velocity
     
     %Algebraic tolerance:
@@ -87,7 +77,7 @@ function [save_vars, model_l, model_g] = ...
         H_l         = rho_l.*h_l;
 
         %Velocity:
-        v_l         = 0.0*x;
+        v_l         = 0e-4*(x/x_lg);
 
         %Pack all fields into cell arrays
         %u = {ρY1, ..., ρYN, H, v}
@@ -266,8 +256,8 @@ function [save_vars, model_l, model_g] = ...
     [rho_g_ini,y_g_ini] = calc_rho_y(rhoy_g_ini,model_g);
     
     %Calculate estimated evaporation time (if known, add manually):
-%     t_evap      = calc_t_evap(T_inf,y_inf,model_l,model_g,mass_fracL,fuel_names,x_lg);
-    t_evap      = 0.1;
+    t_evap      = calc_t_evap(T_inf,y_inf,model_l,model_g,mass_fracL,fuel_names,x_lg);
+%     t_evap      = 0.1;
 
     %Distribution of the saved time instants: 55% are saved in the first 20% of the 
     %simulation and the remaining 45% in the final 80% of the simulation (MODIFIABLE)
@@ -341,8 +331,6 @@ function [save_vars, model_l, model_g] = ...
         fig1                = figure();
         fig1.Units          = 'normalized';
         fig1.OuterPosition  = [0.5 0 1 1];
-    else
-        fig1                = figure()
     end  
 
     %----------------------------------------------------------------------
@@ -780,13 +768,13 @@ function [save_vars, model_l, model_g] = ...
             J_z.sv      = cat(1, J_z.sv, Deltat_n*sv_aux(:));
 
             %Derivatives w.r.t. uL (numerical solution at the left of the droplet):
-            iv_aux      = zeros(N_L, nDAE_l, p+1);
+            iv_aux      = zeros(N_L, nDAE_l, p+1); 
             jv_aux      = zeros(size(iv_aux));
             sv_aux      = zeros(size(iv_aux));
             phim        = sol_np1.fesl.NCompute([1.0]);
             dphim_dxi   = sol_np1.fesl.NCompute([1.0]);
             for II=1:N_L
-                for JJ=1:nDAE_l
+                for JJ=1:nDAE_l 
                     for iDof=1:p+1
                         iv_aux(II,JJ,iDof)  = model_g.nInerts+II;
                         jv_aux(II,JJ,iDof)  = (JJ-1)*sol_np1.fesl.nDof + ...
@@ -886,16 +874,11 @@ function [save_vars, model_l, model_g] = ...
     %Sr and Sy two scaling matrices:
     %The Jacobian is hence Jhat = Sr*df/dy*Sy and we solve
     %g:=Jhat\fhat(yhat)=0
-    fig2    = figure();
     function gscaled = PrecResidualFun(yscaled, istage)
         
         %Compute residual:
         y       = Sy*yscaled;
         [r,~]   = ResidualFun(y, false, istage);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
-%         [r,A_n] = ResidualFun(y, true, istage);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
-%         A_n_fact        = { 1.0; 
-%                             1.0;
-%                             LUFactorization(Srinv{3}*A_n{3}*Sy(block_ul(1):end, block_ul(1):end)) };
         if any(isnan(r{1})) || any(isnan(r{2})) || any(isnan(r{3})) 
             gscaled = NaN;
             return
@@ -906,69 +889,7 @@ function [save_vars, model_l, model_g] = ...
         g_mesh_g    = Srinv{2}*r{2};
         g_lgz       = LUSolve(A_n_fact{3},Srinv{3}*r{3});
         gscaled     = cat(1, g_mesh_l, g_mesh_g, g_lgz);
-        
-%         display(sol_np1.w)
-        
-        if false
-            figure(fig2)
-            hold off
-            blocks      = { block_mesh_l, block_mesh_g, block_ul, block_vl, ...
-                            block_ug, block_vg, block_z };
-            colorm      = hsv(length(blocks));
-            for iblock=1:length(blocks)
-                block   = blocks{iblock};
-                semilogy(block, abs(gscaled(block))+1e-14, 'color', colorm(iblock,:))
-                hold on
-                semilogy(block(1), abs(gscaled(block(1)))+1e-14, 'color', colorm(iblock,:), 'marker', 'o')
-            end
-        end
-        
-    end
-    function [fscaled, Jscaled] = ScaledResidualFun(yscaled, ComputeJ, is)
-        
-        %Compute residual:
-        y       = Sy*yscaled;
-%         y       = yscaled;
-        [r,A]   = ResidualFun(y, ComputeJ, is);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
-        if any(isnan(r{1})) || any(isnan(r{2})) || any(isnan(r{3})) 
-            fscaled = NaN;
-            Jscaled = NaN;
-            return
-        end
-        
-        %Reshape r and A:
-        fscaled = cat(1, Srinv{1}*r{1}, Srinv{2}*r{2}, Srinv{3}*r{3});
-%         fscaled = cat(1, r{1}, r{2}, r{3});
-        Nl      = length(r{1});
-        Ng      = length(r{2});
-        Nlgz    = length(r{3});
-        if ComputeJ
-            Jscaled = [ speye(Nl),          sparse(Nl,Ng),      sparse(Nl,Nlgz);
-                        sparse(Ng,Nl),      speye(Ng),          sparse(Ng,Nlgz);
-                        sparse(Nlgz,Nl),    sparse(Nlgz,Ng),    Srinv{3}*A{3}*Sy(block_ul(1):end, block_ul(1):end) ];
-%             Jscaled = [ speye(Nl),          sparse(Nl,Ng),      sparse(Nl,Nlgz);
-%                         sparse(Ng,Nl),      speye(Ng),          sparse(Ng,Nlgz);
-%                         sparse(Nlgz,Nl),    sparse(Nlgz,Ng),    A{3} ];
-            Jest    = JacobEst(@(yhat,ComputeJ)ScaledResidualFun(yhat,ComputeJ,is), yscaled, 1e-5);
-            save('test.mat', 'Jscaled', 'Jest', 'block_ul', 'block_vl', 'block_ug', 'block_vg', 'block_z' )
-%             Jscaled   = JacobEst(@(yhat,ComputeJ)ScaledResidualFun(yhat,ComputeJ,is), yscaled, 1e-5);
-        else
-            Jscaled   = NaN;
-        end
-        
-%         f_lgz       = fscaled;
-%         f_lgz       = Jscaled\fscaled;
-%         f_lgz       = f_lgz(block_ul(1):end);
-        
-%         figure(fig2)
-%         semilogy(abs(f_lgz), "+-b")
-%         hold on
-%         aux         = block_vl-block_ul(1)+1;
-%         semilogy(aux, abs(f_lgz(aux)), "x-c")
-%         aux         = block_vg-block_ul(1)+1;
-%         semilogy(aux, abs(f_lgz(aux)), "x-m")
-%         hold off
-        
+                
     end
 
     %March:
@@ -1026,9 +947,6 @@ function [save_vars, model_l, model_g] = ...
             R_l             = sol_n.fesl.mesh.x_faces(end);
             R_g             = sol_n.fesg.mesh.x_faces(end);
             NF_tau          = Deltat_n;
-            
-            %Stabilization parameters:
-            model_l.tau_g   = max(1e-6, C_Stab*Deltat_n);
 
             %Scaling vectors and multiplicity:
             Sy_factors      = [ R_l; R_g; NF_l; NF_g; NF_l(1:end-1); NF_g(1:end); 
@@ -1078,12 +996,6 @@ function [save_vars, model_l, model_g] = ...
             A_n_fact        = { 1.0; 
                                 1.0;
                                 LUFactorization(Srinv{3}*A_n{3}*Sy(block_ul(1):end, block_ul(1):end)) };
-                    
-%             %DEBUG: Numerical evaluation of the Jacobian:
-%             [~,Jscaled]     = ScaledResidualFun(diag(Sy).\yv_np1, true, 2);
-%             A_n_fact        = { 1.0; 
-%                                 1.0;
-%                                 LUFactorization(sparse(Jscaled(block_ul(1):end, block_ul(1):end))) };
             
             %Loop stages:
             NLS_iters       = 0;

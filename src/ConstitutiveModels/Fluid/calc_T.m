@@ -34,8 +34,8 @@ function g = PrecResidual(T)
 end
 
 % [T, Iteration, flag]    = NewtonRaphsonLS(@Residual, T0, 0.0, 1e-8, 100, 100);
-[T, Iteration, flag]    = NewtonRaphson(@Residual, T0, 0.0, 1e-8, 100);
-% [T, Iteration, flag]    = Anderson(@PrecResidual, T0, 1e-8, 100, 0);
+% [T, Iteration, flag]    = NewtonRaphson(@Residual, T0, 0.0, 1e-8, 100);
+[T, Iteration, flag]    = Anderson(@PrecResidual, T0, 0.0, 1e-8, 100, 1, 'off');
 
 T = reshape(T,m,n); % T[nElems x (2*p+1)] = T_m
 

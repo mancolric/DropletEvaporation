@@ -443,6 +443,7 @@ function [f, df_du, df_du_dx, df_dq] = ...
     
     %Evaluate convective, diffusive and penalty fluxes:
     [fc, dfc_duL]               = f_ALE(model, uL, ComputeJ);
+%     [fc, dfc_duR]               = f_ALE(model, uR, ComputeJ);
     [fd, dfd_duL, dfd_duL_dx]   = f_diffusive(model, uL, duL_dx, ComputeJ);
     [fp, dfp_duL, dfp_duR]      = f_penalty(model, uL, uR, hp, ComputeJ);
     
@@ -462,6 +463,11 @@ function [f, df_du, df_du_dx, df_dq] = ...
                df_duR{II,JJ}    = dfp_duR{II,JJ};
                df_duL_dx{II,JJ} = dfd_duL_dx{II,JJ};
            end
+%            for JJ=1:model.nVars
+%                df_duL{II,JJ}    = dfd_duL{II,JJ} + dfp_duL{II,JJ};
+%                df_duR{II,JJ}    = dfc_duR{II,JJ} + dfp_duR{II,JJ};
+%                df_duL_dx{II,JJ} = dfd_duL_dx{II,JJ};
+%            end
        end
     end
     
