@@ -1046,8 +1046,7 @@ function [save_vars, model_l, model_g] = ...
                 %   M^(n+1) err^(n+1)   = Deltat_n * sum_j (bhat_j-b) k_j
                 b_err           = Deltat_n*(kDAE_l_RK(1:model_l.nDiff*sol_n.fesl.nDof,:)*(RKmethod.bhatI-RKmethod.bI));
                 err_np1         = cell(model_l.nDiff, 1);
-                Mm_II           = MassMatrix(sol_np1.fesl);
-                Mm_II_F         = LUFactorization(Mm_II);
+                Mm_II_F         = LUFactorization(MassMatrix(sol_np1.fesl));
                 for II=1:model_l.nDiff
                     err_np1{II} = LUSolve(Mm_II_F,b_err((II-1)*sol_np1.fesl.nDof+1:II*sol_np1.fesl.nDof));
                 end
@@ -1055,9 +1054,9 @@ function [save_vars, model_l, model_g] = ...
                 %Idem for gas:
                 b_err           = Deltat_n*(kDAE_g_RK(1:model_g.nDiff*sol_np1.fesg.nDof,:)*(RKmethod.bhatI-RKmethod.bI));
                 err_np1         = cell(model_g.nDiff, 1);
-                Mm_II           = LUFactorization(MassMatrix(sol_np1.fesg));
+                Mm_II_F         = LUFactorization(MassMatrix(sol_np1.fesg));
                 for II=1:model_g.nDiff
-                    err_np1{II} = LUSolve(Mm_II,b_err((II-1)*sol_np1.fesg.nDof+1:II*sol_np1.fesg.nDof));
+                    err_np1{II} = LUSolve(Mm_II_F,b_err((II-1)*sol_np1.fesg.nDof+1:II*sol_np1.fesg.nDof));
                 end
                 etaT_g          = LqNorm(err_np1, NF_g(1:model_g.nDiff), sol_np1.fesg, 2);
                 %Total error:
