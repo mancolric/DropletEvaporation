@@ -170,21 +170,21 @@ function [save_vars, model_l, model_g] = ...
     %GENERATE MESHES:
     
     %Function to solve hmin*(1+r+r^2+...+r^(N-1))=L:
-    function [f,J]=MeshFactor(r, hmin, nElems, L)
-        f       = sum(r.^(0:nElems-1)) - L/hmin;
-        J       = dot(1:nElems-1, r.^(0:nElems-2));
+    function [f,J]=MeshFactor(mr, hmin, nElems, L)
+        f       = sum(mr.^(0:nElems-1)) - L/hmin;
+        J       = dot(1:nElems-1, mr.^(0:nElems-2));
     end
     %Find mesh factors. Note that the equation above is ill conditioned. It
     %is necessary to start from r_max, which is defined in such a way that 
     %   hmin*r_max^(N-1)=L
     %It is clear that r<r_max, otherwise, hmin(1+r+r^2+...+r^(N-1))>L.
-    [r_l, ~, flag]  = NewtonRaphson(...
+    [mr_l, ~, flag] = NewtonRaphson(...
                         @(r, ComputeJ) MeshFactor(r, hmin_l, nElems_l, x_lg), ...
                         (x_lg/hmin_l)^(1/(nElems_l-1)), 1e-2*x_lg, 0.0, 200);
     if flag<0
         error('Unable to generate mesh for liquid phase')
     end
-    [r_g, ~, flag]  = NewtonRaphson(...
+    [mr_g, ~, flag] = NewtonRaphson(...
                         @(r, ComputeJ) MeshFactor(r, hmin_g, nElems_g, x_g-x_lg), ...
                         ((x_g-x_lg)/hmin_g)^(1/(nElems_g-1)), 1e-2*(x_g-x_lg), 0.0, 200);
     if flag<0
@@ -192,10 +192,10 @@ function [save_vars, model_l, model_g] = ...
     end
     
     %Generate meshes:
-    hElems_l        = hmin_l*r_l.^(nElems_l-1:-1:0);
+    hElems_l        = hmin_l*mr_l.^(nElems_l-1:-1:0);
     xmesh_l         = [ 0.0, cumsum(hElems_l) ];
     xmesh_l(end)    = x_lg;
-    hElems_g        = hmin_g*r_g.^(0:nElems_g-1);
+    hElems_g        = hmin_g*mr_g.^(0:nElems_g-1);
     xmesh_g         = x_lg + [ 0.0, cumsum(hElems_g) ];
     xmesh_g(end)    = x_g;
     
@@ -215,10 +215,10 @@ function [save_vars, model_l, model_g] = ...
 
     %Display minimum mesh sizes:
     disp([  'hmin_l=', sprintf('%.2E', min(hElems_l)), ...
-            ', r_l=', sprintf('%.2E', r_l), ...
+            ', r_l=', sprintf('%.2E', mr_l), ...
             ', hmax_g=', sprintf('%.2E', max(hElems_l))])
     disp([  'hmin_g=', sprintf('%.2E', min(hElems_g)), ...
-            ', r_g=', sprintf('%.2E', r_g), ...
+            ', r_g=', sprintf('%.2E', mr_g), ...
             ', hmax_g=', sprintf('%.2E', max(hElems_g))])
     disp(' ')
     
@@ -256,9 +256,10 @@ function [save_vars, model_l, model_g] = ...
     [rho_g_ini,y_g_ini] = calc_rho_y(rhoy_g_ini,model_g);
     
     %Calculate estimated evaporation time (if known, add manually):
-    t_evap      = calc_t_evap(T_inf,y_inf,model_l,model_g,mass_fracL,fuel_names,x_lg);
-%     t_evap      = 0.1;
-
+%     t_evap      = calc_t_evap(T_inf,y_inf,model_l,model_g,mass_fracL,fuel_names,x_lg);
+    t_evap      = 0.1;
+    warning('t_Evap')
+    
     %Distribution of the saved time instants: 55% are saved in the first 20% of the 
     %simulation and the remaining 45% in the final 80% of the simulation (MODIFIABLE)
     earlySaveFraction = 0.55;
@@ -524,16 +525,12 @@ function [save_vars, model_l, model_g] = ...
         sol_np1.ul{nDAE_l+1}                = P1ToPX(wmesh_l_np1, sol_np1.fesl);
         sol_np1.ug{nDAE_g+1}                = P1ToPX(wmesh_g_np1, sol_np1.fesg);
         
-        %Update matrices for new mesh:
+        %Update meshes and finite element spaces:
         mesh_l_np1          = Mesh_Spheric_Create(xmesh_l_np1);
         sol_np1.fesl        = FES_PX_Create(mesh_l_np1, p);
-        mass_l_np1          = MassMatrix(sol_np1.fesl);
-        Mm_l_np1            = MassMatrixExpand(mass_l_np1, model_l.nDiff, model_l.nAlg);
         %
         mesh_g_np1          = Mesh_Spheric_Create(xmesh_g_np1);
         sol_np1.fesg        = FES_PX_Create(mesh_g_np1, p);
-        mass_g_np1          = MassMatrix(sol_np1.fesg);
-        Mm_g_np1            = MassMatrixExpand(mass_g_np1, model_g.nDiff, model_g.nAlg);
         
 %         PlotFun(sol_np1)
         
@@ -557,18 +554,21 @@ function [save_vars, model_l, model_g] = ...
         %Compute term due to fluxes and restriction:
         [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
                 CG_fgQ(model_l, sol_np1.t, sol_np1.ul, sol_np1.fesl, ComputeJ);
-            
+        
+        %Term Mu and derivatives:
+        [Mul, dMul_dul, dMul_dxmeshl]   = MuProduct(sol_np1.fesl, sol_np1.ul(1:model_l.nDiff), ComputeJ);
+        
         %Residuals and Jacobians:
-        r_l                             = Mm_l_np1*CellToVector(sol_np1.ul(1:nDAE_l)) - bDAE_l_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_l_RK(:,is);
+        r_l                             = zeros(N_ul+N_vl, 1);
+        r_l(1:N_ul)                     = Mul - bDAE_l_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_l_RK(1:N_ul,is);                  
         r_l(N_ul+1:N_ul+N_vl)           = - RKmethod.aI(is,is)*Deltat_n * kDAE_l_RK(N_ul+1:N_ul+N_vl,is);
         if ComputeJ
             
             %Derivatives of equations related to liquid:
             aux                         = dfDAE_duw_l.jv<=nDAE_l*sol_np1.fesl.nDof; 
-            [M_iv, M_jv, M_sv]          = find(Mm_l_np1);
-            J_l.iv                      = cat(1, M_iv, dfDAE_duw_l.iv(aux));
-            J_l.jv                      = cat(1, M_jv, dfDAE_duw_l.jv(aux));
-            J_l.sv                      = cat(1, M_sv, -RKmethod.aI(2,2)*Deltat_n*dfDAE_duw_l.sv(aux));
+            J_l.iv                      = cat(1, dMul_dul.iv, dfDAE_duw_l.iv(aux));
+            J_l.jv                      = cat(1, dMul_dul.jv, dfDAE_duw_l.jv(aux));
+            J_l.sv                      = cat(1, dMul_dul.sv, -RKmethod.aI(2,2)*Deltat_n*dfDAE_duw_l.sv(aux));
             
             %Derivatives w.r.t. qL:
             J_lz.iv                     = dfDAE_dqL.iv;
@@ -584,12 +584,25 @@ function [save_vars, model_l, model_g] = ...
                                                     sol_np1.fesl.nDof);
             dwnodes_dw                  = (xmesh_l_np1-xmesh_l_np1(1))/...
                                             (xmesh_l_np1(end)-xmesh_l_np1(1));
-            %df_i/dw = df_i/dwLeg_j * dwLeg_j/dwNodes_k * dwNodes_k/dw: 
+            %df_i/dw = df_i/dwNodes_j * dwNodes_j/dw: 
             dfDAE_dw                    = dfDAE_dwLag*P1ToPX(dwnodes_dw, sol_np1.fesl);
             J_lz.iv                     = cat(1, J_lz.iv, (1:nDAE_l*sol_np1.fesl.nDof).' );
             J_lz.jv                     = cat(1, J_lz.jv, repmat(N_L+N_R+1, nDAE_l*sol_np1.fesl.nDof, 1));
             J_lz.sv                     = cat(1, J_lz.sv, -RKmethod.aI(2,2)*Deltat_n*dfDAE_dw);
-            
+            %Derivative of mass matrix due to mesh motion:
+            %   d(m_ij u_j)/dw = d(m_ij u_j)/dxnode_k * dxnode_k/dwnode_l *
+            %                       dwnode_l/dw,
+            %   dxnode_k/dwnode_l = Deltatn*a_ii 
+            dMul_dxmeshl                = sparse(dMul_dxmeshl.iv, ...
+                                                    dMul_dxmeshl.jv, ...
+                                                    dMul_dxmeshl.sv, ...
+                                                    N_ul, length(xmesh_l_np1));
+            dMul_dw                     = Deltat_n*RKmethod.aI(2,2) * ...
+                                            ( dMul_dxmeshl*dwnodes_dw );
+            J_lz.iv                     = cat(1, J_lz.iv, (1:N_ul).' );
+            J_lz.jv                     = cat(1, J_lz.jv, repmat(N_L+N_R+1, N_ul, 1));
+            J_lz.sv                     = cat(1, J_lz.sv, dMul_dw);
+                                                
         end
         
         %Impose null velocity at origin:
@@ -614,18 +627,21 @@ function [save_vars, model_l, model_g] = ...
         %Compute term due to fluxes and restriction:
         [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
                     CG_fgQ(model_g, sol_np1.t, sol_np1.ug, sol_np1.fesg, ComputeJ);
+
+        %Term Mu and derivatives:
+        [Mug, dMug_dug, dMug_dxmeshg]   = MuProduct(sol_np1.fesg, sol_np1.ug(1:model_g.nDiff), ComputeJ);
         
         %Residuals and Jacobians:
-        r_g                             = Mm_g_np1*CellToVector(sol_np1.ug(1:nDAE_g)) - bDAE_g_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_g_RK(:,is);
+        r_g                             = zeros(N_ug+N_vg, 1);
+        r_g(1:N_ug)                     = Mug - bDAE_g_ii - RKmethod.aI(is,is)*Deltat_n * kDAE_g_RK(1:N_ug,is);
         r_g(N_ug+1:N_ug+N_vg)           = - RKmethod.aI(is,is)*Deltat_n * kDAE_g_RK(N_ug+1:N_ug+N_vg,is);
         if ComputeJ
             
             %Derivatives of equations related to gas:
             aux                         = dfDAE_duw_g.jv<=nDAE_g*sol_np1.fesg.nDof; 
-            [M_iv, M_jv, M_sv]          = find(Mm_g_np1);
-            J_g.iv                      = cat(1, M_iv, dfDAE_duw_g.iv(aux));
-            J_g.jv                      = cat(1, M_jv, dfDAE_duw_g.jv(aux));
-            J_g.sv                      = cat(1, M_sv, -RKmethod.aI(2,2)*Deltat_n*dfDAE_duw_g.sv(aux));
+            J_g.iv                      = cat(1, dMug_dug.iv, dfDAE_duw_g.iv(aux));
+            J_g.jv                      = cat(1, dMug_dug.jv, dfDAE_duw_g.jv(aux));
+            J_g.sv                      = cat(1, dMug_dug.sv, -RKmethod.aI(2,2)*Deltat_n*dfDAE_duw_g.sv(aux));
  
             %Derivatives w.r.t. qR:
             J_gz.iv                     = dfDAE_dqR.iv;
@@ -641,11 +657,24 @@ function [save_vars, model_l, model_g] = ...
                                                     sol_np1.fesg.nDof);
             dwnodes_dw                  = (xmesh_g_np1-xmesh_g_np1(end))/...
                                             (xmesh_g_np1(1)-xmesh_g_np1(end));
-            %df_i/dw = df_i/dwLeg_j * dwLeg_j/dwNodes_k * dwNodes_k/dw: 
+            %df_i/dw = df_i/dwNodes_j * dwNodes_j/dw: 
             dfDAE_dw                    = dfDAE_dwLag*P1ToPX(dwnodes_dw, sol_np1.fesg);
             J_gz.iv                     = cat(1, J_gz.iv, (1:nDAE_g*sol_np1.fesg.nDof).' );
             J_gz.jv                     = cat(1, J_gz.jv, repmat(N_L+N_R+1, nDAE_g*sol_np1.fesg.nDof, 1));
             J_gz.sv                     = cat(1, J_gz.sv, -RKmethod.aI(2,2)*Deltat_n*dfDAE_dw);
+            %Derivative of mass matrix due to mesh motion:
+            %   d(m_ij u_j)/dw = d(m_ij u_j)/dxnode_k * dxnode_k/dwnode_l *
+            %                       dwnode_l/dw,
+            %   dxnode_k/dwnode_l = Deltatn*a_ii 
+            dMug_dxmeshg                = sparse(dMug_dxmeshg.iv, ...
+                                                    dMug_dxmeshg.jv, ...
+                                                    dMug_dxmeshg.sv, ...
+                                                    N_ug, length(xmesh_g_np1));
+            dMug_dw                     = Deltat_n*RKmethod.aI(2,2) * ...
+                                            ( dMug_dxmeshg*dwnodes_dw );
+            J_gz.iv                     = cat(1, J_gz.iv, (1:N_ug).' );
+            J_gz.jv                     = cat(1, J_gz.jv, repmat(N_L+N_R+1, N_ug, 1));
+            J_gz.sv                     = cat(1, J_gz.sv, dMug_dw);
             
         end
         
@@ -846,12 +875,12 @@ function [save_vars, model_l, model_g] = ...
             J.jv    = cat(1, J_l.jv, J_lz.jv+N_l+N_g, ...
                             J_g.jv+N_l, J_gz.jv+N_l+N_g, ...
                             J_zl.jv, J_zg.jv+N_l, J_z.jv+N_l+N_g);
-            J.sv    = cat(1, J_l.sv, 1.0*J_lz.sv, ... 
-                            J_g.sv, 1.0*J_gz.sv, ...
-                            0.0*J_zl.sv, 0.0*J_zg.sv, J_z.sv);
-%             J.sv    = cat(1, J_l.sv, J_lz.sv, ... 
-%                             J_g.sv, J_gz.sv, ...
-%                             J_zl.sv, J_zg.sv, J_z.sv);
+%             J.sv    = cat(1, J_l.sv, 1.0*J_lz.sv, ... 
+%                             J_g.sv, 1.0*J_gz.sv, ...
+%                             0.0*J_zl.sv, 0.0*J_zg.sv, J_z.sv);
+            J.sv    = cat(1, J_l.sv, J_lz.sv, ... 
+                            J_g.sv, J_gz.sv, ...
+                            J_zl.sv, J_zg.sv, J_z.sv);
             J       = { 1.0, ...
                         1.0, ...
                         sparse(J.iv(:), J.jv(:), J.sv(:), ...
@@ -982,13 +1011,15 @@ function [save_vars, model_l, model_g] = ...
             %"Solve" first stage. Although the solution is clearly *_ii=*_n, 
             %we need this step to compute the Jacobian:
             bmesh_l_ii      = sol_n.fesl.mesh.x_faces;
-            Mm_l_ii         = MassMatrixExpand(MassMatrix(sol_n.fesl), model_l.nDiff, 0);
-            My1_l           = cat(1, Mm_l_ii*yv_n(block_ul), zeros(sol_np1.fesl.nDof,1));
+%             Mm_l_ii         = MassMatrixExpand(MassMatrix(sol_n.fesl), model_l.nDiff, 0);
+%             My1_l           = cat(1, Mm_l_ii*yv_n(block_ul), zeros(sol_np1.fesl.nDof,1));
+            My1_l           = MuProduct(sol_n.fesl, sol_n.ul(1:model_l.nDiff), false);
             bDAE_l_ii       = My1_l;
             %
             bmesh_g_ii      = sol_n.fesg.mesh.x_faces;
-            Mm_g_ii         = MassMatrixExpand(MassMatrix(sol_n.fesg), model_g.nDiff, 0);
-            My1_g           = cat(1, Mm_g_ii*yv_n(block_ug), zeros(sol_np1.fesg.nDof,1));
+%             Mm_g_ii         = MassMatrixExpand(MassMatrix(sol_n.fesg), model_g.nDiff, 0);
+%             My1_g           = cat(1, Mm_g_ii*yv_n(block_ug), zeros(sol_np1.fesg.nDof,1));
+            My1_g           = MuProduct(sol_n.fesg, sol_n.ug(1:model_g.nDiff), false);
             bDAE_g_ii       = My1_g;
         
             %Save derivatives k(:,1) and Jacobian for first stage:
@@ -1006,9 +1037,9 @@ function [save_vars, model_l, model_g] = ...
             
                 %Auxiliary vectors:
                 bmesh_l_ii          = sol_n.fesl.mesh.x_faces + Deltat_n * (kmesh_l_RK(:,1:ii-1)*RKmethod.aI(ii,1:ii-1).');
-                bDAE_l_ii           = My1_l + Deltat_n * (kDAE_l_RK(:,1:ii-1)*RKmethod.aI(ii,1:ii-1).');
+                bDAE_l_ii           = My1_l + Deltat_n * (kDAE_l_RK(1:N_ul,1:ii-1)*RKmethod.aI(ii,1:ii-1).');
                 bmesh_g_ii          = sol_n.fesg.mesh.x_faces + Deltat_n * (kmesh_g_RK(:,1:ii-1)*RKmethod.aI(ii,1:ii-1).');
-                bDAE_g_ii           = My1_g + Deltat_n * (kDAE_g_RK(:,1:ii-1)*RKmethod.aI(ii,1:ii-1).');
+                bDAE_g_ii           = My1_g + Deltat_n * (kDAE_g_RK(1:N_ug,1:ii-1)*RKmethod.aI(ii,1:ii-1).');
                 
                 %Call nonlinear solver. Derivatives are already saved in kDAE
                 %and kmesh. Variables xmesh_ii, wmesh_ii, ..., Mm_ii are also
@@ -1019,12 +1050,12 @@ function [save_vars, model_l, model_g] = ...
                                                     @(yhat)PrecResidualFun(yhat,ii), ...
                                                         diag(Sy).\yv_np1, ...
                                                         sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50, 'final');
-                yv_np1              = Sy*yscaled_np1;
+                yv_np1                          = Sy*yscaled_np1;
                 if NLSFlag<0
                     break
                 else
                 end
-                NLS_iters           = NLS_iters + nIters/(RKmethod.s-1);
+                NLS_iters                       = NLS_iters + nIters/(RKmethod.s-1);
                 
             end
         

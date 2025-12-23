@@ -57,3 +57,40 @@ display(J2(block_z-i0, block_z(end)-i0))
 Jscaled_F   = LUFactorization(J2);
 x           = LUSolve(Jscaled_F, fscaled);
 disp('OK')
+
+%-----------------------
+
+%DEBUG:
+        Mu0                 = Mm_l_np1*CellToVector(sol_np1.ul(1:nDAE_l));
+        [Mu, dMu_du, dMu_dx]= MuProduct(sol_np1.fesl, sol_np1.ul(1:model_l.nDiff), true);
+        dMu_du              = sparse(dMu_du.iv, dMu_du.jv, dMu_du.sv, ...
+                                nDAE_l*sol_np1.fesl.nDof, nDAE_l*sol_np1.fesl.nDof);
+        dMu_dx              = sparse(dMu_dx.iv, dMu_dx.jv, dMu_dx.sv, ...
+                                model_l.nDiff*sol_np1.fesl.nDof, sol_np1.fesl.mesh.nElems+1);
+        mesh                = sol_np1.fesl.mesh;
+        x0                  = mesh.x_faces;
+        delta               = 1e-5;
+        dMu_dx_num          = zeros(size(dMu_dx));
+        for ii=1:mesh.nElems+1
+            xpert           = x0;
+            xpert(ii)       = x0(ii)-delta;
+            mesh            = Mesh_Spheric_Create(xpert);
+            fes             = FES_PX_Create(mesh, p);
+            Mu_pert1        = MuProduct(fes, sol_np1.ul(1:model_l.nDiff), false);
+            
+            xpert           = x0;
+            xpert(ii)       = x0(ii)+delta;
+            mesh            = Mesh_Spheric_Create(xpert);
+            fes             = FES_PX_Create(mesh, p);
+            Mu_pert2        = MuProduct(fes, sol_np1.ul(1:model_l.nDiff), false);
+            
+            dMu_dx_num(:,ii)    = (Mu_pert2-Mu_pert1)/(2*delta);
+        end
+            
+        figure(); 
+        [i,j,s]             = find(dMu_dx);
+        plot(s, 'x-b')
+        s2                  = dMu_dx_num((j-1)*size(dMu_dx,1)+i);
+        hold on
+        plot(s2, '+-r')
+        error(' aa ')
