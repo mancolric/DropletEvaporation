@@ -47,7 +47,7 @@ Tr=T/Tc;% [adimensional]
 
 % #########################################################################
 % Propiedades HEPTANO: Kee-CHEMKIN (lambda_v, Dif_mix), NASA Polynomials
-% (Cpv), NIST (Lv, Pvap), Perrys (resto)
+% (Cpv), NIST (Lv, Pvap), Perrys (resto), NASA (Hf)
 % #########################################################################
 if strcmpi(comb,'heptano')
     
@@ -203,7 +203,7 @@ if strcmpi(comb,'heptano')
     
 % #########################################################################
 % Propiedades HEXANO:  Kee-CHEMKIN (lambda_v, Dif_mix), 
-%  NIST (Lv, Pvap), Perrys (resto)
+%  NIST (Lv, Pvap), Perrys (resto), NASA (Hf)
 % #########################################################################
 elseif strcmpi(comb,'hexano')
       
@@ -286,6 +286,11 @@ elseif strcmpi(comb,'hexano')
             % peligroso extrapolar...
             C1=0.22492; C2=-0.0003533; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
+
+            % Entalpía de formación, 'Hf' [J/Kg]
+            % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+            value=-166.92*1000/(MW/1000);
         end
         
         
@@ -305,6 +310,11 @@ elseif strcmpi(comb,'hexano')
                     disp('### [Hexano] AVISO: T fuera de rango en cálculo mu_v. Se extrapolará ###')
                 end
             end
+            
+            % Entalpía de formación, 'Hf' [J/Kg]
+            % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+            value=-166.92*1000/(MW/1000);
             
           % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp') %PERRYS (no está en el NASA Polynomials)
@@ -328,6 +338,7 @@ elseif strcmpi(comb,'hexano')
     
     % #########################################################################
     % ______Propiedades OCTANO: Kee-CHEMKIN (lambda_v, Dif_mix), Perrys (resto)
+    %                           NASA (Hf)
     % #########################################################################
 elseif strcmpi(comb,'octano') 
     
@@ -409,6 +420,11 @@ elseif strcmpi(comb,'octano')
             % peligroso extrapolar...
             C1=0.2156; C2=-0.00029483; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
+
+            % Entalpía de formación, 'Hf' [J/Kg]
+            % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+            value=-208.75*1000/(MW/1000);
         end
         
         
@@ -435,7 +451,8 @@ elseif strcmpi(comb,'octano')
                     disp('### AVISO: Temperatura fuera de rango ###')
                 end
             end
-            
+        elseif strcmpi(propiedad,'Hf')
+            value=-208.75*1000/(MW/1000); 
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp') % Perrys Handbook 
             C1=1.3554E+05; C2=4.431E+05; C3=1.6356E+03; C4=3.054E+05; C5=746.4;
@@ -563,6 +580,11 @@ elseif strcmpi(comb,'dodecano')
             % peligroso extrapolar...
             C1=0.2047; C2=-0.0002326; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
+
+            % Entalpía de formación, 'Hf' [J/Kg]
+            % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+            value=-290.9*1000/(MW/1000);
         end
         
         
@@ -589,7 +611,10 @@ elseif strcmpi(comb,'dodecano')
                     disp('### AVISO: Temperatura fuera de rango ###')
                 end
             end
-            
+
+        elseif strcmpi(propiedad,'Hf')
+            value=-290.9*1000/(MW/1000);
+
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')
             C1=2.1295E+05; C2=6.633E+05; C3=1.7155E+03; C4=4.5161E+05; C5=777.5;
@@ -691,6 +716,11 @@ elseif strcmpi(comb,'tetradecano')
             % peligroso extrapolar...
             C1=0.20293; C2=-0.00021798; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
+
+            % Entalpía de formación, 'Hf' [J/Kg]
+            % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+            value=-332.1*1000/(MW/1000);
         end
         
         
@@ -717,7 +747,10 @@ elseif strcmpi(comb,'tetradecano')
                     disp('### AVISO: Temperatura fuera de rango ###')
                 end
             end
-            
+        
+        elseif strcmpi(propiedad,'Hf')
+            value=-332.1*1000/(MW/1000);
+
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')
             C1=2.3082E+05; C2=7.8678E+05; C3=1.6823E+03; C4=5.4486E+05; C5=743.1;
@@ -819,6 +852,12 @@ elseif strcmpi(comb,'hexadecano')
             % peligroso extrapolar...
             C1=0.20749; C2=-0.00021917; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
+
+            % Entalpía de formación, 'Hf' [J/Kg]
+            % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+            value=-374.9*1000/(MW/1000);
+
         end
         
         
@@ -845,6 +884,9 @@ elseif strcmpi(comb,'hexadecano')
                     disp('### AVISO: Temperatura fuera de rango ###')
                 end
             end
+
+        elseif strcmpi(propiedad,'Hf')
+            value=-374.9*1000/(MW/1000);
             
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')
@@ -954,6 +996,12 @@ elseif strcmpi(comb,'eicosano')
             % peligroso extrapolar...
             C1=0.2178; C2=-0.0002233; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
+
+            % Entalpía de formación, 'Hf' [J/Kg]
+            % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+            value=-455.8*1000/(MW/1000);
+
         end
         
         % Propiedades EICOSANO(vap.), todas en función de la Temperatura en K.
@@ -979,7 +1027,10 @@ elseif strcmpi(comb,'eicosano')
                     disp('### AVISO: Temperatura fuera de rango ###')
                 end
             end
-            
+         
+        elseif strcmpi(propiedad,'Hf')
+            value=-455.8*1000/(MW/1000);
+
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')
             C1=3.2481E+05; C2=11.09E+05; C3=1.636E+03; C4=7.45E+05; C5=726.27;
@@ -1084,6 +1135,11 @@ elseif strcmpi(comb,'metanol')  % POR COMPLETAR
             % peligroso extrapolar...
             C1=0.2837; C2=-0.000281; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
+        
+        % Entalpía de formación, 'Hf' [J/Kg]
+        % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+                value=-200.94*1000/(MW/1000);
         end
         
         
@@ -1100,6 +1156,10 @@ elseif strcmpi(comb,'metanol')  % POR COMPLETAR
                 value=(10^-7)*exp(A*log(T)+B/T+C/(T^2)+D);
             end
             
+
+        elseif strcmpi(propiedad,'Hf')
+                value=-200.94*1000/(MW/1000);
+
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')
             C1=0.39252E+05; C2=0.879E+05; C3=1.9165E+03; C4=0.53654E+05; C5=896.7;
@@ -1205,6 +1265,11 @@ elseif strcmpi(comb,'etanol')
             % peligroso extrapolar...
             C1=0.2468; C2=-0.000264; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
+
+        % Entalpía de formación, 'Hf' [J/Kg]
+        % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+                value=-234.95*1000/(MW/1000);
         end
         
         
@@ -1220,7 +1285,10 @@ elseif strcmpi(comb,'etanol')
                 A=0.62692259; B=-0.65829493E+02; C=-0.47946575E+05; D=0.13535012E+01;
                 value=(10^-7)*exp(A*log(T)+B/T+C/(T^2)+D);
             end
-            
+
+        elseif strcmpi(propiedad,'Hf')
+                value=-234.95*1000/(MW/1000);
+
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')
             % NASA polynomial fit
@@ -1327,6 +1395,12 @@ elseif strcmpi(comb,'butanol')
             % peligroso extrapolar...
             C1=0.2136; C2=-0.0002034; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
+
+            % Entalpía de formación, 'Hf' [J/Kg]
+            % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+                value=-277.0*1000/(MW/1000);
+
         end
         
         
@@ -1354,7 +1428,10 @@ elseif strcmpi(comb,'butanol')
                     disp('### AVISO: Temperatura fuera de rango ###')
                 end
             end
-            
+
+        elseif strcmpi(propiedad,'Hf')
+                value=-277.0*1000/(MW/1000);
+
             % Calor específico a presión constante, 'cp' [J/kg.K]
             % Perrys... no está en NASA
         elseif strcmpi(propiedad,'cp')
@@ -1461,6 +1538,11 @@ elseif strcmpi(comb,'acetona')
             % peligroso extrapolar...
             C1=0.2878; C2=-0.000427; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
+
+        % Entalpía de formación, 'Hf' [J/Kg]
+        % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+                value=-217.15*1000/(MW/1000);
         end
         
         
@@ -1487,7 +1569,10 @@ elseif strcmpi(comb,'acetona')
                     disp('### AVISO: Temperatura fuera de rango ###')
                 end
             end
-            
+
+        elseif strcmpi(propiedad,'Hf')
+            value=-217.15*1000/(MW/1000);
+
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')
             C1=0.5704E+05; C2=1.632E+05; C3=1.6073E+03; C4=0.968E+05; C5=731.5;
@@ -1588,6 +1673,11 @@ elseif strcmpi(comb,'naftaleno')
             % peligroso extrapolar...
             C1=0.17096; C2=-0.00010059; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
+
+        % Entalpía de formación, 'Hf' [J/Kg]
+        % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+                value=150.58*1000/(MW/1000);
         end
         
         % Propiedades NAFTALENO(vap.), todas en función de la Temperatura en K.
@@ -1613,7 +1703,10 @@ elseif strcmpi(comb,'naftaleno')
                     disp('### AVISO: Temperatura fuera de rango ###')
                 end
             end
-            
+
+        elseif strcmpi(propiedad,'Hf')
+                value=150.58*1000/(MW/1000);
+                
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')
             C1=0.6805E+05; C2=3.5494E+05; C3=1.4262E+03; C4=2.5984E+05; C5=650.1;
@@ -1708,6 +1801,11 @@ elseif strcmpi(comb,'glicerina')
             % Relacion no-lineal (como en Perrys) pero casi... parece razonable extrapolar
             % cerca de los limites de Tmin y Tmax...
             value=10^(-0.3550 - 0.2097*(1-T/723)^(2/7)); % 293-550 K
+
+        % Entalpía de formación, 'Hf' [J/Kg]
+        % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+                value=-577.9*1000/(MW/1000);
         end
    
         % Propiedades GLICERINA(vap.), todas en función de la Temperatura en K.
@@ -1732,7 +1830,10 @@ elseif strcmpi(comb,'glicerina')
                     disp('### AVISO: Temperatura fuera de rango ###')
                 end
             end
-            
+
+        elseif strcmpi(propiedad,'Hf')
+                value=-577.9*1000/(MW/1000);
+
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')
             if (298 <= T)&&(T <= 1200)
@@ -1852,7 +1953,11 @@ elseif strcmpi(comb,'1-metilnaftaleno')
             % Por lo tanto:
             A=A_ast*(Tb^alpha)/((MW^betta)*(Tc^gamma));
             value=(A*(1-Tr)^0.38)/(Tr^(1/6));
-
+        
+        % Entalpía de formación, 'Hf' [J/Kg]
+        % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+                value=116.9*1000/(MW/1000);
         end
         
         % Propiedades 1-METILNAFTALENO(vap.), todas en función de la Temperatura en K.
@@ -1874,6 +1979,9 @@ elseif strcmpi(comb,'1-metilnaftaleno')
                 disp('### AVISO: Temperatura fuera de rango ###')
             end
             
+        elseif strcmpi(propiedad,'Hf')
+                value=116.9*1000/(MW/1000);
+
             % Calor específico a presión constante, 'cp' [J/kg.K]
             % Poling et al., The Properties of Gases and Liquids, pp. A.44
         elseif strcmpi(propiedad,'cp')
