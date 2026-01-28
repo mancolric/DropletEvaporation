@@ -40,7 +40,7 @@ Save              = true; % Save results to file (true/false)
                            % NOTE: if true, PlotRes must be false
                            
 n_saved_solutions = 3000;   % Number of solution snapshots to save throughout simulation
-n_saves           = 5;    % Number of intermediate "safety saves" during simulation
+n_saves           = 0;    % Number of intermediate "safety saves" during simulation
 
 % ---------------------- INITIAL AND BOUNDARY CONDITIONS ------------------
 
@@ -53,8 +53,8 @@ T_inf             = 1400;       % Ambient (far-field) temperature [K]
 
 % --------------------------- SPECIES DEFINITION --------------------------
 
-fuel_names        = {'Butanol'};              % Fuel components
-mass_fracL        = {1.0};                             % Mass fraction of each fuel component (same order as above)
+fuel_names        = {'Butanol', 'Heptano'};              % Fuel components
+mass_fracL        = {0.9, 0.1};                             % Mass fraction of each fuel component (same order as above)
 inert_comps       = {'N2', 'O2', 'CO2', 'H2O'};             % Inert gas species (DO NOT MODIFY)
 mass_fracG        = {1.0, 0.0, 0.0, 0.0};          % Mass fraction of each inert species in the gas phase (same order as above)
 

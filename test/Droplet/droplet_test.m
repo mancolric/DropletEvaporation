@@ -929,7 +929,7 @@ function [save_vars, model_l, model_g] = ...
     times_triggered = false(size(target_times));
     t_prev          = sol_n.t;
     t_save          = DeltaSaveI;
-    save_vars       = cell(10,4000);
+    save_vars       = cell(17,100);
     Nt              = 0;
     yv_n            = cat(1,    sol_n.fesl.mesh.x_faces, ...
                                 sol_n.fesg.mesh.x_faces, ...
@@ -1213,22 +1213,23 @@ function [save_vars, model_l, model_g] = ...
             
             num_sol_l  = EvalSolution(sol_n.ul, sol_n.fesl, 1:sol_n.fesl.mesh.nElems, xiplot);
             num_sol_g  = EvalSolution(sol_n.ug, sol_n.fesg, 1:sol_n.fesg.mesh.nElems, xiplot);
-    
+
             rhoy_l     = cell(model_l.nSpecies,1);
             for j = 1:model_l.nSpecies
                 rhoy_l{j} = num_sol_l{j}; 
             end
+            [~,y_liq]  = calc_rho_y(rhoy_l, model_l);
             rhoy_g     = cell(model_g.nSpecies,1);
             for j = 1:model_g.nSpecies
                 rhoy_g{j} = num_sol_g{j}; 
             end
+            [~,y_gas]  = calc_rho_y(rhoy_g, model_g);
             save_rhoy_g = rhoy_g(model_g.nInerts+1:model_g.nSpecies);
             H_l         = num_sol_l{model_l.nDiff};
             T_l         = calc_T(H_l,rhoy_l,model_l);
             save_Tc     = T_l(1,1);
     
             v_l         = num_sol_l{model_l.nDiff+1};
-            save_v_l    = v_l(end,end);
             w           = sol_n.w;
     
             mesh_L      = sol_n.fesl.mesh;
@@ -1245,26 +1246,67 @@ function [save_vars, model_l, model_g] = ...
             for j = 1:model_g.nSpecies
                 rhoy_qg{j} = num_sol_qg(j); 
             end
-            [~,y_ql]         = calc_rho_y(rhoy_ql, model_l);
-            [rho_qg,y_qg]    = calc_rho_y(rhoy_qg, model_g);
-            save_y_ql        = CellToVector(y_ql);
-            save_y_qg        = CellToVector(y_qg);
+            [rho_qg,~]    = calc_rho_y(rhoy_qg, model_g);
             H_ql             = sol_n.qL(model_l.nSpecies+1);
             save_Ts          = calc_T(H_ql,rhoy_ql,model_l);
-            v_qg             = num_sol_qg(model_g.nSpecies+2);
-            save_v_g         = v_qg;
-            save_m           = rho_qg(1,1)*(v_qg-w);
-    
+                
+            %Temperature Profiles
+            save_Tl    = calc_T(num_sol_l{model_l.nSpecies + 1},rhoy_l,model_l);
+            save_Tg    = calc_T(num_sol_g{model_g.nSpecies + 1},rhoy_g,model_g);
+            
+            %Velocities Profiles
+            save_vl    = num_sol_l{model_l.nSpecies + 2};
+            save_vg    = num_sol_g{model_g.nSpecies + 2};
+
+            %Evaporated mass fraction
+            save_mi2   = num2cell(cell2mat(rhoy_ql)*(v_l(end,end)-w));
+            %Fluxes q_d and q_total
+            uN              = EvalSolution(sol_n.ul, sol_n.fesl,...
+                                [sol_n.fesl.mesh.nElems], [1.0]);
+            duN_dx          = EvalSolution_dx(sol_n.ul, sol_n.fesl,...
+                                [sol_n.fesl.mesh.nElems], [1.0]); %cell(nVars,1)
+            save_f_total    = model_l.ftildeN(model_l, sol_n.t, sol_n.fesl.mesh.x_faces(end),...
+                                uN, duN_dx,(sol_n.fesl.mesh.x_faces(end)-sol_n.fesl.mesh.x_faces(end-1))/p,...
+                                false);
+            save_f_total    = -save_f_total{model_l.nSpecies + 1};
+            save_f_s        = sum(cell2mat([save_mi2]).* model_l.Lv');
+            save_f_d        = save_f_total - save_f_s;
+
+            %Position of the points
+            save_x_l        = PhysicalCoordinates(sol_n.fesl.mesh, xiplot);
+            save_x_g        = PhysicalCoordinates(sol_n.fesg.mesh, xiplot);
+
+            %From matrices to vectors
+            y_liq = cellfun(@(M) reshape(M', [], 1), y_liq, 'UniformOutput', false);
+            y_gas = cellfun(@(M) reshape(M', [], 1), y_gas, 'UniformOutput', false);
+            save_rhoy_g = cellfun(@(M) reshape(M', [], 1),...
+                save_rhoy_g, 'UniformOutput', false);
+
+            save_Tl         = reshape(save_Tl', [], 1);
+            save_Tg         = reshape(save_Tg', [], 1);
+            save_vl         = reshape(save_vl', [], 1);
+            save_vg         = reshape(save_vg', [], 1);
+            save_x_l        = reshape(save_x_l', [], 1);
+            save_x_g        = reshape(save_x_g', [], 1);
+
+
             save_vars{1,Nt}  = sol_n.t;
             save_vars{2,Nt}  = save_Ts;
             save_vars{3,Nt}  = save_Tc;
-            save_vars{4,Nt}  = save_y_ql;
-            save_vars{5,Nt}  = save_y_qg;
-            save_vars{6,Nt}  = save_m;
+            save_vars{4,Nt}  = y_liq;
+            save_vars{5,Nt}  = y_gas;
+            save_vars{6,Nt}  = save_mi2;
             save_vars{7,Nt}  = save_d;
             save_vars{8,Nt}  = save_rhoy_g;
-            save_vars{9,Nt}  = save_v_l;
-            save_vars{10,Nt} = save_v_g;
+            save_vars{9,Nt}  = save_vl;
+            save_vars{10,Nt} = save_vg;
+            save_vars{11,Nt} = save_Tl;
+            save_vars{12,Nt} = save_Tg;
+            save_vars{13,Nt} = save_f_total;
+            save_vars{14,Nt} = save_f_d;
+            save_vars{15,Nt} = save_f_s;
+            save_vars{16,Nt} = save_x_l;
+            save_vars{17,Nt} = save_x_g;
 
             Guide =[
                 "Time [s]";
@@ -1272,11 +1314,18 @@ function [save_vars, model_l, model_g] = ...
                 "Temperature at the center [K]";
                 "Mass fraction in the liquid";
                 "Mass fraction in the gas";
-                "Evaporated mass flow [kg/s]";
+                "Evaporated mass flow [kg/s/m2]";
                 "Diameter [m]";
                 "Density by mass fraction in gas [kg/m3]";
                 "Velocity field in the liquid [m/s]";
-                "Velocity field in the gas [m/s]"
+                "Velocity field in the gas [m/s]";
+                "Temperature field in the liquid [K]";
+                "Temperature field in the gas [K]";
+                "Total Heat through surface [W/m2]";
+                "Latent Heat through surface [W/m2]";
+                "Sensible Heat through surface [W/m2]";
+                "Liquid Field point positions [m]";
+                "Gas Field point positions [m]"
             ];
     
             t = sol_n.t;
