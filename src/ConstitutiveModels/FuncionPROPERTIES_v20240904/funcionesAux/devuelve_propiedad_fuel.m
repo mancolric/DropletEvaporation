@@ -145,10 +145,14 @@ if strcmpi(comb,'heptano')
             C1=0.215; C2=-0.000303; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
 
-        % Entalpía de formación, 'Hf' [J/Kg]
-        % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+            % Entalpía de formación, 'Hf' [J/Kg]
+            % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
         elseif strcmpi(propiedad,'Hf')
                 value=-187.78*1000/(MW/1000);
+        
+                %Molecular weight [Kg/mol]
+        elseif strcmpi(propiedad,'MW')
+            value=(MW/1000);
         end
         
         
@@ -181,6 +185,26 @@ if strcmpi(comb,'heptano')
             % Entalpía de formación, 'Hf' [J/Kg]
         elseif strcmpi(propiedad,'Hf')
                 value=-187.78*1000/(MW/1000);
+                
+            %Molecular weight [Kg/mol]
+        elseif strcmpi(propiedad,'MW')
+            value=(MW/1000);
+
+            % Ctes Arrhenius, 'Arr'[Activation energy, 
+            %                       Preexponential factor,
+            %                       Temperature exponent]
+        elseif strcmpi(propiedad,'Arr')
+            value=[280, 18.5, -0.48];
+
+            %Products stoichiometric coefficients, 'PSoi'
+            %   [N2, O2, CO2, H2O, Heptano]
+        elseif strcmpi(propiedad,'PSoi')
+            value=[0.0, 0.0, 7.0, 8.0, 0.0];
+
+            %Reactivos stoichiometric coefficients, 'PSoi'
+            %   [N2, O2, CO2, H2O, Heptano]
+        elseif strcmpi(propiedad,'RSoi')
+            value=[0.0, 11.0, 0.0, 0.0, 1.0];
 
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')

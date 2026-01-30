@@ -1,11 +1,5 @@
 function value = calcula_Hf(obj, bool_liq)
 
-% Realmente NO se calcula el Lv de una mezcla, sino que se evalúan por
-% separado cada uno de los valores de Lv de cada componente. Se utiliza
-% esta función como intermediaria entre actualiza_gota y devuelve_propiedad
-% tan solo por mantener la coherencia con respecto al resto de
-% propiedades:
-
 if bool_liq
 N_comb=length(obj.tipo_combustible);
 
