@@ -12,6 +12,14 @@ function umean = Lqmean(u, fes, q)
     nVars       = length(u_qp);
     umean       = zeros(nVars, 1);
     
+    %Return maximum values if q=Inf:
+    if q==Inf
+        for II=1:nVars
+            umean(II)   = norm(u_qp{II},Inf);
+        end
+        return
+    end
+    
     %Compute domain volume:
     Omega       = mesh.J.' * omega_qp * QuadRule.w;
     
