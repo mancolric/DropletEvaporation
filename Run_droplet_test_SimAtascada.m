@@ -33,10 +33,10 @@ TolT              = 1e-4;  % Tolerance for temporal error (<1e-3) (used if TimeA
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = true;  % Plot intermediate results (true/false)
+PlotRes           = false;  % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
-Save              = false; % Save results to file (true/false)
+Save              = true; % Save results to file (true/false)
                            % NOTE: if true, PlotRes must be false
                            
 n_saved_solutions = 500;   % Number of solution snapshots to save throughout simulation
@@ -53,8 +53,8 @@ T_inf             = 1730;       % Ambient (far-field) temperature [K]
 
 % --------------------------- SPECIES DEFINITION --------------------------
 
-fuel_names        = {'Heptano'};                    % Fuel components
-mass_fracL        = {1.00};                         % Mass fraction of each fuel component (same order as above)
+fuel_names        = {'Heptano', 'Butanol'};                    % Fuel components
+mass_fracL        = {0.6, 0.4};                         % Mass fraction of each fuel component (same order as above)
 inert_comps       = {'N2', 'O2', 'CO2', 'H2O'};     % Inert gas species (DO NOT MODIFY)
 mass_fracG        = {0.79, 0.0, 0.0, 0.21};  % Mass fraction of each inert species in the gas phase (same order as above)
 
