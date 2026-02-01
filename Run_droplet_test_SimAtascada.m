@@ -53,6 +53,7 @@ T_inf             = 1400;       % Ambient (far-field) temperature [K]
 
 % --------------------------- SPECIES DEFINITION --------------------------
 
+<<<<<<< HEAD
 fuel_names        = {'Heptano'};              % Fuel components
 mass_fracL        = {1.0};                             % Mass fraction of each fuel component (same order as above)
 inert_comps       = {'N2', 'O2', 'CO2', 'H2O'};             % Inert gas species (DO NOT MODIFY)
