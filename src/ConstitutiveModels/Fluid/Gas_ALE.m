@@ -9,17 +9,43 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
     model.frac_masG   = frac_masG;
     model.species     = [model.comp_inerts , fuel_names];
     model.nSpecies    = length(model.species);
+    model.nFuels      = model.nSpecies-model.nInerts;
     model.C           = 1000;
     model.CW          = 50.0;         %Penalty coefficient
-    function Q=Qfun(~,x)
+    model.R           = 8.3145;       % Universal Gas Cte [J/mol/K]
+    % function Q=Qfun(~,x)
+    %     Q             = cell(model.nDiff,1);
+    %     for II=1:model.nDiff
+    %         Q{II}     = 0.0*x;
+    %     end
+    % end
+
+    function Q=Qfun(model, T, rhoy, x)
         Q             = cell(model.nDiff,1);
+        omega         = cell(model.nFuels,1);
+        k             = cell(model.nFuels,1);
+        C             = cell(model.nSpecies,1);
+        CROrder       = cell(model.nSpecies,model.nFuels);
+        for KK=1:model.nSpecies
+            C{KK}               = rhoy{KK}./model.species_mw(KK);
+            for JJ=1:model.nFuels
+                CROrder{KK,JJ}   = C{KK}.^ model.ROrder(JJ+model.nInerts,min(KK,model.nInerts+1));
+            end
+        end
+        % CRStoi_nn     = CRStoi(cellfun(@(x) any(x, 'all'), CRStoi));
+        CROrder_nn       = CROrder;
+        for JJ=1:model.nFuels
+            k{JJ}     = model.Arr(JJ+model.nInerts,2)*T.^model.Arr(JJ+model.nInerts ,3).*...
+                            exp(-model.Arr(JJ+model.nInerts,1)./(model.R.*T));
+            omega{JJ} = k{JJ}.*prod(cat(3, CROrder_nn{:,JJ}), 3);
+        end
         for II=1:model.nDiff
             Q{II}     = 0.0*x;
         end
-    end 
+    end
     model.Q           = @Qfun;
     model.u1          = @(t) {    1.0;
-                                  1.0;
+                                  1.0; 
                                   1.0;
                                   1.0     };
     model.uN          = @(t) {    1.0;
@@ -32,9 +58,10 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
     model.Hf          = calcula_Hf(model, model.bool_liq);
     model.Arr         = calcula_Arrhenius(model, model.bool_liq);
     model.RStoi       = calcula_R_Stoichiometric(model, model.bool_liq);
+    model.ROrder      = calcula_ReactionOrders(model, model.bool_liq);
     model.PStoi       = calcula_P_Stoichiometric(model, model.bool_liq);
     model.fuel_mw     = calcula_fuel_mw(model, model.bool_liq);
-    model.speciex_mw  = cat(2,model.Inerts_mw, model.fuel_mw);
+    model.species_mw  = cat(2,model.Inerts_mw, model.fuel_mw);
     model.Tmin        = 300; 
     model.Tmax        = 1700;
     model.P           = 101325;
@@ -85,7 +112,7 @@ function [  f, df_du, df_du_dx, ...
     end
     
     %Source:
-    Q                       = model.Q(t,x);
+    Q                       = model.Q(model, T, rhoy, x);
     [dQ_du, dQ_du_dx]       = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, rhoy{1});
     
     %Restriction:
