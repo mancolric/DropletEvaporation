@@ -9,10 +9,10 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
-nElems_l          = 10;    % Number of elements in the liquid phase
-nElems_g          = 12;    % Number of elements in the gas phase
-hmin_l            = 1e-6;  
-hmin_g            = 1e-6; 
+nElems_l          = 10*4;    % Number of elements in the liquid phase
+nElems_g          = 12*4;    % Number of elements in the gas phase
+hmin_l            = 1e-6/4;  
+hmin_g            = 1e-6/4; 
 p                 = 5;     % Degree of the polynomial basis functions
 
 Deltat0           = 1e-6;  % Initial time step
@@ -29,7 +29,7 @@ t_final           = 1e2;   % Final simulation time
                            % set a value larger than the expected final time
 
 TimeAdapt         = true;  % Enable adaptive time-stepping (true/false)
-TolT              = 1e-4;  % Tolerance for temporal error (<1e-3) (used if TimeAdapt = true)
+TolT              = 1e-7;  % Tolerance for temporal error (<1e-3) (used if TimeAdapt = true)
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
@@ -39,8 +39,8 @@ PlotRes           = false;  % Plot intermediate results (true/false)
 Save              = true; % Save results to file (true/false)
                            % NOTE: if true, PlotRes must be false
                            
-n_saved_solutions = 500;   % Number of solution snapshots to save throughout simulation
-n_saves           = 2;    % Number of intermediate "safety saves" during simulation
+n_saved_solutions = 100;   % Number of solution snapshots to save throughout simulation
+n_saves           = 1;    % Number of intermediate "safety saves" during simulation
 
 % ---------------------- INITIAL AND BOUNDARY CONDITIONS ------------------
 
@@ -49,19 +49,19 @@ XRad              = 150;        % Domain size (in gas phase) as a multiple of th
 R_end_percent     = 0.2;       % Final droplet size as a fraction of initial radius (when Save = true)
 
 T_0               = 300;        % Initial temperature at the center of the droplet [K]
-T_inf             = 1730;       % Ambient (far-field) temperature [K]
+T_inf             = 1400;       % Ambient (far-field) temperature [K]
 
 % --------------------------- SPECIES DEFINITION --------------------------
 
-fuel_names        = {'Heptano', 'Butanol'};                    % Fuel components
-mass_fracL        = {0.6, 0.4};                         % Mass fraction of each fuel component (same order as above)
+fuel_names        = {'Butanol'};                    % Fuel components
+mass_fracL        = {1.0};                         % Mass fraction of each fuel component (same order as above)
 inert_comps       = {'N2', 'O2', 'CO2', 'H2O'};     % Inert gas species (DO NOT MODIFY)
 mass_fracG        = {0.79, 0.0, 0.0, 0.21};  % Mass fraction of each inert species in the gas phase (same order as above)
 
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 
 % Run the full droplet evaporation simulation from t = 0
-[save_vars] = droplet_test(nElems_l, nElems_g, hmin_l, hmin_g, p, Deltat0, t_final, ...
+[save_vars] = droplet_test_times(nElems_l, nElems_g, hmin_l, hmin_g, p, Deltat0, t_final, ...
     TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
     n_saves);
