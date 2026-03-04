@@ -22,26 +22,32 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
 
     function Q=Qfun(model, T, rhoy, x)
         Q             = cell(model.nDiff,1);
-        omega         = cell(model.nFuels,1);
-        k             = cell(model.nFuels,1);
-        C             = cell(model.nSpecies,1);
-        CROrder       = cell(model.nSpecies,model.nFuels);
-        for KK=1:model.nSpecies
-            C{KK}               = rhoy{KK}./model.species_mw(KK);
-            for JJ=1:model.nFuels
-                CROrder{KK,JJ}   = C{KK}.^ model.ROrder(JJ+model.nInerts,min(KK,model.nInerts+1));
-            end
-        end
-        % CRStoi_nn     = CRStoi(cellfun(@(x) any(x, 'all'), CRStoi));
-        CROrder_nn       = CROrder;
-        for JJ=1:model.nFuels
-            k{JJ}     = model.Arr(JJ+model.nInerts,2)*T.^model.Arr(JJ+model.nInerts ,3).*...
-                            exp(-model.Arr(JJ+model.nInerts,1)./(model.R.*T));
-            omega{JJ} = k{JJ}.*prod(cat(3, CROrder_nn{:,JJ}), 3);
-        end
-        for II=1:model.nDiff
-            Q{II}     = 0.0*x;
-        end
+
+        C             = cellfun(@(r, mw) r ./ mw, rhoy, num2cell(model.species_mw(:)), 'UniformOutput', false);
+        MatrixExpo    = model.ROrder((1:model.nFuels) + model.nInerts, min(1:model.nSpecies, model.nInerts+1)).';
+        CROrder       = cellfun(@(c, exp) abs(c).^exp, repmat(C, 1, model.nFuels), num2cell(MatrixExpo), 'UniformOutput', false);
+        
+        % for JJ=1:model.nFuels           % JJ = number of reactions
+        %     k{JJ}     = model.Arr(JJ+model.nInerts,2)*T.^model.Arr(JJ+model.nInerts ,3).*...
+        %                     exp(-model.Arr(JJ+model.nInerts,1)./(model.R.*T));
+        %     omega{JJ} = k{JJ}.*prod(cat(3, CROrder{:,JJ}), 3);
+        % end
+
+        idx_Arr = (1:model.nFuels) + model.nInerts;
+        A1 = model.Arr(idx_Arr, 1);
+        A2 = model.Arr(idx_Arr, 2);
+        A3 = model.Arr(idx_Arr, 3);
+        calc_omega = @(j) (A2(j) * T.^A3(j) .* exp(-A1(j) ./ (model.R .* T))) .* prod(cat(3, CROrder{:,j}), 3);
+        omega = arrayfun(calc_omega, (1:model.nFuels)', 'UniformOutput', false);
+        % for II=2:model.nDiff
+        %     for JJ=1:model.nFuels
+        %         omega_DiffS{JJ}   = omega{JJ}.*model.DiffStoi(JJ+model.nInerts,II-1); 
+        %     end
+        %     Q{II} = model.species_mw(II-1) .* sum(cat(3, omega_DiffS{:}), 3);
+        % end
+        Omega3D = cat(3, omega{:});
+        calc_Q = @(ii) model.species_mw(ii-1) .* sum(Omega3D .* reshape(model.DiffStoi((1:model.nFuels)+model.nInerts, ii-1), 1, 1, []), 3);
+        Q(2:model.nDiff) = arrayfun(calc_Q, (2:model.nDiff)', 'UniformOutput', false);
     end
     model.Q           = @Qfun;
     model.u1          = @(t) {    1.0;
@@ -60,6 +66,7 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
     model.RStoi       = calcula_R_Stoichiometric(model, model.bool_liq);
     model.ROrder      = calcula_ReactionOrders(model, model.bool_liq);
     model.PStoi       = calcula_P_Stoichiometric(model, model.bool_liq);
+    model.DiffStoi    = model.PStoi - model.RStoi;
     model.fuel_mw     = calcula_fuel_mw(model, model.bool_liq);
     model.species_mw  = cat(2,model.Inerts_mw, model.fuel_mw);
     model.Tmin        = 300; 
