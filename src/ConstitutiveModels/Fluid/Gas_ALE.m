@@ -138,8 +138,9 @@ function [  f, df_du, df_du_dx, ...
             
             %Evaluate Y_pert, T_pert and rhobar_pert:
             [~, Y_pert]         = calc_rho_y(rhoY_pert, model);
-            T_pert              = calc_T(H, rhoY_pert, model);
+            T_pert             = calc_T(H, rhoY_pert, model);
             rho_bar_pert1       = calc_rho(model, Y_pert, T_pert);
+            Q_pert1             = model.Q(model, T, rhoY_pert, x);
             
             %Perturb rhoY again:
             rhoY_pert           = rhoy;
@@ -147,11 +148,13 @@ function [  f, df_du, df_du_dx, ...
             
             %Evaluate Y_pert, T_pert and rhobar_pert:
             [~, Y_pert]         = calc_rho_y(rhoY_pert, model);
-            T_pert              = calc_T(H, rhoY_pert, model);
+            T_pert             = calc_T(H, rhoY_pert, model);
             rho_bar_pert2       = calc_rho(model, Y_pert, T_pert);
+            Q_pert2             = model.Q(model, T, rhoY_pert, x);
             
             %Add contribution of rho_bar:
             dg_du{1,II}         = 1.0 - (rho_bar_pert2-rho_bar_pert1)/(2*delta);
+            dQ_du{1,II}         = (Q_pert2 - Q_pert1)/(2*delta);
             
         end
         
@@ -164,19 +167,22 @@ function [  f, df_du, df_du_dx, ...
             
             %Evaluate rho_bar:
             Y_pert              = y;
-            T_pert              = calc_T(H_pert, rhoy, model);
+            T_pert             = calc_T(H_pert, rhoy, model);
             rho_bar_pert1       = calc_rho(model, Y_pert, T_pert);
+            Q_pert1             = model.Q(model, T_pert, rhoy, x);
             
             %Perturb H again:
             H_pert              = H + delta;
             
             %Evaluate rho_bar:
             Y_pert              = y;
-            T_pert              = calc_T(H_pert, rhoy, model);
+            T_pert             = calc_T(H_pert, rhoy, model);
             rho_bar_pert2       = calc_rho(model, Y_pert, T_pert);
+            Q_pert2             = model.Q(model, T_pert, rhoy, x);
         
             %Add contribution of rho_bar:
             dg_du{1,II}         = - (rho_bar_pert2-rho_bar_pert1)/(2*delta);
+            dQ_du{1,II}         = (Q_pert2 - Q_pert1)/(2*delta);
             
         end
         
