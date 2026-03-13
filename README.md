@@ -55,6 +55,5 @@ Javier Ballester (Universidad de Zaragoza)
 
 ### Cite as
 
-(Por determinar)
-
+D. Betrán, A. Gutiérrez, M.Colera, A.Muelas, J.Ballester, 2026: Droplet Evaporation, [https://github.com/mancolric/DropletEvaporation/](https://github.com/mancolric/DropletEvaporation/).
 
