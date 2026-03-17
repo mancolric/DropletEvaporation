@@ -329,7 +329,7 @@ function [save_vars, model_l, model_g] = ...
     
     %Plot during simulation (modificable):
     if PlotRes
-        fig1                = figure();
+        fig1                = figure(1);
         fig1.Units          = 'normalized';
         fig1.OuterPosition  = [0.5 0 1 1];
     end  
@@ -362,7 +362,7 @@ function [save_vars, model_l, model_g] = ...
             rhobar_g    = calc_rho(model_g, y_g, T_g);
             w_l         = num_sol_l{model_l.nDiff+2};
             w_g         = num_sol_g{model_g.nDiff+2};
-            
+
             %Extract boundary conditions:
             num_sol_ql  = sol.qL;
             num_sol_qg  = sol.qR;
@@ -455,7 +455,18 @@ function [save_vars, model_l, model_g] = ...
             title(['v_g, w_g, t=', sprintf('%.4E', sol.t)])
             grid on
 %             xlim([0,1e-4])
-            
+
+            hold off
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            figure(2)
+            title(['Y, t=', sprintf('%.4E', sol.t)])
+            for kk=1:length(y_g)
+                plot(MatTranspVec(xplot_g), MatTranspVec(rhoy_g{kk}))
+                hold on
+            end
+            legend("N2", "O2", "CO2", "H20", "Fuel")
+            hold off
         end
     end
     PlotFun(sol_n)

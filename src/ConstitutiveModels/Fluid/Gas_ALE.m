@@ -21,6 +21,10 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
     % end
 
     function Q=Qfun(model, T, rhoy, x)
+
+        rhoy = cellfun(@(M) M .* (abs(M) >= 1e-9), rhoy, 'UniformOutput', false);
+
+        [rho_m,y]     = calc_rho_y(rhoy,model);
         Q             = cell(model.nDiff,1);
 
         C             = cellfun(@(r, mw) r ./ mw, rhoy, num2cell(model.species_mw(:)), 'UniformOutput', false);
@@ -37,7 +41,7 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
         A1 = model.Arr(idx_Arr, 1);
         A2 = model.Arr(idx_Arr, 2);
         A3 = model.Arr(idx_Arr, 3);
-        calc_omega = @(j) (A2(j) * T.^A3(j) .* exp(-A1(j) ./ (model.R .* T))) .* prod(cat(3, CROrder{:,j}), 3);
+        calc_omega = @(j) 1e-8 .* (A2(j) * T.^A3(j) .* exp(-A1(j) ./ (model.R .* T))) .* prod(cat(3, CROrder{:,j}), 3);
         omega = arrayfun(calc_omega, (1:model.nFuels)', 'UniformOutput', false);
         % for II=2:model.nDiff
         %     for JJ=1:model.nFuels
@@ -46,8 +50,21 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
         %     Q{II} = model.species_mw(II-1) .* sum(cat(3, omega_DiffS{:}), 3);
         % end
         Omega3D = cat(3, omega{:});
-        calc_Q = @(ii) model.species_mw(ii-1) .* sum(Omega3D .* reshape(model.DiffStoi((1:model.nFuels)+model.nInerts, ii-1), 1, 1, []), 3);
-        Q(2:model.nDiff) = arrayfun(calc_Q, (2:model.nDiff)', 'UniformOutput', false);
+        % calc_Q = @(ii) model.species_mw(ii-1) .* sum(Omega3D .* reshape(model.DiffStoi((1:model.nFuels)+model.nInerts, ii-1), 1, 1, []), 3);
+        % Q(2:model.nDiff) = arrayfun(calc_Q, (2:model.nDiff)', 'UniformOutput', false);
+
+        calc_Q = @(kk) model.species_mw(kk) .* sum(Omega3D .* reshape(model.DiffStoi((1:model.nFuels)+model.nInerts, kk), 1, 1, []), 3);
+        Q(1:model.nSpecies) = arrayfun(calc_Q, (1:model.nSpecies)', 'UniformOutput', false);
+        Q{end}                  = zeros(size(Q{end-1}));
+
+        figure(3)
+        for jj=1:5
+            plot(reshape(x',[size(x,2)*size(x,1), 1]), reshape(Q{jj}',[size(Q{jj},2)*size(Q{jj},1), 1]))
+            hold on
+        end
+        hold off
+
+        % Q               = repmat({zeros(12, 11)}, 6, 1);
     end
     model.Q           = @Qfun;
     model.u1          = @(t) {    1.0;
@@ -70,7 +87,7 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
     model.fuel_mw     = calcula_fuel_mw(model, model.bool_liq);
     model.species_mw  = cat(2,model.Inerts_mw, model.fuel_mw);
     model.Tmin        = 300; 
-    model.Tmax        = 1700;
+    model.Tmax        = 2500;
     model.P           = 101325;
     model.N_polyfit   = 5;
     model.matrix      = Polyfit_properties_pureCompounds(model.gota, model.comp_inerts, model.Tmin, model.Tmax, model.P, model.N_polyfit);
@@ -138,9 +155,10 @@ function [  f, df_du, df_du_dx, ...
             
             %Evaluate Y_pert, T_pert and rhobar_pert:
             [~, Y_pert]         = calc_rho_y(rhoY_pert, model);
-            T_pert             = calc_T(H, rhoY_pert, model);
+            T_pert              = calc_T(H, rhoY_pert, model);
             rho_bar_pert1       = calc_rho(model, Y_pert, T_pert);
             Q_pert1             = model.Q(model, T, rhoY_pert, x);
+            rhoY_pert1          = rhoY_pert;
             
             %Perturb rhoY again:
             rhoY_pert           = rhoy;
@@ -148,13 +166,14 @@ function [  f, df_du, df_du_dx, ...
             
             %Evaluate Y_pert, T_pert and rhobar_pert:
             [~, Y_pert]         = calc_rho_y(rhoY_pert, model);
-            T_pert             = calc_T(H, rhoY_pert, model);
+            T_pert              = calc_T(H, rhoY_pert, model);
             rho_bar_pert2       = calc_rho(model, Y_pert, T_pert);
             Q_pert2             = model.Q(model, T, rhoY_pert, x);
+            rhoY_pert2          = rhoY_pert;
             
             %Add contribution of rho_bar:
             dg_du{1,II}         = 1.0 - (rho_bar_pert2-rho_bar_pert1)/(2*delta);
-            dQ_du{1,II}         = (Q_pert2 - Q_pert1)/(2*delta);
+            dQ_du(:, II)        = cellfun(@(q2, q1) (q2 - q1) / (2 * delta), Q_pert2, Q_pert1, 'UniformOutput', false);
             
         end
         
@@ -182,7 +201,7 @@ function [  f, df_du, df_du_dx, ...
         
             %Add contribution of rho_bar:
             dg_du{1,II}         = - (rho_bar_pert2-rho_bar_pert1)/(2*delta);
-            dQ_du{1,II}         = (Q_pert2 - Q_pert1)/(2*delta);
+            dQ_du(:, II)        = cellfun(@(q2, q1) (q2 - q1) / (2 * delta), Q_pert2, Q_pert1, 'UniformOutput', false);
             
         end
         

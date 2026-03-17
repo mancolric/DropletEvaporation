@@ -10,12 +10,12 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
 nElems_l          = 10;    % Number of elements in the liquid phase
-nElems_g          = 12;    % Number of elements in the gas phase
+nElems_g          = 120;    % Number of elements in the gas phase
 hmin_l            = 1e-6;  
 hmin_g            = 1e-6; 
 p                 = 5;     % Degree of the polynomial basis functions
 
-Deltat0           = 1e-6;  % Initial time step
+Deltat0           = 1e-9;  % Initial time step
                            % If you get warnings like:
                            %   “Nonlinear solver did not converge at stage 2. Reducing time step”
                            %   or
@@ -29,14 +29,14 @@ t_final           = 1e2;   % Final simulation time
                            % set a value larger than the expected final time
 
 TimeAdapt         = true;  % Enable adaptive time-stepping (true/false)
-TolT              = 1e-4;  % Tolerance for temporal error (<1e-3) (used if TimeAdapt = true)
+TolT              = 1e-6;  % Tolerance for temporal error (<1e-3) (used if TimeAdapt = true)
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = false;  % Plot intermediate results (true/false)
+PlotRes           = true;  % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
-Save              = true; % Save results to file (true/false)
+Save              = false; % Save results to file (true/false)
                            % NOTE: if true, PlotRes must be false
                            
 n_saved_solutions = 3000;   % Number of solution snapshots to save throughout simulation
@@ -56,7 +56,7 @@ T_inf             = 1400;       % Ambient (far-field) temperature [K]
 fuel_names        = {'Heptano'};              % Fuel components
 mass_fracL        = {1.0};                             % Mass fraction of each fuel component (same order as above)
 inert_comps       = {'N2', 'O2', 'CO2', 'H2O'};             % Inert gas species (DO NOT MODIFY)
-mass_fracG        = {0.0, 1.0, 0.0, 0.0};          % Mass fraction of each inert species in the gas phase (same order as above)
+mass_fracG        = {0.79, 0.21, 0.0, 0.0};          % Mass fraction of each inert species in the gas phase (same order as above)
 
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 

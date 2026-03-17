@@ -194,7 +194,7 @@ if strcmpi(comb,'heptano')
             %                       Preexponential factor,
             %                       Temperature exponent]
         elseif strcmpi(propiedad,'Arr')
-            value=[280, 18.5, -0.48];
+            value=[30*4184, 5.1e11, -0.0];
 
             %Products stoichiometric coefficients, 'PSoi'
             %   [N2, O2, CO2, H2O, Heptano]
@@ -209,7 +209,7 @@ if strcmpi(comb,'heptano')
             %Reactant orders, 'ROrder'
             %   [N2, O2, CO2, H2O, Heptano]
         elseif strcmpi(propiedad,'ROrder')
-            value=[0.0, 1.7, 0.0, 0.0, 0.0477];
+            value=[0.0, 1.5, 0.0, 0.0, 0.25];
 
 
             % Calor específico a presión constante, 'cp' [J/kg.K]

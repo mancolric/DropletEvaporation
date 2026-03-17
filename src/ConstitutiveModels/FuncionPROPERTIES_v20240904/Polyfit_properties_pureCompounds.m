@@ -57,7 +57,8 @@ for id_compound=1:N_inerts
     Cp_gas(id_T) = calcula_Cp_gas_monocomponente(comp_inerts{id_compound}, T_eval);
 
     % Row 7: k_g [inert]
-    k_gas(id_T) = calcula_lambda_vapor_Kee(comp_inerts{id_compound}, 0, T_eval);
+    % k_gas(id_T) = calcula_lambda_vapor_Kee(comp_inerts{id_compound}, 0, T_eval);
+    k_gas(id_T) = 0.05;
 
    
     end

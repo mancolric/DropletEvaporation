@@ -63,3 +63,26 @@ end
 xlabel("$$r[m]$$", Interpreter="latex", FontSize=16)
 ylabel("$$Temperature [K]$$", Interpreter="latex", FontSize=16)
 legend(names, 'Interpreter','latex', 'Location','northwest', 'FontSize', 16);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%              Y_gas                 %%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Time_instant    = 60;
+disp("Time instant " + Time_instant + " correspond to t = " + save_vars{1,Time_instant})
+
+Y_gas           = save_vars{5,Time_instant};
+nSpecies        = length(Y_gas);
+names           = cell(nSpecies,1);
+x_gas           = [save_vars{17,Time_instant}];
+
+figure(3)
+hold on
+for ii=1:nSpecies
+    plot(x_gas, Y_gas{ii})
+    name        = "Specie " + ii;
+    names{ii}   = name;
+end
+
+xlabel("$$r[m]$$", Interpreter="latex", FontSize=16)
+ylabel("$$Temperature [K]$$", Interpreter="latex", FontSize=16)
+legend(names, 'Interpreter','latex', 'Location','northwest', 'FontSize', 16);
