@@ -13,13 +13,19 @@
 % w included in sol.ul and sol.ug
 
 function [save_vars, model_l, model_g] = ...
-    droplet_test(nElems_l, nElems_g, hmin_l, hmin_g, p, ...
+    droplet_test_times(nElems_l, nElems_g, hmin_l, hmin_g, p, ...
         Deltat0, t_final, TimeAdapt, TolT, ...
         PlotRes, Save, fuel_names, mass_fracL, ...
         inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, ...
         x_lg, XRad, R_end_percent, n_saves)
 
     tStart = tic;
+    tJacobTotal  = 0;
+    tMFactTotal  = 0;
+    tSolNLSTotal = 0;
+    tPropsTotal  = 0;
+    NLSiterTotal = 0;
+    CFL_vector   = zeros(1, 10000);
 
     %----------------------------------------------------------------------
     %DATA:
@@ -552,9 +558,11 @@ function [save_vars, model_l, model_g] = ...
         %IMPOSE DAE FOR LIQUID:
         
         %Compute term due to fluxes and restriction:
+        tPropsL = tic;
         [kDAE_l_RK(:,is),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
                 CG_fgQ(model_l, sol_np1.t, sol_np1.ul, sol_np1.fesl, ComputeJ);
-        
+        tPropsTotal = tPropsTotal + toc(tPropsL);
+
         %Term Mu and derivatives:
         [Mul, dMul_dul, dMul_dxmeshl]   = MuProduct(sol_np1.fesl, sol_np1.ul(1:model_l.nDiff), ComputeJ);
         
@@ -625,8 +633,10 @@ function [save_vars, model_l, model_g] = ...
         %IMPOSE DAE FOR GAS:
         
         %Compute term due to fluxes and restriction:
+        tPropsG = tic;
         [kDAE_g_RK(:,is),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
                     CG_fgQ(model_g, sol_np1.t, sol_np1.ug, sol_np1.fesg, ComputeJ);
+        tPropsTotal = tPropsTotal + toc(tPropsG);
 
         %Term Mu and derivatives:
         [Mug, dMug_dug, dMug_dxmeshg]   = MuProduct(sol_np1.fesg, sol_np1.ug(1:model_g.nDiff), ComputeJ);
@@ -1026,11 +1036,16 @@ function [save_vars, model_l, model_g] = ...
             bDAE_g_ii       = My1_g;
         
             %Save derivatives k(:,1) and Jacobian for first stage:
+            tJacob = tic;
             [~,A_n]         = ResidualFun(yv_np1, true, 1);
+            tJacobTotal = tJacobTotal + toc(tJacob);
+
+            tMFact = tic;
             A_n_fact        = { 1.0; 
                                 1.0;
                                 LUFactorization(Srinv{3}*A_n{3}*Sy(block_ul(1):end, block_ul(1):end)) };
-            
+            tMFactTotal = tMFactTotal + toc(tMFact);
+
             %Loop stages:
             NLS_iters       = 0;
             for ii=2:RKmethod.s 
@@ -1049,10 +1064,13 @@ function [save_vars, model_l, model_g] = ...
                 %modified according to the values of y. Deltat_CFL_n is
                 %also modified when solving the last stage:
                 NDOF                            = length(yv_np1); 
+                tSolNLS= tic;
                 [yscaled_np1, nIters, NLSFlag]  = Anderson(...
                                                     @(yhat)PrecResidualFun(yhat,ii), ...
                                                         diag(Sy).\yv_np1, ...
                                                         sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50, 'final');
+                tSolNLSTotal = tSolNLSTotal + toc(tSolNLS);
+
                 yv_np1                          = Sy*yscaled_np1;
                 if NLSFlag<0
                     break
@@ -1206,7 +1224,16 @@ function [save_vars, model_l, model_g] = ...
         sol_n       = sol_np1;
         yv_n        = yv_np1;
         tau_err_nm1 = tau_err_n;
-        
+
+        CFL_vector(Nt) = CFL_n;
+        CFL_max        = max(CFL_vector);
+        NLSiterTotal   = NLSiterTotal + NLS_iters;
+        NLSiterMean    = NLSiterTotal/Nt;
+        tJacobIter     = tJacobTotal/Nt;
+        tMFactIter     = tMFactTotal/Nt;
+        tSolNLSIter    = tSolNLSTotal/Nt;
+        tPropsIter     = tPropsTotal/Nt;
+
         %Plot results:
         PlotFun(sol_n)
         drawnow()
@@ -1336,7 +1363,7 @@ function [save_vars, model_l, model_g] = ...
                 sol_n_save{N_save+1} = sol_n;
                 disp('t has arrived at t_final')
                 simulationTime       = toc(tStart);
-                save(fullfile(folderName, 'Saved_solutionsEnd.mat'),'sol_n_save','simulationTime')
+                save(fullfile(folderName, 'Saved_solutionsEnd.mat'),'sol_n_save','simulationTime','NLSiterMean','tJacobIter','tMFactIter','tSolNLSIter','tPropsIter','Nt','CFL_vector','CFL_max')
                 save(fullfile(folderName, 'Saved_varsEnd.mat'),'save_vars','Guide','simulationTime')
                 disp("Simulation Time: " + simulationTime + " [s]")
                 return
@@ -1344,7 +1371,7 @@ function [save_vars, model_l, model_g] = ...
                 sol_n_save{N_save+1} = sol_n;
                 disp(['The surface of the droplet is less than ', sprintf('%.0f', R_end_percent * 100), '% of the surface of the initial one'])
                 simulationTime       = toc(tStart);
-                save(fullfile(folderName, 'Saved_solutionsEnd.mat'),'sol_n_save','simulationTime')
+                save(fullfile(folderName, 'Saved_solutionsEnd.mat'),'sol_n_save','simulationTime','NLSiterMean','tJacobIter','tMFactIter','tSolNLSIter','tPropsIter','Nt','CFL_vector','CFL_max')
                 save(fullfile(folderName, 'Saved_varsEnd.mat'),'save_vars','Guide','simulationTime')
                 disp("Simulation Time: " + simulationTime + " [s]")
                 return
@@ -1363,7 +1390,7 @@ function [save_vars, model_l, model_g] = ...
                         
                         simulationTime = toc(tStart);
 
-                        save(fullfile(folderName, Sol_name), 'sol_n_save','simulationTime');
+                        save(fullfile(folderName, Sol_name), 'sol_n_save','simulationTime','NLSiterMean','tJacobIter','tMFactIter','tSolNLSIter','tPropsIter','Nt','CFL_vector','CFL_max');
                         save(fullfile(folderName, Vars_name), 'save_vars','Guide','simulationTime');
 
                         times_triggered(ii) = true;

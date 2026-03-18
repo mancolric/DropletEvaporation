@@ -1,5 +1,8 @@
-function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ(model, t, usol, fes, ComputeJ)
+function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ_Baumgarte(model, t, usol, fes, ComputeJ, ...
+    Mm, NF, tau)
 
+    %NOTE: This function is only valid for DG.
+    
     mesh        = fes.mesh;
     p           = fes.p;
     QuadRule    = fes.QuadRule;
@@ -95,7 +98,7 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ(model, t, usol, fes, C
     omega_faces = mesh.omega(mesh.x_faces(2:end-1));
     hp_elems    = diff(mesh.x_faces)/fes.p;
     hp_faces    = 2.0./(1.0./hp_elems(1:nElems-1)+1.0./hp_elems(2:nElems));
-    
+
     %Fluxes at the nElems-1 internal faces:
     [fhat, dfhat_du_e, dfhat_dgradu_e, ...
         dfhat_du_w, dfhat_dgradu_w]     = model.ftilde(model, t, mesh.x_faces(2:end-1), ...
@@ -303,15 +306,23 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ(model, t, usol, fes, C
     %----------------------------------------------------------------------
     %RESTRICTION:
     
-    %int( g psi ):
+    %Instead of considering the restriction G(U)=0, which yields a DAE2, 
+    %we consider
+    %   H(U,V)  = dG/dU(U)*Udot(U,V) + G(U)/tau = 
+    %           = dG/dU(U)*M^{-1}*F(U,V) + G(U)/tau = 0
+    %The term dG/dU(U)*M^{-1}*F(U,V) is estimated via high-order finite
+    %differences.
+    
+    %Compute G(U) and derivatives:
+    G           = zeros(model.nAlg*fes.nDof, 1);
     for II=1:model.nAlg
-        dof     = (model.nDiff+II-1)*fes.nDof + fes.ElemsDof;
-        F(dof)  = (g_qp{II}.*womegaJ_qp) * psim;
+        dof     = (II-1)*fes.nDof + fes.ElemsDof;
+        G(dof)  = (g_qp{II}.*womegaJ_qp) * psim;
     end
     if ComputeJ
         
         %Allocate memory:
-        iv_g    = zeros(mesh.nElems, (p+1)*(p+1), model.nAlg, nVars);
+        iv_g    = zeros(mesh.nElems, (p+1)*(p+1), model.nAlg, model.nDiff);
         jv_g    = zeros(size(iv_g));
         sv_g    = zeros(size(iv_g));
         
@@ -322,8 +333,8 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ(model, t, usol, fes, C
         %int(dg/du psi psi + dg/d(du/dx) dpsi/dx psi):
         [imat, jmat]    = J_ElemsDof(fes.ElemsDof, fes.ElemsDof);
         for II=1:model.nAlg
-            for JJ=1:nVars
-                iv_g(:,:,II,JJ)     = imat + (model.nDiff+II-1)*fes.nDof;
+            for JJ=1:model.nDiff
+                iv_g(:,:,II,JJ)     = imat + (II-1)*fes.nDof;
                 jv_g(:,:,II,JJ)     = jmat + (JJ-1)*fes.nDof;
                 sv_g(:,:,II,JJ)     = (dg_du_qp{II,JJ}.*womegaJ_qp) * UpsilonNN + ...
                                         (dg_dgradu_qp{II,JJ}.*Jinv_qp.*womegaJ_qp) * UpsilonNG;
@@ -332,13 +343,112 @@ function [F, dF_dU, dF_dq1, dF_dqN, Deltat_CFL] = FEM_fgQ(model, t, usol, fes, C
         
     end
     
+    %Compute Udot = M^{-1} F(U,V):
+    Udot                = cell(model.nDiff, 1);
+    Mm_F                = LUFactorization(Mm);
+    Udot_rnorm          = zeros(model.nDiff, 1);
+    for II=1:model.nDiff
+        dof             = (II-1)*fes.nDof + (1:fes.nDof);
+        Udot{II}        = LUSolve(Mm_F, F(dof));
+        Udot_rnorm(II)  = norm(Udot{II},Inf)/NF(II);
+    end
+    udot_qp         = EvalSolution(Udot, fes, 1:mesh.nElems, QuadRule.xi);
+    dudot_dx_qp     = EvalSolution_dx(Udot, fes, 1:mesh.nElems, QuadRule.xi);
+    
+    %Scale Udot's in such a way that the maximum relative norm is one:
+    Udot_scal       = max(Udot_rnorm);
+    
+    %Derivation nodes and weights:
+    epsilon         = 1e-4;
+    xi_deriv        = [-2.0, -1.0, 0.0, 1.0, 2.0]*epsilon;
+    w_deriv         = [1, -8, 0, 8, -1]/(12*epsilon);
+    
+    %Compute Gdot = dG/dU*Udot = ||Udot|| sum w_i G(U+xi_i*Udot/||Udot||):
+    Gdot            = zeros(model.nAlg*fes.nDof, 1);
+    Gpert           = zeros(model.nAlg*fes.nDof, 1);
+    for ideriv=1:length(w_deriv)
+        
+        %Compute G(U+xi(ideriv)*Udot):
+        if xi_deriv(ideriv)~=0.0
+            
+            %Compute U+xi_i*Udot:
+            upert_qp        = cell(model.nVars, 1);
+            dupert_dx_qp    = cell(model.nVars, 1);
+            for II=1:model.nDiff
+                upert_qp{II}        = u_qp{II} + xi_deriv(ideriv)*(udot_qp{II}/Udot_scal);
+                dupert_dx_qp{II}    = du_dx_qp{II} + xi_deriv(ideriv)*(dudot_dx_qp{II}/Udot_scal);
+            end
+            for II=model.nDiff+1:model.nVars
+                upert_qp{II}        = u_qp{II}*NaN;
+                dupert_dx_qp{II}    = du_dx_qp{II}*NaN;
+            end
+
+            %Evaluate restriction g(upert) and corresponding term G(Upert)
+%             g_qp            = model.g(model, t, x_qp, upert_qp, du_dx_pert, false);
+            [~, ~, ~, ~, ~, ~, g_qp, ~, ~, ~] = ...
+                model.fQg(model, t, x_qp, upert_qp, dupert_dx_qp, false);
+            for II=1:model.nAlg
+                dof         = (II-1)*fes.nDof + fes.ElemsDof;
+                Gpert(dof)  = (g_qp{II}.*womegaJ_qp) * psim;
+            end
+            
+        else
+            
+            Gpert   = G;
+            
+        end
+        
+        %Update Gdot:
+        Gdot        = Gdot + Udot_scal*(w_deriv(ideriv)*Gpert);
+        
+    end
+    
+    %Assemble Gdot + 1/tau*G into F:
+    F(model.nDiff*fes.nDof+1:end)   = Gdot + G/tau;
+    
     %----------------------------------------------------------------------
     %ASSEMBLY:
     
     if ComputeJ
-        dF_dU.iv    = cat(1, iv(:), iv_ee(:), iv_ew(:), iv_we(:), iv_ww(:), iv_11(:), iv_22(:), iv_g(:));
-        dF_dU.jv    = cat(1, jv(:), jv_ee(:), jv_ew(:), jv_we(:), jv_ww(:), jv_11(:), jv_22(:), jv_g(:));
-        dF_dU.sv    = cat(1, sv(:), sv_ee(:), sv_ew(:), sv_we(:), sv_ww(:), sv_11(:), sv_22(:), sv_g(:));                    
+        
+        %Note: there are three blocks: differential variables, algebraic 
+        %variables, other variables (such as mesh velocity). Block U
+        %contains diff variables, V block contains the rest.
+        
+        %Jacobian of differential equations:
+        F_UV_iv         = cat(1, iv(:), iv_ee(:), iv_ew(:), iv_we(:), iv_ww(:), iv_11(:), iv_22(:));
+        F_UV_jv         = cat(1, jv(:), jv_ee(:), jv_ew(:), jv_we(:), jv_ww(:), jv_11(:), jv_22(:));
+        F_UV_sv         = cat(1, sv(:), sv_ee(:), sv_ew(:), sv_we(:), sv_ww(:), sv_11(:), sv_22(:));
+        F_UV            = sparse(F_UV_iv, F_UV_jv, F_UV_sv, ...
+                            model.nDiff*fes.nDof, model.nVars*fes.nDof);
+                        
+        %Jacobian of restriction:
+        G_U                         = sparse(iv_g(:), jv_g(:), sv_g(:), ...
+                                        model.nAlg*fes.nDof, model.nDiff*fes.nDof);
+        [G_U_iv, G_U_jv, G_U_sv]    = find(G_U);
+        
+        %H(U,V) := tau*dG/dU(U)*M^{-1}*F(U,V) + G(U)
+        %The derivatives of dG/dU are neglected.
+        
+        %Contribution of dG/dU*M^{-1}*dF/d(U,V):
+        M_diag                      = diag(Mm);
+        Minv_diag                   = 1.0./M_diag;
+        Minv_approx                 = spdiags( repmat(Minv_diag, model.nDiff, 1), 0, ...
+                                        model.nDiff*fes.nDof, model.nDiff*fes.nDof );
+        Minv_approx                 = MassMatrixExpand(inv(Mm), model.nDiff, 0);
+        H_UV                        = G_U * Minv_approx * F_UV;
+        [H_UV_iv, H_UV_jv, H_UV_sv] = find(H_UV);
+        
+        %We need to add the contribution of dG/dU.
+        
+        %(i,j,s) values of full Jacobian. Here we abuse the notation. F
+        %means [F,G], U means [U,V,W]:
+        dF_dU.iv    = cat(1, F_UV_iv, ...
+                            H_UV_iv+model.nDiff*fes.nDof, ...
+                            G_U_iv+model.nDiff*fes.nDof        );
+        dF_dU.jv    = cat(1, F_UV_jv, H_UV_jv, G_U_jv );
+        dF_dU.sv    = cat(1, F_UV_sv, H_UV_sv, G_U_sv/tau);
+        
     else
         dF_dU.iv    = zeros(0,0);
         dF_dU.jv    = zeros(0,0);

@@ -1,5 +1,5 @@
 function [save_vars, model_l, model_g] = ...
-    droplet_test_Manu(nElems_l, nElems_g, p, ...
+    droplet_test(nElems_l, nElems_g, mu_l, mu_g, p, ...
         Deltat0, t_final, TimeAdapt, TolT, ...
         PlotRes, Save, fuel_names, mass_fracL, ...
         inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, ...
@@ -10,164 +10,107 @@ function [save_vars, model_l, model_g] = ...
     %----------------------------------------------------------------------
     %DATA:
     
+    %Maximum and target nb of iterations in nonlinear solver:
+    NLS_MaxIter     = 200;   %for BPR3 method
+    NLS_IterTarget  = 120;   %for BPR3 method
+    
+    %Relaxation time for boundary conditions:
+    tau_relax   = 1e-6;
+%     tau_relax   = Inf;
+    
+    % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
+    % where NLS_iters is the mean number of nonlinear solver iterations at 
+    % each Runge--Kutta stage. 
+    % The value NLS_IterTarget should be adjusted according to the simulation if adaptive
+    % time stepping is enabled.
+    % This constant controls the update of the number of nonlinear iterations (NLSiters)
+    % based on the average value of NLSiters per stage, which is displayed on the results screen,
+    % to achieve a stable time step.
+    % For example, if it is observed that NLSiters/stage varies approximately between 27 and 30,
+    % and many temporary or convergence errors appear in the console, NLS_IterTarget should be a value around 26.
+    
+    %Characteristic velocities and time:
+    NF_vl       = 1e-4;  %Characteristic value for liquid velocity
+    NF_vg       = 1e-1;  %Characteristic value for gas velocity
+    NF_tau      = 1e-6;  %Characteristic time
+    %NOTE: Higher product NF_v*NF_tau: less iterations, less accuracy in the velocity
+    
     %Domain limits:
     x_l         = 0.0;
-    x_gI        = 5*x_lg;
-    x_gII       = XRad*x_lg;
+    x_g         = XRad*x_lg;
 
     %Initial mesh coordinates:
-    x_liq          = linspace(0, 1, nElems_l);
-    xmesh_l        = x_lg * sqrt(x_liq);
-    xmesh_gI       = linspace(x_lg, x_gI, nElems_g+1);
-    alpha_g        = 1.035;
-    h_gas          = 5e-6;
-    L_g            = (x_gII-x_gI);
-    N_gas          = log((alpha_g-1)*L_g/h_gas+1)/log(alpha_g);
-    intervals_g    = h_gas*alpha_g.^(0:N_gas-1);
-    total_length_g = sum(intervals_g);
-    if total_length_g > L_g
-        warning('The sum of the intervals exceeds L. Adjusting...');
-        intervals_g = intervals_g * (L_g / total_length_g);
+    xmesh_l         = x_lg*(exp(mu_l*(0:nElems_l)/nElems_l)-1)/...
+                            (exp(mu_l)-1);
+    xmesh_g         = x_lg + (x_g-x_lg)*( exp(mu_g*(0:nElems_g)/nElems_g)-1.0 ) / ...
+                                        ( exp(mu_g)-1.0 );
+    if false
+        figure;
+        hold on;
+        plot(xmesh_l, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
+        plot(xmesh_g, zeros(size(xmesh_g)), 'r*', 'MarkerSize', 6, 'LineWidth', 1.5, 'DisplayName', 'Gas'); 
+        plot(x_lg, 0, 'go', 'MarkerSize', 10, 'LineWidth', 2, 'DisplayName', 'Interface');
+        xlabel('x [m]');
+        title('Point distribution in liquid and gas');
+        legend('Location', 'best');
+        grid on;
+        return
     end
-    xmesh_gII      = cumsum(intervals_g)+xmesh_gI(end);
-    xmesh_g        = [xmesh_gI, xmesh_gII];
 
+    %Display minimum mesh sizes:
+    disp(['hmin_l=', sprintf('%.2E', min(diff(xmesh_l))), ...
+            ', hmin_g=', sprintf('%.2E', min(diff(xmesh_g)))])
+    
     %Load models:
     model_l        = Liquid_ALE(fuel_names,mass_fracL, inert_comps, mass_fracG);
     model_g        = Gas_ALE(fuel_names, inert_comps, mass_fracG);
     
-    %INITIAL CONDITION:
-    %Initial mass fraction in the liquid phase
-    function y_l = y0_l(~)
-        y_l         = cell(model_l.nSpecies,1);
-        for i=1:model_l.nSpecies
-            y_l{i}  = mass_fracL{i};
-        end
-    end
-
+    %Initial gas and droplet velocity:
+    vR_0           = 8e-3;
+    w_0            = NaN;   %To be initialized in u0_g
+    
     %Initial condition function for the LIQUID phase
     function u = u0_l(x)
-        H_l         = cell(1,1);
-        rhoy_l      = cell(model_l.nSpecies,1);
-
+              
         T_l         = T_0.*ones(size(x));
-        
-        y_l         = y0_l(x);
+        y_l         = mass_fracL;
 
         rho_l       = calc_rho(model_l,y_l,T_l);
+        rhoy_l      = cell(model_l.nSpecies,1);
         for i=1:model_l.nSpecies
             rhoy_l{i} = rho_l.*y_l{i}.*ones(size(x));
         end
 
         h_l         = calc_h(T_l,y_l,model_l);
-        H_l{1}      = h_l.*rho_l;
+        H_l         = rho_l.*h_l;
 
         v_l         = 0.0*x;
 
         %Pack all fields into cell arrays
         %u = {ρY1, ..., ρYN, H, v}
-        u           = [ rhoy_l; H_l; {v_l} ];
+        u           = [ rhoy_l; {H_l}; {v_l} ];
         %Each profile is defined as a function of x to match the expected shape 
         %required by the solver: matrices of size (nElems × (2p + 1))
 
-        %Plot initial condition LIQ:
-        % figure()
-        % plot(MatTranspVec(x),MatTranspVec(T_l), 'DisplayName', 'Temperatura Liq')
-        % legend('Location', 'best')
-
-        % figure()
-        % plot(MatTranspVec(x),MatTranspVec(y_l{1}), 'DisplayName', 'Heptano')
-        % hold on
-        % plot(MatTranspVec(x),MatTranspVec(y_l{2}), 'DisplayName', 'Hexadecano')
-        % hold on
-        % legend('Location', 'best')
-        % hold off
     end
 
+    %Composition at infinity:
+    y_gas_inf   = cell(model_g.nInerts,1);
+    for i=1:model_g.nInerts
+        y_gas_inf{i}   = mass_fracG{i};
+    end
+    y_fuel_inf  = repmat({0.0}, model_l.nSpecies, 1);
+    y_inf       = [y_gas_inf; y_fuel_inf];
+
     %Initial condition function for the GAS phase
-    function u = u0_g(x)
+    function u = u0_g_const(x)
         H_g         = cell(1,1);
         rhoy_g      = cell(model_g.nSpecies,1);
         
-        T_R         = T_0;
-
-        y_L         = y0_l(x_lg);
-        y_R         = calc_y_gInter(y_L,model_l,model_g,T_R);
-        y_R_fuels   = 0;
-        for i=model_g.nInerts+1:model_g.nSpecies
-            y_R_fuels = y_R_fuels + y_R{i};
-        end
-        y_gas_inf   = cell(model_g.nInerts,1);
-        for i=1:model_g.nInerts
-            y_gas_inf{i}   = (mass_fracG{i}*0.99999999)';
-        end
-        y_fuel_inf  = repmat({(1-0.99999999)/model_l.nSpecies}, model_l.nSpecies, 1);
-        y_inf       = [y_gas_inf; y_fuel_inf];
-         
-        %Initial Condition (D.Betran) [valid ONLY for droplets with up to 2 components]:
-        % T_ref       = (2/3)*T_0 + (1/3)*T_inf;
-        % y_ref       = cell(model_g.nSpecies,1);
-        % for i=1:model_g.nSpecies
-        %     y_ref{i} = (2/3)*y_R{i} + (1/3)*y_inf{i};
-        % end
-        % Dif_g       = calc_D_rho(T_ref,y_ref,model_g);
-        % rho_gas     = calc_rho(model_g,y_ref,T_ref);
-        % Cp          = calc_Cp(T_ref,y_ref,model_g);
-        % Lv_i        = calcula_Lv_fuel(model_l.gota,[],T_ref,[]);
-        % Lv          = 0;
-        % for i=1:model_l.nSpecies
-        %     Lv = Lv + Lv_i(1,i)*y_ref{i+model_g.nInerts};
-        % end
-        % T_refv      = T_ref(:)';
-        % Yi_eval     = zeros(model_g.nInerts, size(T_refv,2)); 
-        % for i=1:model_g.nInerts
-        % Yi_eval(i,:) = y_ref{i}(:)';
-        % end
-        % Yf_eval = zeros(model_g.nSpecies-model_g.nInerts, size(T_refv,2));
-        % for i=1:model_g.nSpecies-model_g.nInerts
-        %     Yf_eval(i,:) = y_ref{i+model_g.nInerts}(:)';
-        % end
-        % k_g         = MixtureRules('k_gas', T_refv, Yi_eval, Yf_eval, model_g.matrix, model_g.gota, model_g.comp_inerts, model_g.P);
-        % 
-        % mdot_i      = zeros(model_l.nSpecies,1);
-        % mdot        = 4*pi*x_lg*rho_gas*Dif_g.*log(1+y_R_fuels./(1-y_R_fuels));
-        % for i=model_g.nInerts+1:model_g.nSpecies
-        %     epsilon    = y_R{i}/y_R_fuels;
-        %     mdot_i(i-model_g.nInerts)  = mdot*epsilon;
-        % end
-        % q_sens      = mdot*((Cp*(T_inf-T_R))/(exp((mdot*Cp)/(4*pi()*x_lg*k_g))-1)-Lv);
-        % y_g         = cell(model_g.nSpecies,1);
-        % for i=1:model_g.nInerts
-        %     y_g{i} = (1-(1-exp(-(mdot/(4*pi))./(rho_gas.*Dif_g.*x)))).*mass_fracG{i};
-        % end
-        % for i=model_g.nInerts+1:model_g.nSpecies
-        %     y_g{i} = 1-exp(-(mdot_i(i-model_g.nInerts)/(4*pi))./(rho_gas.*Dif_g.*x));
-        % end
-        % 
-        % L_comilla  = Lv+q_sens/mdot;
-        % 
-        % T_g        = T_R-(L_comilla/Cp)+(T_inf-T_R+(L_comilla/Cp))*exp(-(mdot/(4*pi))*Cp./(k_g.*x));
-         
-        %Initial Condition (A.Millan):
-        D_T         = calc_D_T(T_inf,y_inf,model_g);
-        T_g         = T_inf+(x_lg./x).*(T_R-T_inf).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
+        T_g         = T_inf + 0*x;
         y_g         = cell(model_g.nSpecies,1);
         for i=1:model_g.nSpecies
-            y_g{i}  = y_inf{i}+(x_lg./x).*(y_R{i}-y_inf{i}).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
-        end
-
-        %Ensure the sum of all species mass fractions equals 1 (sanity check)
-        sum_yG      = zeros(size(x));
-        sum_yL      = zeros(size(x));
-        for jj=1:model_g.nInerts
-            sum_yG  = sum_yG + y_g{jj};
-        end
-        for jj=model_g.nInerts+1:model_g.nSpecies
-            sum_yL  = sum_yL + y_g{jj};
-        end
-        if max(max(abs((sum_yG+sum_yL)-1)))>1e-6
-            disp('ERROR: Mass fractions not equal to 1!')
-            return
+            y_g{i}  = y_inf{i} + 0.0*x;
         end
 
         rho_g       = calc_rho(model_g,y_g,T_g);
@@ -177,7 +120,8 @@ function [save_vars, model_l, model_g] = ...
         h_g         = calc_h(T_g,y_g,model_g);
         H_g{1,1}    = h_g.*rho_g;
 
-        v_g         = 0.008286095019622.*((x_lg./x).^2);
+        v_g         = 0.0*x;
+%         v_g         = NF_vg*(x_lg./x).^2;
 
         %Final vector of initial gas fields
         %u = {ρY1, ..., ρYN, H, v}
@@ -207,23 +151,193 @@ function [save_vars, model_l, model_g] = ...
         % legend('Location', 'best')
     end
 
+    function u = u0_g_slopes(x)
+        
+        %Left state:
+        y_L         = mass_fracL;
+        T_L         = T_0;
+        rho_L       = calc_rho(model_l,y_L,T_L);
+        h_L         = calc_h(T_L,y_L,model_l);
+        H_L         = rho_L*h_L;
+        
+        %Right state:
+        T_R         = T_0;
+        y_R         = calc_y_gInter(y_L,model_l,model_g,T_R);
+        rho_R       = calc_rho(model_g,y_R,T_R);
+        [h_R,hi_R]  = calc_h(T_R,y_R,model_g);
+        H_R         = rho_R*h_R;
+        
+        %Mass and thermal diffusion coefficients at the droplet surface (gas side):
+        D_T         = calc_D_T(T_R,y_R,model_g);
+        D_rho       = calc_D_rho(T_R,y_R,model_g);
+        cp_R        = calc_Cp(T_R,y_R,model_g);
+        k_R         = rho_R*cp_R*D_T;
+        
+        %Initial droplet velocity:
+        w_0         = -rho_R/(rho_L-rho_R) * vR_0;
+        
+        %Compute slopes:
+        dYR_dx      = zeros(model_g.nSpecies,1);
+        sum_Jh      = 0.0;      %Summatory of J_i h_i:
+        for ii=1:model_g.nInerts
+            fmassR          = 0.0 + 0.0 - rho_R*y_R{ii}*(vR_0-w_0);
+            dYR_dx(ii)      = -fmassR/(rho_R*D_rho);
+            sum_Jh          = sum_Jh + fmassR*hi_R{ii};
+        end
+        for ii=model_g.nInerts+1:model_g.nSpecies
+            fmassR          = rho_L*y_L{ii-model_g.nInerts}*(0.0-w_0) + ...
+                                0.0 - rho_R*y_R{ii}*(vR_0-w_0);
+            dYR_dx(ii)      = -fmassR/(rho_R*D_rho);
+            sum_Jh          = sum_Jh + fmassR*hi_R{ii};
+        end
+        fheatR      = H_L*(0.0-w_0) + 0.0 - H_R*(vR_0-w_0);
+        dTR_dx      = -(fheatR-sum_Jh)/k_R;
+        
+        %Create profiles for y_g. Initially, we think on profiles of
+        %the form
+        %   u = uR + (uinf-uR)*tanh((x-x_lg)/delta)
+        %where delta is chosen so that du_dx matches the desired value,
+        %i.e.,
+        %   (uinf-uR)/delta = du_dx_target
+        %If delta>0, i.e., (uinf-uR) and the desired slope have the same
+        %sign, the profile goes from uR to uinf. However, if delta<0, the
+        %profile will evolve from uR to 2*uR-uinf. Hence, we add a
+        %correction term of the form:
+        %   (uinf-uR)*(1-sign(delta))*1/2*(tanh((x-x_lg-delta')/delta')+1)
+        %with delta' = |delta|.
+        y_g         = cell(model_g.nSpecies,1);
+        deltav      = zeros(model_g.nSpecies,1);
+        for i=1:model_g.nSpecies
+            if dYR_dx(i)==0
+                delta   = 1.0; %just a random nonzero finite number
+                deltap  = 1.0;
+            else
+                delta   = (y_inf{i}-y_R{i})/dYR_dx(i);
+                deltap  = abs(delta);
+            end
+            y_g{i}      = y_R{i} + (y_inf{i}-y_R{i})*tanh((x-x_lg)/delta) + ...
+                            (y_inf{i}-y_R{i})*(1-sign(delta))*...
+                            0.5*(tanh((x-x_lg-20*deltap)/deltap)+1);
+            deltav(i)   = delta;
+        end
+        %Exit if any delta is too small:
+        if any(abs(deltav)<1e-6)
+            display(deltav)
+            error(['delta for specie ', num2str(i), ' too small'])
+            delta   = sign(delta)*1e-6;
+        end
+        
+        %Ensure the sum of all species mass fractions equals 1 (sanity check)
+        aux         = find(deltav<0, 1, 'first');
+        if isempty(aux)
+            aux     = model_g.nSpecies;
+        end
+        y_g{aux}        = 0.0*y_g{aux} + 1.0;
+        for ii=[1:aux-1,aux+1:model_g.nSpecies]
+            y_g{aux}    = y_g{aux} - y_g{ii};
+        end
+        
+        %Create profile for T_g:
+        delta       = (T_inf-T_R)/dTR_dx;
+        if abs(delta)<1e-6
+            error(['delta for temperature too small'])
+            delta   = sign(delta)*1e-6;
+        end
+        deltap      = abs(delta);
+        T_g         = T_R + (T_inf-T_R)*tanh((x-x_lg)/delta) + ...
+                            (T_inf-T_R)*(1-sign(delta))*...
+                            0.5*(tanh((x-x_lg-20*deltap)/deltap)+1) ;
+        
+        %Compute rhoy and H:
+        rho_g       = calc_rho(model_g,y_g,T_g);
+        rhoy_g      = cell(model_g.nSpecies,1);
+        for i=1:model_g.nSpecies
+            rhoy_g{i} = rho_g.*y_g{i};
+        end
+        h_g         = calc_h(T_g,y_g,model_g);
+        H_g         = rho_g.*h_g;
+
+        %Initial GUESS for the velocity (this is not the exact value!):
+        v_g         = vR_0 * (x_lg./x).^2;
+
+        %Final vector of initial gas fields:
+        %u = {ρY1, ..., ρYN, H, v}
+        u           = [ rhoy_g; {H_g}; {v_g} ];
+        
+%         display(rho_R*CellToVector(y_R))
+%         display(H_R)
+%         display(dYR_dx)
+%         display(dTR_dx)
+        
+    end
+
+    function u = u0_g_Millan(x)
+        
+        %Left and right states:
+        T_R         = T_0;
+        y_L         = mass_fracL;
+        y_R         = calc_y_gInter(y_L,model_l,model_g,T_R);
+        y_R_fuels   = 0;
+        for i=model_g.nInerts+1:model_g.nSpecies
+            y_R_fuels = y_R_fuels + y_R{i};
+        end
+        
+        %Initial Condition (A.Millan):
+        D_T         = calc_D_T(T_inf,y_inf,model_g);
+        T_g         = T_inf+(x_lg./x).*(T_R-T_inf).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
+        y_g         = cell(model_g.nSpecies,1);
+        for i=1:model_g.nSpecies
+            y_g{i}  = y_inf{i}+(x_lg./x).*(y_R{i}-y_inf{i}).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
+        end
+
+        %Ensure the sum of all species mass fractions equals 1 (sanity check)
+        sum_yG      = zeros(size(x));
+        sum_yL      = zeros(size(x));
+        for jj=1:model_g.nInerts
+            sum_yG  = sum_yG + y_g{jj};
+        end
+        for jj=model_g.nInerts+1:model_g.nSpecies
+            sum_yL  = sum_yL + y_g{jj};
+        end
+        if max(max(abs((sum_yG+sum_yL)-1)))>1e-6
+            disp('ERROR: Mass fractions not equal to 1!')
+            return
+        end
+
+        rho_g       = calc_rho(model_g,y_g,T_g);
+        rhoy_g      = cell(model_g.nSpecies,1);
+        for i=1:model_g.nSpecies
+            rhoy_g{i} = rho_g.*y_g{i};
+        end
+        h_g         = calc_h(T_g,y_g,model_g);
+        H_g         = h_g.*rho_g;
+        v_g         = 0.008286095019622.*((x_lg./x).^2);
+
+        %Final vector of initial gas fields
+        %u = {ρY1, ..., ρYN, H, v}
+        u           = [ rhoy_g; {H_g}; {v_g} ];
+        
+    end
+
+    function u = u0_g(x)
+%         u       = u0_g_const(x);  
+        u       = u0_g_Millan(x);
+    end
+    
     %Boundary conditions:
     model_l.u1  = @(t) u0_l(x_l);
-    model_g.uN  = @(t) u0_g(x_gII);
+    model_g.uN  = @(t) u0_g(x_g);
 
     %Minimum time step:
     Deltat_min  = 1e-12;
-    
-    %Maximum nb of iterations in nonlinear solver:
-    NLS_MaxIter     = 80;
-    NLS_IterTarget  = 60;
-    
+                    
     %----------------------------------------------------------------------
     %INITIAL CONDITION (EXACT FOR DIFFERENTIAL VARIABLES, GUESS FOR ALGEBRAIC ONES):
 
     %Auxiliary variables:
     nDAE_l        = model_l.nDiff+model_l.nAlg;
     nDAE_g        = model_g.nDiff+model_g.nAlg;
+    nDiff_lg      = model_g.nDiff;
     
     %Create meshes and finite element spaces:
     mesh_l        = Mesh_Spheric_Create(xmesh_l);
@@ -240,44 +354,19 @@ function [save_vars, model_l, model_g] = ...
     H_l_ini       = sol_ini_l{model_l.nDiff};
     rhoy_l_ini    = sol_ini_l(1:model_l.nSpecies);
     T_l_ini       = calc_T(H_l_ini,rhoy_l_ini,model_l);
-
+    %
     sol_ini_g     = u0_g(xplot_g_ini);
     v_g_ini       = sol_ini_g{model_g.nDiff+1};
     H_g_ini       = sol_ini_g{model_g.nDiff};
     rhoy_g_ini    = sol_ini_g(1:model_g.nSpecies);
     T_g_ini       = calc_T(H_g_ini,rhoy_g_ini,model_g);
-
+    %
     [rho_l_ini,y_l_ini] = calc_rho_y(rhoy_l_ini,model_l);
     [rho_g_ini,y_g_ini] = calc_rho_y(rhoy_g_ini,model_g);
-
-    %Calculate a:
-    T_L       = T_l_ini(end,end);
-    y_L       = y0_l(x_lg);
-    y_gas_inf = cell(model_g.nInerts,1);
-    for ii=1:model_g.nInerts    
-        y_gas_inf{ii} = (mass_fracG{ii}*0.999999)';
-    end
-    y_fuel_inf = repmat({(1-0.999999)/model_l.nSpecies}, model_l.nSpecies, 1);
-    y_inf      = [y_gas_inf; y_fuel_inf];
-    rho_l_m    = calc_rho(model_l,y_L,T_L);
-    D_rho      = calc_D_rho(T_g_ini,y_g_ini,model_g);
-    y_l_ini_L  = cell(size(y_l_ini));
-    for II = 1:length(y_l_ini)
-        y_l_ini_L{II} = y_l_ini{II}(end,end);
-    end
-    y_g_ini_R  = cell(size(y_g_ini));
-    for II = 1:length(y_g_ini)
-        y_g_ini_R{II} = y_g_ini{II}(1,1);
-    end
-    m_R        = calc_m_ini(x_lg, rho_g_ini(1,1), D_rho(1,1), y_g_ini_R, y_inf, model_l);
-    a          = -m_R./rho_l_m;
-
-    %Verify initial condition:
-    if T_l_ini(end,end)-T_g_ini(1,1)>1e-6
-        disp('Different T in the interface in the initial condition')
-        return
-    end
-
+    %
+    uplot_l_ini = [ {rho_l_ini}; {T_l_ini}; {v_l_ini}];
+    uplot_g_ini = [ {rho_g_ini}; {T_g_ini}; {v_g_ini}];
+    
     %Calculate estimated evaporation time (if known, add manually):
     t_evap      = calc_t_evap(T_inf,y_inf,model_l,model_g,mass_fracL,fuel_names,x_lg);
     t_evap      = real(t_evap);
@@ -286,16 +375,12 @@ function [save_vars, model_l, model_g] = ...
     %simulation and the remaining 45% in the final 80% of the simulation (MODIFIABLE)
     earlySaveFraction = 0.55;
     lateSaveFraction  = 0.45;
-
+    %
     earlyTimePortion  = 0.2;
     lateTimePortion   = 0.8;
-
+    %
     DeltaSaveI        = (t_evap*earlyTimePortion)/(n_saved_solutions*earlySaveFraction);
-    DeltaSaveII       = (t_evap*lateTimePortion)/(n_saved_solutions*lateSaveFraction);
-
-
-    uplot_l_ini = [ {rho_l_ini}; {T_l_ini}; {v_l_ini}];
-    uplot_g_ini = [ {rho_g_ini}; {T_g_ini}; {v_g_ini}];
+    DeltaSaveII       = (t_evap*lateTimePortion)/(n_saved_solutions*lateSaveFraction);  
 
     %Save finite element spaces:
     sol_n.fesl  = fes_l;
@@ -320,19 +405,17 @@ function [save_vars, model_l, model_g] = ...
         sol_n.ug{II}    = M_II\b((II-1)*sol_n.fesg.nDof+1:II*sol_n.fesg.nDof);
     end
        
-    %Initial guess for boundary variables qL, qR:
+    %Initial values for droplet variables qL, qR, w:
     sol_n.qL    = CellToVector(EvalSolution(sol_n.ul(1:model_l.nDiff), sol_n.fesl, sol_n.fesl.mesh.nElems, 1.0));
     sol_n.qR    = CellToVector(EvalSolution(sol_n.ug(1:model_g.nDiff+model_g.nAlg), sol_n.fesg, 1, -1.0));
-    
-    %Initial value for droplet velocity:
-    sol_n.w     = a;
+    sol_n.w     = 0.0;
     
     %Normalization factors for differential and algebraic variables: 
     NF_l        = max(1e-6, Lqmean(sol_n.ul, sol_n.fesl, 2));
     NF_g        = max(1e-6, Lqmean(sol_n.ug, sol_n.fesg, 2));
-    NF_l(end)   = 1e-4;  %Set here characteristic value for liquid velocity!!
-    NF_g(end)   = 1e-4;  %Set here characteristic value for gas velocity!!
-    NF_tau      = 1e-2;  %Characteristic time. High NF_tau: less iterations, less accuracy in the velocity
+    NF_l(end)   = NF_vl;
+    NF_g(end)   = NF_vg;
+    
     %Set same NF for all densities:
     NF_l(1:model_l.nSpecies)    = max(NF_l(1:model_l.nSpecies));
     NF_g(1:model_g.nSpecies)    = max(NF_g(1:model_g.nSpecies));
@@ -455,6 +538,7 @@ function [save_vars, model_l, model_g] = ...
             H_qg       = sol.qR(model_g.nSpecies+1);
             T_ql       = calc_T(H_ql,rhoy_ql,model_l);
             T_qg       = calc_T(H_qg,rhoy_qg,model_g);
+            disp(['T_ql=', sprintf('%.8f', T_ql), ', T_qg=', sprintf('%.8f', T_qg)])
 
             uplot_ql   = [ {rho_ql}; {T_ql} ];
             uplot_qg   = [ {rho_qg}; {T_qg} ];
@@ -484,10 +568,18 @@ function [save_vars, model_l, model_g] = ...
         end
     end
     PlotFun(sol_n)
-    
+            
     %----------------------------------------------------------------------
     %MARCH IN TIME:
     
+    %Compute initial residuals DeltaT and DeltaP in coupling conditions for
+    %not well-prepared initial conditions:
+    y_eq        = [sol_n.qL; sol_n.qR(1:model_g.nDiff)];
+    [r,~]       = EquilibriumConditions(model_l, model_g, y_eq, ...
+                        0.0, 0.0, NF_l, NF_g, false);
+    DeltaT_0    = r(1);
+    DeltaP_0    = r(2:1+model_l.nSpecies);
+
     %The solution at each stage and at t^(n+1) is to be stored in sol_np1:
     sol_np1     = sol_n;
     
@@ -495,14 +587,17 @@ function [save_vars, model_l, model_g] = ...
     %[rho, H, v, R] at the gas:
     
     %Number of variables of the blocks in y:
+    nNodes_l        = sol_n.fesl.mesh.nElems+1;
+    nNodes_g        = sol_n.fesg.mesh.nElems+1;
     N_l             = nDAE_l*sol_n.fesl.nDof;
     N_g             = nDAE_g*sol_n.fesg.nDof;
     N_L             = model_l.nDiff;
     N_R             = nDAE_g;
-    block_l         = 1:N_l;
-    block_g         = N_l+1:N_l+N_g;
-    block_mesh_l    = block_g(end)+1:block_g(end)+mesh_l.nElems+1;
-    block_mesh_g    = block_mesh_l(end)+1:block_mesh_l(end)+mesh_g.nElems+1;
+    block_mesh_l    = 1:nNodes_l;
+    block_mesh_g    = block_mesh_l(end)+1:block_mesh_l(end)+nNodes_g;
+    block_l         = block_mesh_g(end)+1:block_mesh_g(end)+N_l;
+    block_g         = block_l(end)+1:block_l(end)+N_g;
+    block_z         = block_g(end)+1:block_g(end)+N_L+N_R+1;
     
     %Function that evaluates the residual and the Jacobian of the full
     %system of nonlinear equations at each Runge--Kutta stage. 
@@ -510,19 +605,22 @@ function [save_vars, model_l, model_g] = ...
     %The equations are:
     %   M_f*u_a - b_f_ii - Deltat_n * a_ii * b_f(y_f)       = 0
     %   R_f     - bmesh_f_ii - Deltat_n * a_ii Rdof_f(y_f)  = 0 
-    %for each phase f.
     %
     %CAREFUL: This function modifies the variable sol_np1. The values in
     %sol_np1 correspond to the values of y in the last function call.
     function [r,J] = ResidualFun(y, ComputeJ)
         
         %Extract variables: 
-        y_l                 = y{1};
-        y_g                 = y{2};
+        xmesh_l_np1         = y(block_mesh_l);
+        xmesh_g_np1         = y(block_mesh_g);
+        y_l                 = y(block_l);
+        y_g                 = y(block_g);
         sol_np1.ul          = VectorToCell(y_l, nDAE_l);
         sol_np1.ug          = VectorToCell(y_g, nDAE_g);
-        xmesh_l_np1         = y{3};
-        xmesh_g_np1         = y{4};
+        z                   = y(block_z);
+        sol_np1.qL          = z(1:N_L);
+        sol_np1.qR          = z(N_L+1:N_L+N_R);
+        sol_np1.w           = z(end);
         
         %Update matrices for new mesh:
         mesh_l_np1          = Mesh_Spheric_Create(xmesh_l_np1);
@@ -533,29 +631,7 @@ function [save_vars, model_l, model_g] = ...
         sol_np1.fesg        = FES_QX_Create(mesh_g_np1, p);
         Mm_g_np1            = MassMatrixExpand(MassMatrix(sol_np1.fesg), model_g.nDiff, model_g.nAlg);
         
-%         PlotFun(sol_np1)
-        
-        %------------------------------------------------------------------
-        %Solve coupling conditions:
-        
-        %Solve equations:
-        z0                  = cat(1, sol_np1.qL, sol_np1.qR, sol_np1.w);
-        [z, nIters, flag]   = CouplingConditions(z0, sol_np1.t, ...
-                                model_l, sol_np1.fesl, sol_np1.ul, NF_l, ...
-                                model_g, sol_np1.fesg, sol_np1.ug, NF_g);
-        if flag<0
-            warning('Unable to solve coupling conditions')
-            r               = { NaN, NaN };
-            if ComputeJ
-                J           = sparse(N_l+N_g, N_l+N_g);
-            else
-                J           = NaN;
-            end
-            return
-        end
-        sol_np1.qL          = z(1:N_L);
-        sol_np1.qR          = z(N_L+1:N_L+N_R);
-        sol_np1.w           = z(end);
+        PlotFun(sol_np1)
         
         %Update boundary conditions. MATLAB works with copies, not pointers, 
         %so this is not already done in CouplingConditions:
@@ -582,7 +658,7 @@ function [save_vars, model_l, model_g] = ...
         %IMPOSE DAE FOR LIQUID:
         
         %Compute term due to fluxes and restriction:
-        [kDAE_l_RK(:,ii),dfDAE_duw_l,~,~,Deltat_CFL_g]   = ...
+        [kDAE_l_RK(:,ii),dfDAE_duw_l,~,dfDAE_dqL,Deltat_CFL_l]   = ...
             FEM_fgQ(model_l, sol_np1.t, uw_l, sol_np1.fesl, ComputeJ);
         
         %Residuals and Jacobians:
@@ -596,25 +672,53 @@ function [save_vars, model_l, model_g] = ...
             J_l.jv                      = cat(1, M_jv, dfDAE_duw_l.jv(aux));
             J_l.sv                      = cat(1, M_sv, -RKmethod.aI(2,2)*Deltat_n*dfDAE_duw_l.sv(aux));
             
+            %Derivatives w.r.t. qL:
+            J_ld.iv                     = dfDAE_dqL.iv;
+            J_ld.jv                     = dfDAE_dqL.jv;
+            J_ld.sv                     = -RKmethod.aI(2,2)*Deltat_n*dfDAE_dqL.sv;
+            
+            %Derivatives w.r.t. w:
+            aux                         = dfDAE_duw_l.jv>nDAE_l*sol_np1.fesl.nDof;
+            dfDAE_dwLeg                 = sparse(dfDAE_duw_l.iv(aux), ...
+                                                    dfDAE_duw_l.jv(aux)-nDAE_l*sol_np1.fesl.nDof, ...
+                                                    dfDAE_duw_l.sv(aux), ...
+                                                    nDAE_l*sol_np1.fesl.nDof, ...
+                                                    sol_np1.fesl.nDof);
+            dwnodes_dw                  = (xmesh_l_np1-xmesh_l_np1(1))/...
+                                            (xmesh_l_np1(end)-xmesh_l_np1(1));
+            %df_i/dw = df_i/dwLeg_j * dwLeg_j/dwNodes_k * dwNodes_k/dw: 
+            dfDAE_dw                    = dfDAE_dwLeg*P1ToQX(dwnodes_dw, sol_np1.fesl);
+            J_ld.iv                     = cat(1, J_ld.iv, (1:nDAE_l*sol_np1.fesl.nDof).' );
+            J_ld.jv                     = cat(1, J_ld.jv, repmat(N_L+N_R+1, nDAE_l*sol_np1.fesl.nDof, 1));
+            J_ld.sv                     = cat(1, J_ld.sv, -RKmethod.aI(2,2)*Deltat_n*dfDAE_dw);
+            
         end
         
-%         %DEBUG: Force v=0 at the origin:
-%         Naux            = sol_np1.fesl.NCompute(-1.0);
-%         aux_factor      = 1.0/NF_l(model_l.nDiff+1) * NF_l(1)*mesh_l.V_cells(1)*Deltat_n;
-%         r_l(model_l.nDiff*sol_np1.fesl.nDof+1)  = aux_factor*(Naux*sol_np1.ul{model_l.nDiff+1}(1:p+1) - 0.0);
-%         if ComputeJ
-%             aux             = find(J_l.iv == model_l.nDiff*sol_np1.fesl.nDof+1);
-%             J_l.sv(aux)     = 0.0;
-%             J_l.iv          = cat(1, J_l.iv, repmat(model_l.nDiff*sol_np1.fesl.nDof+1, p+1,1));
-%             J_l.jv          = cat(1, J_l.jv, model_l.nDiff*sol_np1.fesl.nDof + (1:p+1).');
-%             J_l.sv          = cat(1, J_l.sv, aux_factor*(Naux(:)));
+%         %Impose known velocity:
+%         block_vl                    = model_l.nDiff*sol_np1.fesl.nDof + (1:sol_np1.fesl.nDof).';
+%         mass_l                      = MassMatrix(sol_np1.fesl);
+%         y_l                         = y(block_l);
+%         function v_l=v_l_fun(x)
+%             v_l                     = { 0.0*x };
 %         end
+%         b_vl                        = ProjectFun(@v_l_fun, sol_n.fesl);
+%         r_l(block_vl)               = Deltat_n*(mass_l*y_l(block_vl) - b_vl);
+%         if ComputeJ
+%             %Delete previous components:
+%             aux                     = find((J_l.iv>=block_vl(1)) & (J_l.iv<=block_vl(end)));
+%             J_l.sv(aux)             = 0.0;
+%             %New components:
+%             [Mm_iv, Mm_jv, Mm_sv]   = find(mass_l);
+%             J_l.iv                  = cat(1, J_l.iv, Mm_iv+block_vl(1)-1);
+%             J_l.jv                  = cat(1, J_l.jv, Mm_jv+block_vl(1)-1);
+%             J_l.sv                  = cat(1, J_l.sv, Deltat_n*Mm_sv);
+%         end 
         
         %------------------------------------------------------------------
         %IMPOSE DAE FOR GAS:
         
         %Compute term due to fluxes and restriction:
-        [kDAE_g_RK(:,ii),dfDAE_duw_g,~,~,Deltat_CFL_l]   = ...
+        [kDAE_g_RK(:,ii),dfDAE_duw_g,dfDAE_dqR,~,Deltat_CFL_g]   = ...
             FEM_fgQ(model_g, sol_np1.t, uw_g, sol_np1.fesg, ComputeJ);
         
         %Residuals and Jacobians:
@@ -628,18 +732,252 @@ function [save_vars, model_l, model_g] = ...
             J_g.jv                      = cat(1, M_jv, dfDAE_duw_g.jv(aux));
             J_g.sv                      = cat(1, M_sv, -RKmethod.aI(2,2)*Deltat_n*dfDAE_duw_g.sv(aux));
  
+            %Derivatives w.r.t. qR:
+            J_gd.iv                     = dfDAE_dqR.iv;
+            J_gd.jv                     = N_L + dfDAE_dqR.jv;
+            J_gd.sv                     = -RKmethod.aI(2,2)*Deltat_n*dfDAE_dqR.sv;
+            
+            %Derivatives w.r.t. w:
+            aux                         = dfDAE_duw_g.jv>nDAE_g*sol_np1.fesg.nDof;
+            dfDAE_dwLeg                 = sparse(dfDAE_duw_g.iv(aux), ...
+                                                    dfDAE_duw_g.jv(aux)-nDAE_g*sol_np1.fesg.nDof, ...
+                                                    dfDAE_duw_g.sv(aux), ...
+                                                    nDAE_g*sol_np1.fesg.nDof, ...
+                                                    sol_np1.fesg.nDof);
+            dwnodes_dw                  = (xmesh_g_np1-xmesh_g_np1(end))/...
+                                            (xmesh_g_np1(1)-xmesh_g_np1(end));
+            %df_i/dw = df_i/dwLeg_j * dwLeg_j/dwNodes_k * dwNodes_k/dw: 
+            dfDAE_dw                    = dfDAE_dwLeg*P1ToQX(dwnodes_dw, sol_np1.fesg);
+            J_gd.iv                     = cat(1, J_gd.iv, (1:nDAE_g*sol_np1.fesg.nDof).' );
+            J_gd.jv                     = cat(1, J_gd.jv, repmat(N_L+N_R+1, nDAE_g*sol_np1.fesg.nDof, 1));
+            J_gd.sv                     = cat(1, J_gd.sv, -RKmethod.aI(2,2)*Deltat_n*dfDAE_dw);
+            
         end
 
+%         %Impose continuous velocity:
+%         i_velocity                  = model_g.nDiff*sol_np1.fesg.nDof+1;
+%         Omega_char                  = sol_n.fesg.mesh.V_cells(1);
+%         scal_factor                 = Deltat_n*NF_g(1)*Omega_char;
+%         uw_gR                       = EvalSolution(uw_g, sol_np1.fesg, [1], [-1.0]);
+%         r_g(i_velocity)             = scal_factor*(uw_gR{model_g.nDiff+1}(1)-...
+%                                         sol_np1.qR(model_g.nDiff+1));
+%         if ComputeJ
+%             %Delete previous components:
+%             aux                     = J_g.iv==i_velocity;
+%             J_g.sv(aux)             = 0.0;
+%             %New components:
+%             phim                    = sol_np1.fesg.NCompute([-1.0]);
+%             J_g.iv                  = cat(1, J_g.iv, repmat(i_velocity, p+1, 1));
+%             J_g.jv                  = cat(1, J_g.jv, i_velocity+(0:p).');
+%             J_g.sv                  = cat(1, J_g.sv, scal_factor*phim.');
+%         end
+
+%         %Impose known velocity:
+%         block_vg                    = model_g.nDiff*sol_np1.fesg.nDof + (1:sol_np1.fesg.nDof).';
+%         mass_g                      = MassMatrix(sol_np1.fesg);
+%         y_g                         = y(block_g);
+%         function v_g=v_g_fun(x)
+%             v_g                     = { sol_np1.qR(end)*(mesh_g_np1.x_faces(1)./x).^2 };
+%         end
+%         b_vg                        = ProjectFun(@v_g_fun, sol_n.fesg);
+%         r_g(block_vg)               = Deltat_n*(mass_g*y_g(block_vg) - b_vg);
+%         if ComputeJ
+%             %Delete previous components:
+%             aux                     = find(J_g.iv>=block_vg(1) & J_g.iv<=block_vg(end));
+%             J_g.sv(aux)             = 0.0;
+%             %New components:
+%             [Mm_iv, Mm_jv, Mm_sv]   = find(mass_g);
+%             J_g.iv                  = cat(1, J_g.iv, Mm_iv+block_vg(1)-1);
+%             J_g.jv                  = cat(1, J_g.jv, Mm_jv+block_vg(1)-1);
+%             J_g.sv                  = cat(1, J_g.sv, Deltat_n*Mm_sv);
+%         end 
+        
+        %------------------------------------------------------------------
+        %IMPOSE INTERFACE CONDITIONS:
+        
+        %Allocate r:
+        r_d         = zeros(N_L+N_R+1, 1);
+
+        %Mass and energy fluxes at the left:
+        %NOTE: "uwL" is the numerical solution for the liquid, including
+        %the mesh velocity
+        %"qL" is the Dirichlet condition at the boundary,
+        uwL         = EvalSolution(uw_l, sol_np1.fesl, [mesh_l_np1.nElems], 1.0);
+        duwL_dx     = EvalSolution_dx(uw_l, sol_np1.fesl, [mesh_l_np1.nElems], 1.0);
+        [fL, dfL_duwL, dfL_duwL_dx, dfL_dqL] = ...
+            model_l.ftildeN(model_l, sol_np1.t, xmesh_l_np1(end), uwL, duwL_dx, ...
+                    (xmesh_l_np1(end)-xmesh_l_np1(end-1))/sol_np1.fesl.p, ComputeJ);
+        
+        %Mass and energy fluxes at the left:
+        %NOTE: "uwL" is the numerical solution for the liquid, including
+        %the mesh velocity
+        %"qL" is the Dirichlet condition at the boundary,
+        uwR         = EvalSolution(uw_g, sol_np1.fesg, [1], -1.0);
+        duwR_dx     = EvalSolution_dx(uw_g, sol_np1.fesg, [1], -1.0);
+        [fR, dfR_duwR, dfR_duwR_dx, dfR_dqR] = ...
+            model_g.ftilde1(model_g, sol_np1.t, xmesh_g_np1(1), uwR, duwR_dx, ...
+                    (xmesh_g_np1(2)-xmesh_g_np1(1))/sol_np1.fesg.p, ComputeJ);
+                
+        %Flux balance for the differential variables:
+        r_d(1:nDiff_lg) = [zeros(model_g.nInerts,1); CellToVector(fL)]-...
+                            CellToVector(fR); 
+        if ComputeJ
+
+            %Allocate:
+            J_d.iv      = zeros(0,1);
+            J_d.jv      = zeros(0,1);
+            J_d.sv      = zeros(0,1);
+
+            %Derivatives w.r.t. qL (Dirichlet conditions at the left of the droplet):
+            iv_aux      = zeros(N_L, N_L);
+            jv_aux      = zeros(size(iv_aux));
+            sv_aux      = zeros(size(iv_aux));
+            for II=1:N_L
+                for JJ=1:N_L
+                    iv_aux(II,JJ)   = model_g.nInerts+II;
+                    jv_aux(II,JJ)   = JJ;
+                    sv_aux(II,JJ)   = dfL_dqL{II,JJ};
+                end
+            end
+            J_d.iv      = cat(1, J_d.iv, iv_aux(:));
+            J_d.jv      = cat(1, J_d.jv, jv_aux(:));
+            J_d.sv      = cat(1, J_d.sv, sv_aux(:));
+
+            %Derivatives w.r.t. qR (Dirichlet conditions at the right of the droplet):
+            iv_aux      = zeros(model_g.nDiff, N_R);
+            jv_aux      = zeros(size(iv_aux));
+            sv_aux      = zeros(size(iv_aux));
+            for II=1:model_g.nDiff
+                for JJ=1:N_R
+                    iv_aux(II,JJ)   = II;
+                    jv_aux(II,JJ)   = N_L + JJ;
+                    sv_aux(II,JJ)   = -dfR_dqR{II,JJ};
+                end
+            end
+            J_d.iv      = cat(1, J_d.iv, iv_aux(:));
+            J_d.jv      = cat(1, J_d.jv, jv_aux(:));
+            J_d.sv      = cat(1, J_d.sv, sv_aux(:));
+
+            %Derivatives w.r.t. w_droplet are the derivatives w.r.t. w:
+            iv_aux      = zeros(N_L, 1);
+            jv_aux      = zeros(size(iv_aux));
+            sv_aux      = zeros(size(iv_aux));
+            for II=1:N_L
+                for JJ=1:1
+                    iv_aux(II,JJ)   = model_g.nInerts+II;
+                    jv_aux(II,JJ)   = N_L + N_R + JJ;
+                    sv_aux(II,JJ)   = dfL_duwL{II,end}*1.0 + ...
+                                        dfL_duwL_dx{II,end}*(1.0/(xmesh_l_np1(end)-xmesh_l_np1(1)));
+                end
+            end
+            J_d.iv      = cat(1, J_d.iv, iv_aux(:));
+            J_d.jv      = cat(1, J_d.jv, jv_aux(:));
+            J_d.sv      = cat(1, J_d.sv, sv_aux(:));
+            
+            %Derivatives w.r.t. w_droplet are the derivatives w.r.t. w:
+            iv_aux      = zeros(model_g.nDiff, 1);
+            jv_aux      = zeros(size(iv_aux));
+            sv_aux      = zeros(size(iv_aux));
+            for II=1:model_g.nDiff
+                for JJ=1:1
+                    iv_aux(II,JJ)   = II;
+                    jv_aux(II,JJ)   = N_L + N_R + JJ;
+                    sv_aux(II,JJ)   = -dfR_duwR{II,end}*1.0 - ...
+                                        dfR_duwR_dx{II,end}*(-1.0/(xmesh_g_np1(end)-xmesh_g_np1(1)));
+                end
+            end
+            J_d.iv      = cat(1, J_d.iv, iv_aux(:));
+            J_d.jv      = cat(1, J_d.jv, jv_aux(:));
+            J_d.sv      = cat(1, J_d.sv, sv_aux(:));
+
+            %Derivatives w.r.t. uL (numerical solution at the left of the droplet):
+            iv_aux      = zeros(N_L, nDAE_l, p+1);
+            jv_aux      = zeros(size(iv_aux));
+            sv_aux      = zeros(size(iv_aux));
+            phim        = sol_np1.fesl.NCompute([1.0]);
+            dphim_dxi   = sol_np1.fesl.NCompute([1.0]);
+            for II=1:N_L
+                for JJ=1:nDAE_l
+                    for iDof=1:p+1
+                        iv_aux(II,JJ,iDof)  = model_g.nInerts+II;
+                        jv_aux(II,JJ,iDof)  = (JJ-1)*sol_np1.fesl.nDof + ...
+                                                (mesh_l_np1.nElems-1)*(p+1) + ...
+                                                iDof;
+                        sv_aux(II,JJ,iDof)  = dfL_duwL{II,JJ}*phim(iDof) + ...
+                                                dfL_duwL_dx{II,JJ}*dphim_dxi(iDof)*...
+                                                2/(xmesh_l_np1(end)-xmesh_l_np1(end-1));
+                    end
+                end
+            end
+            J_dl.iv     = iv_aux(:);
+            J_dl.jv     = jv_aux(:);
+            J_dl.sv     = sv_aux(:);
+            
+            %Derivatives w.r.t. uR (numerical solution at the right of the droplet):
+            iv_aux      = zeros(nDiff_lg, nDAE_g, p+1);
+            jv_aux      = zeros(size(iv_aux));
+            sv_aux      = zeros(size(iv_aux));
+            phim        = sol_np1.fesg.NCompute([-1.0]);
+            dphim_dxi   = sol_np1.fesg.NCompute([-1.0]);
+            for II=1:nDiff_lg
+                for JJ=1:nDAE_g
+                    for iDof=1:p+1
+                        iv_aux(II,JJ,iDof)  = II;
+                        jv_aux(II,JJ,iDof)  = (JJ-1)*sol_np1.fesg.nDof + ...
+                                                iDof;
+                        sv_aux(II,JJ,iDof)  = -dfR_duwR{II,JJ}*phim(iDof) - ...
+                                                dfR_duwR_dx{II,JJ}*dphim_dxi(iDof)*...
+                                                2/(xmesh_g_np1(2)-xmesh_g_np1(1));
+                    end
+                end
+            end
+            J_dg.iv     = iv_aux(:);
+            J_dg.jv     = jv_aux(:);
+            J_dg.sv     = sv_aux(:);
+            
+        end
+        
+        %Append equilibrium conditions:
+%         DeltaT_np1              = DeltaT_0*exp(-sol_np1.t/tau_relax);
+%         DeltaP_np1              = DeltaP_0*exp(-sol_np1.t/tau_relax);
+        DeltaT_np1              = DeltaT_0*exp(-(sol_np1.t/tau_relax)^2);
+        DeltaP_np1              = DeltaP_0*exp(-(sol_np1.t/tau_relax)^2);
+        [rEq, JEq]              = EquilibriumConditions(model_l, model_g, ...
+                                    [sol_np1.qL; sol_np1.qR(1:model_g.nDiff)], ...
+                                    DeltaT_np1, DeltaP_np1, NF_l, NF_g, true);
+        r_d(nDiff_lg+1:end)     = rEq;
+        if ComputeJ
+            for II=1:model_l.nSpecies+3
+                for JJ=1:model_l.nDiff+model_g.nDiff
+                    J_d.iv      = cat(1, J_d.iv, nDiff_lg+II);
+                    J_d.jv      = cat(1, J_d.jv, JJ);
+                    J_d.sv      = cat(1, J_d.sv, JEq(II,JJ));
+                end
+            end      
+        end
+        
         %------------------------------------------------------------------
         %OUTPUT:
         
         %Pack variables:
-        r       = { r_l, r_g, r_mesh_l, r_mesh_g };
+        r       = { r_mesh_l, r_mesh_g, cat(1, r_l, r_g, r_d) };
         if ComputeJ
-            J   = { sparse( J_l.iv, J_l.jv, J_l.sv ), ...
-                    sparse( J_g.iv, J_g.jv, J_g.sv ), ...
-                    1.0, ...    
-                    1.0 };
+%             J   = { J_l,    NaN,    J_ld;
+%                     NaN,    J_g,    J_gd;
+%                     J_dl,   J_dg,   J_d     };
+            %Assembly full Jacobian:
+            J.iv    = cat(1, J_l.iv, J_ld.iv, ...
+                            J_g.iv+N_l, J_gd.iv+N_l, ...
+                            J_dl.iv+N_l+N_g, J_dg.iv+N_l+N_g, J_d.iv+N_l+N_g);
+            J.jv    = cat(1, J_l.jv, J_ld.jv+N_l+N_g, ...
+                            J_g.jv+N_l, J_gd.jv+N_l+N_g, ...
+                            J_dl.jv, J_dg.jv+N_l, J_d.jv+N_l+N_g);
+            J.sv    = cat(1, J_l.sv, J_ld.sv, J_g.sv, J_gd.sv, ...
+                            J_dl.sv, J_dg.sv, J_d.sv);
+            J       = { 1.0, ...
+                        1.0, ...
+                        sparse(J.iv(:), J.jv(:), J.sv(:), ...
+                            N_l+N_g+N_L+N_R+1, N_l+N_g+N_L+N_R+1) };
         else 
             J   = NaN;
         end
@@ -647,7 +985,7 @@ function [save_vars, model_l, model_g] = ...
         %Save Deltat for CFL=1 for last stage (first stage is avoided because 
         %velocity at t=0 is unknown):
         if ii==RKmethod.s
-            Deltat_CFL_n    = min(Deltat_CFL_g, Deltat_CFL_l);
+            Deltat_CFL_n    = min(Deltat_CFL_l, Deltat_CFL_g);
         end
         
     end
@@ -657,28 +995,33 @@ function [save_vars, model_l, model_g] = ...
     %Sr and Sy two scaling matrices:
     %The Jacobian is hence Jhat = Sr*df/dy*Sy and we solve
     %g:=Jhat\fhat(yhat)=0
+%     fig2    = figure();
     function gscaled = PrecResidualFun(yscaled)
         
-        %Extract solution at liquid and gas:
-        y_l         = Sy_l*yscaled(block_l);
-        y_g         = Sy_g*yscaled(block_g);
-        y_mesh_l    = Sy_mesh_l*yscaled(block_mesh_l);
-        y_mesh_g    = Sy_mesh_g*yscaled(block_mesh_g);
-        
         %Compute residual:
-        [r,~]   = ResidualFun({y_l, y_g, y_mesh_l, y_mesh_g}, false);   %r={r_l, r_g}
-        if any(isnan(r{1})) || any(isnan(r{2}))
-            gscaled     = NaN;
+        y       = Sy*yscaled;
+        [r,~]   = ResidualFun(y, false);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
+        if any(isnan(r{1})) || any(isnan(r{2})) || any(isnan(r{3})) 
+            gscaled = NaN;
             return
         end
         
         %Compute preconditioned residual:
-        g_l         = LUSolve(A_n_fact{1},Sr_l*r{1});
-        g_g         = LUSolve(A_n_fact{2},Sr_g*r{2});
-        g_mesh_l    = Sy_mesh_l\r{3};     %g_mesh = Jhat^{-1} fhat = (Sr I Sy)^{-1} Sr f = Sy^{-1} f
-        g_mesh_g    = Sy_mesh_g\r{4};     %g_mesh is dimensionless
-        gscaled     = cat(1, g_l, g_g, g_mesh_l, g_mesh_g);
- 
+        g_mesh_l    = Srinv{1}*r{1};    %Jacobian for this block is the identity
+        g_mesh_g    = Srinv{2}*r{2};
+        g_lgz       = LUSolve(A_n_fact{3},Srinv{3}*r{3});
+        gscaled     = cat(1, g_mesh_l, g_mesh_g, g_lgz);
+        
+%         figure(fig2)
+%         semilogy(abs(g_l), "+-b")
+%         hold on
+%         block_v     = model_l.nDiff*fes_l.nDof+1:nDAE_l*fes_l.nDof;
+%         semilogy(block_v, abs(g_l(block_v)), "x-c")   
+%         semilogy(abs(g_g), "+-r")
+%         block_v     = model_g.nDiff*fes_g.nDof+1:nDAE_g*fes_g.nDof;
+%         semilogy(block_v, abs(g_g(block_v)), "x-m")
+%         hold off
+        
     end
 
     %March:
@@ -691,20 +1034,25 @@ function [save_vars, model_l, model_g] = ...
     t_save          = DeltaSaveI;
     save_vars       = cell(10,4000);
     Nt              = 0;
-    yv_n            = cat(1,    CellToVector(sol_n.ul), ...
+    yv_n            = cat(1,    sol_n.fesl.mesh.x_faces, ...
+                                sol_n.fesg.mesh.x_faces, ...
+                                CellToVector(sol_n.ul), ...
                                 CellToVector(sol_n.ug), ...
-                                sol_n.fesl.mesh.x_faces, ...
-                                sol_n.fesg.mesh.x_faces ) ;
+                                sol_n.qL, ...
+                                sol_n.qR, ...
+                                sol_n.w ) ;
     Deltat_n        = Deltat0;
     Deltat_CFL_n    = NaN;
     while sol_n.t<t_final
         
         %Load RK coefficients:
         if sol_n.t==0.0
-            RKmethod    = calcRKmethod_imex('ARS443', t_evap);
-%             RKmethod    = calcRKmethod_imex('EULER');
+            RKmethod    = calcRKmethod_imex('ARS443');
+%             RKmethod    = calcRKmethod_imex('BPR3');
+%             RKmethod    = calcRKmethod_imex('KC35');
         else
-            RKmethod    = calcRKmethod_imex('BPR3', t_evap);
+%             RKmethod    = calcRKmethod_imex('BPR3');
+            RKmethod    = calcRKmethod_imex('KC35');
         end
         
         %Allocate derivatives:
@@ -724,14 +1072,37 @@ function [save_vars, model_l, model_g] = ...
             end
             Deltat_n    = t_np1-sol_n.t;
 
-            %Scaling matrices for all unkwowns:
-%             [Sr_l,Sy_l]     = ScalMatrices0(model_l, NF_l, sol_n.fesl, Deltat_n);
-%             [Sr_g,Sy_g]     = ScalMatrices0(model_g, NF_g, sol_n.fesg, Deltat_n);
-            [Sr_l,Sy_l]     = ScalMatrices1(model_l, NF_l, NF_tau, sol_n.fesl, Deltat_n);
-            [Sr_g,Sy_g]     = ScalMatrices1(model_g, NF_g, NF_tau, sol_n.fesg, Deltat_n);
-            Sy_mesh_l       = sol_n.fesg.mesh.x_faces(end) * speye(mesh_l.nElems+1);
-            Sy_mesh_g       = sol_n.fesg.mesh.x_faces(end) * speye(mesh_g.nElems+1);
+            %Characteristic element volumes and maximum radius;
+            NF_omega_l      = sum(sol_n.fesl.mesh.V_cells)/sol_n.fesl.mesh.nElems;
+            NF_omega_g      = sum(sol_n.fesg.mesh.V_cells)/sol_n.fesg.mesh.nElems;
+            R_l             = sol_n.fesl.mesh.x_faces(end);
+            R_g             = sol_n.fesg.mesh.x_faces(end);
             
+            %Scaling vectors and multiplicity:
+            Sy_factors      = [ R_l; R_g; ...
+                                NF_l(1:end-1); NF_l(end)*NF_tau/Deltat_n; ...
+                                NF_g(1:end-1); NF_g(end)*NF_tau/Deltat_n; ...
+                                NF_l(1:end-1); NF_g(1:end); 0.5*(NF_l(end)+NF_g(end)) ];
+            Sy_mult         = [ nNodes_l; nNodes_g; ...
+                                repmat(sol_n.fesl.nDof, nDAE_l, 1); ...
+                                repmat(sol_n.fesg.nDof, nDAE_g, 1); ...
+                                repmat(1, N_L, 1); repmat(1, N_R, 1); 1 ];
+            Srinv_factors   = 1.0 ./ [ ...
+                                NF_omega_l*NF_l(1:end-1); NF_omega_l*NF_l(1)*Deltat_n; ...
+                                NF_omega_g*NF_g(1:end-1); NF_omega_g*NF_g(1)*Deltat_n; ...
+                                NF_g(end)*NF_g(1:end-1); ...
+                                max(DeltaT_0,300); max(DeltaP_0,1e5); NF_l(1); NF_g(1) ];
+            Srinv_mult      = [ repmat(sol_n.fesl.nDof, nDAE_l, 1); 
+                                repmat(sol_n.fesg.nDof, nDAE_g, 1); 
+                                repmat(1, nDiff_lg, 1); 
+                                1; repmat(1, model_l.nSpecies, 1); 1; 1 ]; 
+            
+            %Scaling matrices:
+            Sy              = ScalingMatrix(Sy_factors, Sy_mult);
+            Srinv           = { 1.0/R_l * speye(nNodes_l);
+                                1.0/R_g * speye(nNodes_g);
+                                ScalingMatrix(Srinv_factors, Srinv_mult) }; 
+                            
             %Initialize stage variables:
             ii              = 1;
             yv_np1          = yv_n;
@@ -750,13 +1121,10 @@ function [save_vars, model_l, model_g] = ...
             bDAE_g_ii       = My1_g;
         
             %Save derivatives k(:,1) and Jacobian for first stage:
-            [~,A_n]         = ResidualFun({yv_np1(block_l), yv_np1(block_g), ...
-                                            yv_np1(block_mesh_l), yv_np1(block_mesh_g)}, ...
-                                        true);
-            A_n_fact        = { LUFactorization(Sr_l*A_n{1}*Sy_l); 
-                                LUFactorization(Sr_g*A_n{2}*Sy_g); 
-                                1.0; 
-                                1.0 };
+            [~,A_n]         = ResidualFun(yv_np1, true);
+            A_n_fact        = { 1.0; 
+                                1.0;
+                                LUFactorization(Srinv{3}*A_n{3}*Sy(block_l(1):end, block_l(1):end)) };
                                 
             %Loop stages:
             NLS_iters       = 0;
@@ -764,7 +1132,7 @@ function [save_vars, model_l, model_g] = ...
 
                 %Update time:
                 sol_np1.t           = sol_n.t + Deltat_n*RKmethod.c(ii);
-
+            
                 %Auxiliary vectors:
                 bmesh_l_ii          = sol_n.fesl.mesh.x_faces + Deltat_n * (kmesh_l_RK(:,1:ii-1)*RKmethod.aI(ii,1:ii-1).');
                 bDAE_l_ii           = My1_l + Deltat_n * (kDAE_l_RK(:,1:ii-1)*RKmethod.aI(ii,1:ii-1).');
@@ -781,24 +1149,22 @@ function [save_vars, model_l, model_g] = ...
                     TolA            = 1e-8;
                 end
                 NDOF                            = nDAE_l*fes_l.nDof + nDAE_g*fes_g.nDof; 
-                [yscaled_np1, nIters, NLSFlag]  = Anderson(@PrecResidualFun, ...
-                                                        cat(1,  Sy_l\yv_np1(block_l), ...
-                                                                Sy_g\yv_np1(block_g), ...
-                                                                Sy_mesh_l\yv_np1(block_mesh_l), ...
-                                                                Sy_mesh_g\yv_np1(block_mesh_g)), ...
-                                                        sqrt(NDOF)*TolA, NLS_MaxIter, 50);
-                yv_np1                           = cat(1,   Sy_l*yscaled_np1(block_l), ...
-                                                            Sy_g*yscaled_np1(block_g), ...
-                                                            Sy_mesh_l*yscaled_np1(block_mesh_l), ...
-                                                            Sy_mesh_g*yscaled_np1(block_mesh_g) );
+                [yscaled_np1, nIters, NLSFlag]  = Anderson(@PrecResidualFun, Sy\yv_n, ...
+                                                        sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50);
+                yv_np1              = Sy*yscaled_np1;
                 if NLSFlag<0
                     break
                 end
                 NLS_iters           = NLS_iters + nIters/(RKmethod.s-1);
+                
+%                 %Plot results:
+%                 PlotFun(sol_np1)
+%                 drawnow()
+                
             end
         
             %Save CFL for present time step:
-            CFL_n           = Deltat_n/Deltat_CFL_n;
+            CFL_n               = Deltat_n/Deltat_CFL_n;
             
             %The considered methods are stiffly accurate, so the
             %solution _ii is the solution at _np1.
@@ -829,21 +1195,10 @@ function [save_vars, model_l, model_g] = ...
                 end
                 etaT_g          = LqNorm(err_np1, NF_g(1:model_g.nDiff), sol_np1.fesg, 2);
                 %Total error:
-%                 etaT            = sqrt(etaT_l^2+etaT_g^2);
                 etaT            = max(etaT_l, etaT_g);
                 
                 %Apply controler:
                 if etaT<=TolT
-                    % NOTE: sqrt(X/NLS_iters) -> Value depending on the simulation
-                    % The value X should be adjusted according to the simulation if adaptive
-                    % time stepping is enabled.
-                    % This constant controls the update of the number of nonlinear iterations (NLSiters)
-                    % based on the average value of NLSiters per stage, which is displayed on the results screen,
-                    % to achieve a stable time step.
-                    % For example, if it is observed that NLSiters/stage varies approximately between 27 and 30,
-                    % and many temporary or convergence errors appear in the console, X should be a value around 26.
-                    % It is recommended to adjust this value based on the reported NLSiters/stage results
-                    % in the simulation to avoid time steps that are too large or too small.
                     Deltat_np1  = Deltat_n * min([(0.8*TolT/etaT)^(1.0/RKmethod.order), sqrt(NLS_IterTarget/NLS_iters), 2.0]);
                     RepeatT     = false;
                 else
@@ -858,6 +1213,7 @@ function [save_vars, model_l, model_g] = ...
                 
                 Deltat_np1      = min(1.2*Deltat_n, Deltat0);
                 RepeatT         = false;
+                etaT            = NaN;
                 
             else %decrease time step and try again
                 
@@ -874,17 +1230,40 @@ function [save_vars, model_l, model_g] = ...
         end
 
         %At this point, integration of the time step has converged.
+        disp(' ')
         disp([  't=', sprintf('%.2E',sol_n.t),...
                 ', tau=', sprintf('%.2E',Deltat_n), ...
                 ', CFL=', sprintf('%.2E',CFL_n), ...
                 ', errT=', sprintf('%.2E',etaT), ...
                 ', NLSiters/stage=', sprintf('%.1f',NLS_iters), ...
                 ', tCPU=', sprintf('%.2E', toc(tStart)) ])
-%         disp([  't=', sprintf('%.2E',sol_n.t),...
-%                 ', tau=', sprintf('%.2E',Deltat_n), ...
-%                 ', NLSiters/stage=', num2str(NLS_iters) ])
 
+        %DEBUG: Evaluate temperature from numerical solution:
+        uL               = EvalSolution(sol_np1.ul, sol_n.fesl, [sol_n.fesl.mesh.nElems], [1.0]);
+        uR               = EvalSolution(sol_np1.ug, sol_n.fesg, [1], [-1.0]);
+        rhoy_ql          = uL(1:model_l.nSpecies);
+        rhoy_qg          = uR(1:model_g.nSpecies);
+        H_ql             = uL{model_l.nSpecies+1};
+        H_qg             = uR{model_g.nSpecies+1};
+        T_ql_num         = calc_T(H_ql,rhoy_ql,model_l);
+        T_qg_num         = calc_T(H_qg,rhoy_qg,model_g);
+        %DEBUG: Evaluate temperature from boundary conditions:
+        rhoy_ql          = VectorToCell(sol_np1.qL(1:end-1), model_l.nSpecies);
+        rhoy_qg          = VectorToCell(sol_np1.qR(1:end-2), model_g.nSpecies);
+        H_ql             = sol_np1.qL(model_l.nSpecies+1);
+        H_qg             = sol_np1.qR(model_g.nSpecies+1);
+        T_ql_bc          = calc_T(H_ql,rhoy_ql,model_l);
+        T_qg_bc          = calc_T(H_qg,rhoy_qg,model_g);
+        disp([  'T_ql=', sprintf('%.8f', T_ql_bc), ...
+                ', DeltaT_ql=', sprintf('%.2E', abs(T_ql_bc-T_ql_num)), ...
+                ', T_qg=', sprintf('%.8f', T_qg_bc), ...
+                ', DeltaT_qg=', sprintf('%.2E', abs(T_qg_bc-T_qg_num)) ] );
+        disp([  'v_l=', sprintf('%.5E', uL{model_l.nDiff+1}), ...
+                ', v_g=', sprintf('%.5E', uR{model_g.nDiff+1}), ...
+                ', w=', sprintf('%.5E', sol_np1.w) ] );
+        
         %Update solution:
+        sol_np1.t   = t_np1;    %Correct roundoff errors for last stage
         Nt          = Nt+1;
         Deltat_n    = Deltat_np1;
         sol_n       = sol_np1;
@@ -1011,18 +1390,20 @@ function [save_vars, model_l, model_g] = ...
                 t_prev = t;
             end
         end
-    clearvars sol_np1 RKmethod kDAE_l_RK kmesh_l_RK kDAE_g_RK kmesh_g_RK RepeatT t_np1 Sr_l Sr_g Sy_l Sy_g A_n A_n_fact bmesh_l_ii Mm_l_ii My1_l bDAE_l_ii bmesh_g_ii Mm_g_ii My1_g bDAE_g_ii Deltat_np1 yv_np1 
+        clearvars sol_np1 RKmethod kDAE_l_RK kmesh_l_RK kDAE_g_RK kmesh_g_RK RepeatT t_np1 Sr_l Sr_g Sy_l Sy_g A_n A_n_fact bmesh_l_ii Mm_l_ii My1_l bDAE_l_ii bmesh_g_ii Mm_g_ii My1_g bDAE_g_ii Deltat_np1 yv_np1 
     end
+    
+    disp(['Simulation finished, tCPU=', sprintf('%.2E', toc(tStart))])
     
 end
 
 %u = [rhobarL, HbarL, rhobarR, HbarR]. We impose
-%   HbarL           = H_l           (equil of temperatures)
-%   HbarR-HbarL     = H_g - H_r     (equil of chemical potential)
-%   rhobarL         = rho(HbarL)
-%   rhobarR         = rho(HbarR)
+%   equil of temperatures
+%   equil of chemical potential
+%   density--enthalpy restriction at the liquid
+%   density--enthalpy restriction at the gas
 function [r,J]  = EquilibriumConditions(model_l, model_g, y_eq, ...
-    NF_l, NF_g, ComputeJ)
+    DeltaT, DeltaP, NF_l, NF_g, ComputeJ)
 
     rhoy_l        = cell(model_l.nSpecies,1);
     rhoy_g        = cell(model_g.nSpecies,1);
@@ -1047,8 +1428,8 @@ function [r,J]  = EquilibriumConditions(model_l, model_g, y_eq, ...
     rho_bar_g     = calc_rho(model_g,y_g,T_g);
 
     %Residual and Jacobian:
-    r             = [ T_l - T_g;
-                      ec;
+    r             = [ T_l - T_g - DeltaT;
+                      ec - DeltaP;
                       rho_l - rho_bar_l;
                       rho_g - rho_bar_g ];
     if ComputeJ
@@ -1060,9 +1441,9 @@ function [r,J]  = EquilibriumConditions(model_l, model_g, y_eq, ...
             delta           = NFv(jj)*1e-6;
             ypert           = y_eq;
             ypert(jj)       = y_eq(jj)-delta;
-            [f1,~]          = EquilibriumConditions(model_l, model_g, ypert, NF_l, NF_g, false);
+            [f1,~]          = EquilibriumConditions(model_l, model_g, ypert, DeltaT, DeltaP, NF_l, NF_g, false);
             ypert(jj)       = y_eq(jj)+delta;
-            [f2,~]          = EquilibriumConditions(model_l, model_g, ypert, NF_l, NF_g, false);
+            [f2,~]          = EquilibriumConditions(model_l, model_g, ypert, DeltaT, DeltaP, NF_l, NF_g, false);
             J(:,jj)         = (f2-f1)/(2*delta);
         end
     else
@@ -1092,196 +1473,5 @@ function S = ScalingMatrix(alphav, Nv)
     end
     Ntotal      = sum(Nv);
     S           = spdiags(syv, 0, Ntotal, Ntotal);
-    
-end
-
-%Compute scaling coefficients for variables rhoY_i, H, v:
-function [Sr, Sy]   = ScalMatrices0(model, NF, fes, Deltat)
-
-    NF          = NF(:);
-    
-    %Scale v with NF, multiply algebraic eq. by 1.0/Deltat
-    Sy      = ScalingMatrix(    cat(1,  NF(1:end-1), ...
-                                        NF(end) ), ...
-                                cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
-%     Sy      = ScalingMatrix(    cat(1,  NF(1:end-1), ...
-%                                         NF(end)/Deltat ), ...
-%                                 cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
-    Sr      = ScalingMatrix(    cat(1,  1.0./NF(1:end-1), ...
-                                        1.0/NF(1)/Deltat), ...
-                                cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
-                            
-end
-function [Sr, Sy]   = ScalMatrices1(model, NF, NF_tau, fes, Deltat)
-
-    NF          = NF(:);
-    
-    %Scale v with NF, multiply algebraic eq. by 1.0/Deltat
-    Sy      = ScalingMatrix(    cat(1,  NF(1:end-1), ...
-                                        NF(end)*NF_tau/Deltat ), ...
-                                cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
-    Sr      = ScalingMatrix(    cat(1,  1.0./NF(1:end-1), ...
-                                        1.0/NF(1)/Deltat), ...
-                                cat(1,  repmat(fes.nDof, model.nDiff+model.nAlg, 1) ) );
-                            
-end
-
-%Here the vector z=[qL; qR; wdroplet]:
-function [z, nIters, flag] = CouplingConditions(z0, t, ...
-    model_l, fes_l, u_l, NF_l, ...,
-    model_g, fes_g, u_g, NF_g)
-
-    %Extract variables:
-    xmesh_l         = fes_l.mesh.x_faces;
-    xmesh_g         = fes_g.mesh.x_faces;
-    N_L             = model_l.nDiff;
-    N_R             = model_g.nDiff+1;
-    N_z             = N_L+N_R+1;
-    
-    %Function with residual and jacobian of restrictions:
-    function [r,J]  = ResidualFun(y, ComputeJ)
-
-        %Extract variables:
-        qL          = y(1:N_L);
-        qR          = y(N_L+1:N_L+N_R);
-        w_droplet   = y(end);
-
-        %Allocate r:
-        r           = zeros(N_L+N_R+1, 1);
-
-        %Mass and energy fluxes at the left:
-        %NOTE: "uwL" is the numerical solution for the liquid, including
-        %the mesh velocity
-        %"qL" is the Dirichlet condition at the boundary,
-        uwL         = [ EvalSolution(u_l, fes_l, [fes_l.mesh.nElems], 1.0); 
-                        {w_droplet} ];
-        duwL_dx     = [ EvalSolution_dx(u_l, fes_l, [fes_l.mesh.nElems], 1.0);
-                        {w_droplet*(1.0/(xmesh_l(end)-xmesh_l(1)))} ];
-        model_l.uN  = @(t) cat(1, VectorToCell(qL, N_L));
-        [fL, dfL_duwL, dfL_duwL_dx, dfL_dqL] = ...
-            model_l.ftildeN(model_l, t, xmesh_l(end), uwL, duwL_dx, ...
-                    (xmesh_l(end)-xmesh_l(end-1))/fes_l.p, ComputeJ);
-
-        %Mass and energy fluxes at the right:
-        %"uwR" is the numerical solution for the gas, including
-        %the velocity
-        %"qR" is the Dirichlet condition at the boundary,
-        uwR         = [ EvalSolution(u_g, fes_g, 1, -1.0);
-                        {w_droplet} ];
-        duwR_dx     = [ EvalSolution_dx(u_g, fes_g, 1, -1.0);
-                        {w_droplet*(-1.0/(xmesh_g(end)-xmesh_g(1)))} ];
-        model_g.u1  = @(t) cat(1, VectorToCell(qR, N_R));
-        [fR, dfR_duwR, dfR_duwR_dx, dfR_dqR] = ...
-            model_g.ftilde1(model_g, t, xmesh_g(1), uwR, duwR_dx, ...
-                    (xmesh_g(2)-xmesh_g(1))/fes_g.p, ComputeJ);
-
-        %Flux balance for the differential variables:
-        nDiff_lg        = model_g.nDiff;
-        fL              = [zeros(model_g.nInerts,1); CellToVector(fL)];
-        r(1:nDiff_lg)   = fL-CellToVector(fR); %nDAE_l=nDAE_g equations
-        if ComputeJ
-
-            %Allocate:
-            J.iv        = zeros(0,1);
-            J.jv        = zeros(0,1);
-            J.sv        = zeros(0,1);
-
-            %Derivatives w.r.t. qL (Dirichlet conditions at the left of the droplet):
-            iv_aux      = zeros(N_L, N_L);
-            jv_aux      = zeros(size(iv_aux));
-            sv_aux      = zeros(size(iv_aux));
-            for II=1:N_L
-                for JJ=1:N_L
-                    iv_aux(II,JJ)       = model_g.nInerts+II;
-                    jv_aux(II,JJ)       = JJ;
-                    sv_aux(II,JJ)       = dfL_dqL{II,JJ};
-                end
-            end
-            J.iv        = cat(1, J.iv, iv_aux(:));
-            J.jv        = cat(1, J.jv, jv_aux(:));
-            J.sv        = cat(1, J.sv, sv_aux(:));
-
-            %Derivatives w.r.t. qR (Dirichlet conditions at the right of the droplet):
-            iv_aux      = zeros(model_g.nDiff, N_R);
-            jv_aux      = zeros(size(iv_aux));
-            sv_aux      = zeros(size(iv_aux));
-            for II=1:model_g.nDiff
-                for JJ=1:N_R
-                    iv_aux(II,JJ)       = II;
-                    jv_aux(II,JJ)       = N_L + JJ;
-                    sv_aux(II,JJ)       = -dfR_dqR{II,JJ};
-                end
-            end
-            J.iv        = cat(1, J.iv, iv_aux(:));
-            J.jv        = cat(1, J.jv, jv_aux(:));
-            J.sv        = cat(1, J.sv, sv_aux(:));
-
-            %Derivatives w.r.t. w_droplet are the derivatives w.r.t. w:
-            iv_aux      = zeros(N_L, 1);
-            jv_aux      = zeros(size(iv_aux));
-            sv_aux      = zeros(size(iv_aux));
-            for II=1:N_L
-                for JJ=1:1
-                    iv_aux(II,JJ)       = model_g.nInerts+II;
-                    jv_aux(II,JJ)       = N_L + N_R + JJ;
-                    sv_aux(II,JJ)       = dfL_duwL{II,end}*1.0 + ...
-                                            dfL_duwL_dx{II,end}*(1.0/(xmesh_l(end)-xmesh_l(1)));
-                end
-            end
-            J.iv        = cat(1, J.iv, iv_aux(:));
-            J.jv        = cat(1, J.jv, jv_aux(:));
-            J.sv        = cat(1, J.sv, sv_aux(:));
-            
-            %Derivatives w.r.t. w_droplet are the derivatives w.r.t. w:
-            iv_aux      = zeros(model_g.nDiff, 1);
-            jv_aux      = zeros(size(iv_aux));
-            sv_aux      = zeros(size(iv_aux));
-            for II=1:model_g.nDiff
-                for JJ=1:1
-                    iv_aux(II,JJ)       = II;
-                    jv_aux(II,JJ)       = N_L + N_R + JJ;
-                    sv_aux(II,JJ)       = -dfR_duwR{II,end}*1.0 - ...
-                                            dfR_duwR_dx{II,end}*(-1.0/(xmesh_g(end)-xmesh_g(1)));
-                end
-            end
-            J.iv        = cat(1, J.iv, iv_aux(:));
-            J.jv        = cat(1, J.jv, jv_aux(:));
-            J.sv        = cat(1, J.sv, sv_aux(:));
-
-        end
- 
-        %Equilibrium conditions:
-        y_eq                    = [qL; qR(1:model_g.nDiff)];
-        [rEq, JEq]              = EquilibriumConditions(model_l, model_g, y_eq, NF_l, NF_g, ComputeJ);
-        r(nDiff_lg+1:end)       = rEq;
-        JEq                     = sparse(JEq);
-        [iv,jv,sv]              = find(JEq);
-        if ComputeJ
-            J.iv                = cat(1, J.iv, nDiff_lg + iv);
-            J.jv                = cat(1, J.jv, jv);
-            J.sv                = cat(1, J.sv, sv);
-        end
-
-        %Construct Jacobian:
-        if ComputeJ
-            J                   = sparse(J.iv, J.jv, J.sv, N_z, N_z);
-        else
-            J                   = NaN;
-        end
-    end
-    
-    %Scaling matrix:
-    Sz      = spdiags( cat(1, NF_l(1:N_L), NF_g(1:N_R), 0.5*(NF_l(N_L+1)+NF_g(N_R))), 0, N_z, N_z);
-    
-    %Solve coupling conditions:
-    [~, J]  = ResidualFun(z0, true);
-    J_fact  = LUFactorization(J*Sz);
-    function gscaled=PrecondResidual(zscaled)
-        z       = Sz*zscaled;
-        [r,~]   = ResidualFun(z,false);
-        gscaled = LUSolve(J_fact,r);
-    end
-    [zscaled, nIters, flag]     = Anderson(@PrecondResidual, Sz\z0, 1e-8, 20, 50);
-    z                           = Sz*zscaled;
     
 end

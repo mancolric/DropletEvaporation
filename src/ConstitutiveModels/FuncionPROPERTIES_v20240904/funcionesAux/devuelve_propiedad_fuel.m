@@ -1,5 +1,5 @@
 function value = devuelve_propiedad_fuel(obj, propiedad, comb, estado, T )
-% [ACTUALIZADO 13/02/2020]
+% [VERSION MODELO NUMERICO A.GUT 31/10/2025]
 
 
 % Variable que activa/desactiva warnings por evaluar propiedades fuera de
@@ -26,12 +26,12 @@ T_fusion = obj.Tf(indice_comb);
 
 % IMPORTANTE: EVALUACION DE PROPIEDADES FUERA DE LIMITES:
 % Dejar de considerar dependencia de propiedades con T en caso de que
-% T_evaluacion > T_b! (aplicable en mezclas multicomponentes)
-if strcmpi(estado, 'liquido') && T>=Tc
+% T_evaluacion > T_c! (aplicable en mezclas multicomponentes)
+if strcmpi(estado, 'liquido') && T>=Tc-2
     T=Tc-2;    
-    if muestra_aviso==1
-        fprintf('### [%s] WARNING: T_eval > T_b when evaluating liquid properties! T_eval has been changed to T_b ### \n ',char(comb))
-    end
+%     if muestra_aviso==1
+%         fprintf('### [%s] WARNING: T_eval > T_b when evaluating liquid properties! T_eval has been changed to T_b ### \n ',char(comb))
+%     end
 elseif strcmpi(estado, 'liquido') && T<T_fusion % El liquido se congelaría!
     % Las propiedades se extrapolan, pero la simulación dejaría de ser
     % válida. Se interrumpe aquí:
@@ -130,9 +130,9 @@ if strcmpi(comb,'heptano')
                 % Nota: Para el heptano, ec. 2, para el resto, ec. 1.
                 value=((C1^2)/a + C2 - 2*C1*C3*a - C1*C4*a^2 - (C3^2)*(a^3)/3 - C3*C4*(a^4)/2 - (C4^2)*(a^5)/5)/MW;
             else
+                % AJUSTE A POLINOMIO HECHO POR A.GUT. OCTUBRE 2025
                 C1 = 18313143.336457685; C2 = -72997.88453983126; C3 = 74.14574127249222;
                 value = (C1 + C2*T + C3*T^2) / MW;
-                % Poco probable que T<182 K..
                 if muestra_aviso==1
                     disp('### AVISO: Se extrapolará ###')
                 end
@@ -144,6 +144,11 @@ if strcmpi(comb,'heptano')
             % peligroso extrapolar...
             C1=0.215; C2=-0.000303; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
+
+        % Entalpía de formación, 'Hf' [J/Kg]
+        % Debe ser el mismo que el 'vapor' por cómo se calcular h_i
+        elseif strcmpi(propiedad,'Hf')
+                value=-187.78*1000/(MW/1000);
         end
         
         
@@ -172,7 +177,11 @@ if strcmpi(comb,'heptano')
                     disp('### AVISO: Temperatura fuera de rango ###')
                 end
             end
-            
+
+            % Entalpía de formación, 'Hf' [J/Kg]
+        elseif strcmpi(propiedad,'Hf')
+                value=-187.78*1000/(MW/1000);
+
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')
             % NASA polynomial fit
@@ -278,6 +287,7 @@ elseif strcmpi(comb,'hexano')
             C1=0.22492; C2=-0.0003533; C3=0; C4=0; C5=0;
             value=C1 + C2*T + C3*T^2 + C4*T^3 + C5*T^4;
         end
+        
         
         
         % Propiedades HEXANO(vap.), todas en función de la Temperatura en K.

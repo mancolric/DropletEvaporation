@@ -1,4 +1,4 @@
-%Function to compute int(f * phi_i dOmega):
+%Function to compute int(f * phi_i dOmega)
 function b=ProjectFun(f, fes)
 
     mesh        = fes.mesh;

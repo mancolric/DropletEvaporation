@@ -1,5 +1,8 @@
 function fes = FES_PX_Create(mesh, p)
     
+    %Set type:
+    fes.type        = 'PX';
+    
     %Mesh:
     fes.mesh        = mesh;
     if mesh.nElems<2
@@ -32,6 +35,12 @@ function fes = FES_PX_Create(mesh, p)
     %Functions to compute shape functions:
     fes.NCompute    = @(xi) PolyLag(xi, fes.p, fes.Lag_Leg);
     fes.dNCompute   = @(xi) dPolyLag(xi, fes.p, fes.Lag_Leg);
+    
+    %Matrix to assembly fast:
+    fes.AsblyMat    = sparse(fes.ElemsDof(:), ...
+                            (1:mesh.nElems*(p+1)).', ...
+                            ones(mesh.nElems*(p+1),1), ...
+                            fes.nDof, mesh.nElems*(p+1)); 
     
 end
 

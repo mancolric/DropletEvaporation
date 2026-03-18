@@ -1,4 +1,5 @@
 function [ec,verify] = calc_ecPvap(y_l, y_g, model_l, model_g, T)
+%rhoy instead of y can be used as well
 
 fuel                    = model_l.gota;
 MW_l                    = fuel.mw';

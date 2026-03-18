@@ -25,7 +25,7 @@ if model.bool_liq==1 % Liquid
 elseif model.bool_liq==0 % Gas
     Yi_eval = zeros(model.nInerts, size(T_v,2)); 
     for II=1:model.nInerts
-    Yi_eval(II,:) = y{II}(:)';
+        Yi_eval(II,:) = y{II}(:)';
     end
     Yf_eval = zeros(model.nSpecies-model.nInerts, size(T_v,2)); 
     for II=1:model.nSpecies-model.nInerts

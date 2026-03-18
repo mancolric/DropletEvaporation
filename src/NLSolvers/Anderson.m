@@ -1,4 +1,4 @@
-%[x_n, Iteration, flag] = Anderson(fun, x0, TolG, MaxIter, m)
+%[x_n, Iteration, flag] = Anderson(fun, x0, TolX, TolG, MaxIter, m, Display)
 %
 %Normally, an equation of the form
 %   f(x)    = 0
@@ -13,7 +13,7 @@
 %saved.
 %
 %fun receives the argument x and returns g(x)
-function [x_n, nIters, flag] = Anderson(fun, x0, TolG, MaxIter, m)
+function [x_n, nIters, flag] = Anderson(fun, x0, TolX, TolG, MaxIter, m, Display)
 
     %First iteration:
     nIters      = 0;
@@ -24,11 +24,19 @@ function [x_n, nIters, flag] = Anderson(fun, x0, TolG, MaxIter, m)
     Xm          = zeros(length(x0),m);  %memory matrices
     Gm          = zeros(length(x0),m);
     mXG         = 0;                    %nb of saved solutions
+    
+    %Save info:
+    g_0         = norm(g_n);
+    
+    %Iterate:
     while true
 
         %Exit loop:
-        if norm(g_n)<=TolG
+        if norm(p_n)<=TolX
             flag    = 1;
+            break
+        elseif norm(g_n)<=TolG
+            flag    = 2;
             break
         elseif nIters==MaxIter
             warning('Reached maximum of iterations')
@@ -52,11 +60,10 @@ function [x_n, nIters, flag] = Anderson(fun, x0, TolG, MaxIter, m)
         Gm(:,2:mXG) = Gm(:,1:mXG-1);
         Gm(:,1)     = (g_np1 - g_n)/Deltag_norm;
         
-        %Update (x_n, g_n, p_n):
+        %Update (x_n, g_n):
         nIters      = nIters+1;
         x_n         = x_np1;
         g_n         = g_np1;
-%         p_n         = -g_n;
         
         %#Next step. Apply multisecant formula:
         %   pn  = - H g^n = - [I + (X-G) (G^T G)^{-1} G^T] g^n 
@@ -82,6 +89,25 @@ function [x_n, nIters, flag] = Anderson(fun, x0, TolG, MaxIter, m)
         gamma                   = V*(S_inv*(transpose(U)*g_n));
         p_n                     = -g_n - Xm*gamma + Gm*gamma;
         
+    end
+    
+    %Display info:
+    if Display=="final"
+        if flag>0
+            disp(['Anderson converged', ...
+                ', nIters=', sprintf('%d', nIters), ...
+                ', |x|=', sprintf('%.3E', norm(x_n)), ...
+                ', |p|=', sprintf('%.3E', norm(p_n)), ...
+                ', |g0|=', sprintf('%.3E', g_0), ...
+                ', |g|=', sprintf('%.3E', norm(g_n))])
+        else
+            disp(['Anderson failed', ...
+                ', nIters=', sprintf('%d', nIters), ...
+                ', |x|=', sprintf('%.3E', norm(x_n)), ...
+                ', |p|=', sprintf('%.3E', norm(p_n)), ...
+                ', |g0|=', sprintf('%.3E', g_0), ...
+                ', |g|=', sprintf('%.3E', norm(g_n))])
+        end
     end
     
 end

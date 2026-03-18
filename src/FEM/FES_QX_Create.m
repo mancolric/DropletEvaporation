@@ -1,5 +1,8 @@
 function fes = FES_QX_Create(mesh, p)
     
+    %Set type:
+    fes.type        = 'QX';
+    
     %Mesh:
     fes.mesh        = mesh;
     if mesh.nElems<2

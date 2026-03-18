@@ -13,11 +13,10 @@ for i=1:model.nSpecies
         h_i_T     = (T_n.*(coeff(6) + T_n.*(coeff(5)/2 + T_n.*(coeff(4)/3 + T_n.*(coeff(3)/4 + T_n.*(coeff(2)/5 + T_n.*(coeff(1)/6)))))));
         h_i_Tref  = (T_ref_n.*(coeff(6) + T_ref_n.*(coeff(5)/2 + T_ref_n.*(coeff(4)/3 + T_ref_n.*(coeff(3)/4 + T_ref_n.*(coeff(2)/5 + T_ref_n.*(coeff(1)/6)))))));
 
-        h_i{i}    = (h_i_T-h_i_Tref).*mu(2) - model.Lv(:,i);
-
+        h_i{i}    = (h_i_T-h_i_Tref).*mu(2) - model.Lv(:,i);% + model.Hf(:,i);
     else
         coeff     = model.matrix{6,i}.p;
-        mu        = model.matrix{6,i}.mu; % mu(1)=mean | mu(2)=std
+         mu        = model.matrix{6,i}.mu; % mu(1)=mean | mu(2)=std
 
         T_n       = (T_m-mu(1))/mu(2);
         T_ref_n   = (T_ref-mu(1))/mu(2);
@@ -25,7 +24,7 @@ for i=1:model.nSpecies
         h_i_T     = (T_n.*(coeff(6) + T_n.*(coeff(5)/2 + T_n.*(coeff(4)/3 + T_n.*(coeff(3)/4 + T_n.*(coeff(2)/5 + T_n.*(coeff(1)/6)))))));
         h_i_Tref  = (T_ref_n.*(coeff(6) + T_ref_n.*(coeff(5)/2 + T_ref_n.*(coeff(4)/3 + T_ref_n.*(coeff(3)/4 + T_ref_n.*(coeff(2)/5 + T_ref_n.*(coeff(1)/6)))))));
 
-        h_i{i}    = (h_i_T-h_i_Tref).*mu(2);
+        h_i{i}    = (h_i_T-h_i_Tref).*mu(2);% + model.Hf(:,i);
     end
 end
 
