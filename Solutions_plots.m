@@ -12,13 +12,13 @@ Nt              = length([save_vars{6,:}]);
 mdot_i          = [save_vars{6,1:Nt}];
 mdot_total      = sum(cell2mat(mdot_i),1);
 
-% figure(1)
-% plot([save_vars{1, 1:Nt}], mdot_total, '-b')
-% hold on
-% 
-% xlabel("$$t[s]$$", Interpreter="latex", FontSize=16)
-% ylabel("$$\dot{m} [Kg/m^2s]$$", Interpreter="latex", FontSize=16)
-% legend("Present model", 'Interpreter','latex', 'Location','northwest', FontSize=16)
+figure(1)
+plot([save_vars{1, 1:Nt}], mdot_total, '-b')
+hold on
+
+xlabel("$$t[s]$$", Interpreter="latex", FontSize=16)
+ylabel("$$\dot{m} [Kg/m^2s]$$", Interpreter="latex", FontSize=16)
+legend("Present model", 'Interpreter','latex', 'Location','northwest', FontSize=16)
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -31,13 +31,13 @@ disp("Time instant " + Time_instant + " correspond to t = " + save_vars{1,Time_i
 T_gas           = [save_vars{12,Time_instant}];
 x_gas           = [save_vars{17,Time_instant}];
 
-% figure(2)
-% plot(x_gas, T_gas, '-b')
-% hold on
-% 
-% xlabel("$$r[m]$$", Interpreter="latex", FontSize=16)
-% ylabel("$$Temperature [K]$$", Interpreter="latex", FontSize=16)
-% legend("Present model", 'Interpreter','latex', 'Location','northwest', FontSize=16)
+figure(2)
+plot(x_gas, T_gas, '-b')
+hold on
+
+xlabel("$$r[m]$$", Interpreter="latex", FontSize=16)
+ylabel("$$Temperature [K]$$", Interpreter="latex", FontSize=16)
+legend("Present model", 'Interpreter','latex', 'Location','northwest', FontSize=16)
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
