@@ -48,8 +48,8 @@ R_0               = (150e-6)/2; % Initial droplet radius [m]
 XRad              = 150;        % Domain size (in gas phase) as a multiple of the initial radius
 R_end_percent     = 0.15;       % Final droplet size as a fraction of initial radius (when Save = true)
 
-T_0               = 300;        % Initial temperature at the center of the droplet [K]
-T_inf             = 1400;       % Ambient (far-field) temperature [K]
+T_0               = 310;        % Initial temperature at the center of the droplet [K]
+T_inf             = 1730;       % Ambient (far-field) temperature [K]
 
 % --------------------------- SPECIES DEFINITION --------------------------
 

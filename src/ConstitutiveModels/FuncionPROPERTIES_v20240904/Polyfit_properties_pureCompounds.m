@@ -97,7 +97,7 @@ end
 for id_compound=N_inerts+1:N_inerts+N_fuels
 % (T_liq depends on Tb; therefore, a different T_liq for each fuel)
 % For each compound: the Tb varies. Update it:
-T_liq = linspace(T_min, gota.Tc(id_compound-N_inerts), Npoints);
+T_liq = linspace(T_min, 510, Npoints);
 
     for id_T=1:size(T_gas,2)
     Tg_eval=T_gas(id_T);
