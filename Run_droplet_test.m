@@ -33,20 +33,20 @@ TolT              = 1e-8;  % Tolerance for temporal error (≥1e-3) (used if Tim
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = false;  % Plot intermediate results (true/false)
+PlotRes           = false; % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
 Save              = false;  % Save results to file (true/false)
                            % NOTE: if true, PlotRes must be false
                            
-n_saved_solutions = 100;   % Number of solution snapshots to save throughout simulation
-n_saves           = 1;    % Number of intermediate "safety saves" during simulation
+n_saved_solutions = 500;   % Number of solution snapshots to save throughout simulation
+n_saves           = 5;    % Number of intermediate "safety saves" during simulation
 
 % ---------------------- INITIAL AND BOUNDARY CONDITIONS ------------------
 
-R_0               = 0.00025; % Initial droplet radius [m]
+R_0               = (150e-6)/2; % Initial droplet radius [m]
 XRad              = 150;        % Domain size (in gas phase) as a multiple of the initial radius
-R_end_percent     = 0.2;       % Final droplet size as a fraction of initial radius (when Save = true)
+R_end_percent     = 0.15;       % Final droplet size as a fraction of initial radius (when Save = true)
 
 T_0               = 300;        % Initial temperature at the center of the droplet [K]
 T_inf             = 1400;       % Ambient (far-field) temperature [K]
