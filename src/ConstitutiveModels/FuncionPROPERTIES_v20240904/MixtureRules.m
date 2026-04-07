@@ -212,6 +212,7 @@ switch property
     X_CO2=Xi_eval(3, :);
     X_H2O=Xi_eval(4, :);
     retArray = (1 - X_f_tot)./(X_O2./D_fO2 + X_N2./D_fN2 + X_H2O./D_fH2O + X_CO2./D_fCO2);
+    retArray = ones(size(retArray))*5e-5;
            
         
     otherwise

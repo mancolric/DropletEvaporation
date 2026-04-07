@@ -13,6 +13,7 @@ classdef clase_gota<handle
         e_k % %Lennard-Jones energy para propiedades de trasnporte (K)
         Zrot_298 %Z rotacional a 298K para prop. transporte (-). Para moléculas grandes (todos comb.) vale 1. Para moléculas pequeñas como N2 o H2O puede valer >1
         molecula_lineal % 1 si la molecula es lineal, 0 si no lo es (para cálculo lambda_v)
+        h_comb %Entalpía de combustión (J/Kg)
         
         
         % PROPIEDADES DEPENDIENTES DE T: EN actualiza_gota
@@ -66,6 +67,7 @@ classdef clase_gota<handle
                     obj.e_k(i)=459.6; %San Diego Mec
                     obj.Zrot_298(i)=1; %San Diego Mec
                     obj.molecula_lineal(i)=1;
+                    obj.h_comb=44.6e6;
                     
                     elseif strcmpi(combustible(i),'Hexano')
                     obj.tipo_combustible{i}='Hexano';

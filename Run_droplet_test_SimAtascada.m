@@ -10,7 +10,7 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
 nElems_l          = 10;    % Number of elements in the liquid phase
-nElems_g          = 120;    % Number of elements in the gas phase
+nElems_g          = 1200;    % Number of elements in the gas phase
 hmin_l            = 1e-6;  
 hmin_g            = 1e-6; 
 p                 = 5;     % Degree of the polynomial basis functions
@@ -23,7 +23,7 @@ Deltat0           = 1e-9;  % Initial time step
                            % you may reduce Deltat0 to avoid them
                            % However, this is optional — time step control will automatically handle it
 
-t_final           = 1e2;   % Final simulation time
+t_final           = 8e-3;   % Final simulation time
                            % Use the actual time you want the simulation to stop at
                            % If you want the simulation to continue until the droplet disappears, 
                            % set a value larger than the expected final time
@@ -49,13 +49,15 @@ XRad              = 150;        % Domain size (in gas phase) as a multiple of th
 R_end_percent     = 0.2;       % Final droplet size as a fraction of initial radius (when Save = true)
 
 T_0               = 300;        % Initial temperature at the center of the droplet [K]
-T_inf             = 1400;       % Ambient (far-field) temperature [K]
+T_inf             = 400;       % Ambient (far-field) temperature [K]
 
 % --------------------------- SPECIES DEFINITION --------------------------
 
 fuel_names        = {'Heptano'};              % Fuel components
 mass_fracL        = {1.0};                             % Mass fraction of each fuel component (same order as above)
 inert_comps       = {'N2', 'O2', 'CO2', 'H2O'};             % Inert gas species (DO NOT MODIFY)
+
+% DE AQUÍ SOLO SE USA EL % DE N2 EN COMBUSTIÓN
 mass_fracG        = {0.79, 0.21, 0.0, 0.0};          % Mass fraction of each inert species in the gas phase (same order as above)
 
 % ------------------------ INITIAL SIMULATION CALL ------------------------

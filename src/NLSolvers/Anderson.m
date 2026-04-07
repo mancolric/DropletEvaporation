@@ -82,7 +82,7 @@ function [x_n, nIters, flag] = Anderson(fun, x0, TolX, TolG, MaxIter, m, Display
             flag        = -2;
             break
         end
-        [U,S,V]                 = svd(Gm,0);
+        [U,S,V]                 = svd(Gm,0); %Singular values
         S_diag                  = diag(S);
         S_diag(S_diag<1e-10)    = Inf;
         S_inv                   = diag(1.0./S_diag); 

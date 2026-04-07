@@ -94,6 +94,125 @@ function [save_vars, model_l, model_g] = ...
     end
     y_fuel_inf  = repmat({0.0}, model_l.nSpecies, 1);
     y_inf       = [y_gas_inf; y_fuel_inf];
+    
+    %Initial condition for the gas phase from Turns:
+    function u = u0_g_Turns(x)
+        % Habrá que normalizar todo esto por que seguro estamos cometiendo
+        % mucho error
+        IC_class        = clase_IC(model_g, T_0, T_inf, x_lg);
+        Unknowns        = InitialCond(IC_class, [1,1,1,1,1]'); %[mdot, Ts, Tf, Yfs, rf]
+        x_v             = reshape(x', [length(x(1,:))*length(x(:,1)),1]);
+        x_1             = x_v(x_v<=Unknowns(5));
+        x_2             = x_v(x_v>Unknowns(5));
+        Zt              = IC_class.cpg/(4*pi*IC_class.kg);
+        
+        T_inner         = @(x) (((Unknowns(2)-Unknowns(3))*exp(-Zt*Unknowns(1)./x))...
+                                + (Unknowns(3)*exp(-Zt*Unknowns(1)./IC_class.rs))...
+                                - (Unknowns(2)*exp(-Zt*Unknowns(1)./Unknowns(5)))) / ...
+                                (exp(-Zt*Unknowns(1)./IC_class.rs) - exp(-Zt*Unknowns(1)./Unknowns(5)));
+        T_outer         = @(x) (((Unknowns(3)-IC_class.T_inf) * exp(-Zt*Unknowns(1)./x)) + ...
+                                (IC_class.T_inf*exp(-Zt*Unknowns(1)./Unknowns(5))) - ...
+                                Unknowns(3)) /...
+                                (exp(-Zt*Unknowns(1)./Unknowns(5)) - 1);
+
+        T_1             = T_inner(x_1);
+        T_2             = T_outer(x_2);
+        T_g             = reshape(cat(1,T_1,T_2),[length(x(1,:)),length(x(:,1))])';
+
+
+        Yf_inner        = @(x) 1- (((1-Unknowns(4))*exp(-Zt*Unknowns(1)./x))) / ...
+                                exp(-Zt*Unknowns(1)./IC_class.rs);
+        Yf_outer        = @(x) 0.0*x;
+        x_1_f           = x_v(x_v<=Unknowns(5));
+        x_2_f           = x_v(x_v>Unknowns(5));
+        Yf_1            = Yf_inner(x_1_f);
+        Yf_2            = Yf_outer(x_2_f);
+        Yf              = reshape(cat(1,Yf_1,Yf_2),[length(x(1,:)),length(x(:,1))])';
+        Yft             = Yf';
+
+        %%%%%%%%%%%%%%%%%% MODIFICADO PARA PRUEBA %%%%%%%%%%%%%%%%%%
+        radio_llama     = 5;
+        x_1_ox          = x_v(x_v<=(Unknowns(5)-radio_llama*x_lg));
+        x_2_ox          = x_v(x_v>(Unknowns(5)-radio_llama*x_lg));
+        Yox_inner       = @(x) 0.0*x;
+        Yox_outer       = @(x) 0.3*IC_class.nu*((exp(-Zt*Unknowns(1)./x)/exp(-Zt*Unknowns(1)./(Unknowns(5)-radio_llama*x_lg))) - 1);
+    
+        Yox_1           = Yox_inner(x_1_ox);
+        Yox_2           = Yox_outer(x_2_ox);
+        Yox             = reshape(cat(1,Yox_1,Yox_2),[length(x(1,:)),length(x(:,1))])';
+        Yoxt            = Yox'; %Solo sirve para plot, borrar
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+        % Ypr_1           = 1-Yf_1;
+        % Ypr_2           = 1-Yox_2;
+        % Ypr             = reshape(cat(1,Ypr_1,Ypr_2),[length(x(1,:)),length(x(:,1))])';
+        Ypr             = ones(size(Yox)) - Yox - Yf;
+        % Yprt            = Ypr'; %Solo sirve para plot, borrar
+
+        % xt              = x';
+        % Y_f_ox          = Yft+Yoxt;
+        % % plot(xt(:), Y_f_ox(:))
+        % % plot(xt(:), Yft(:))
+        % % hold on
+        % plot(xt(:), Yoxt(:))
+        % plot(xt(:), Yprt(:))
+        % 
+        % disp(max(Yf(:)+Yox(:)+Ypr(:)))
+        % disp(min(Yf(:)+Yox(:)+Ypr(:)))
+
+      
+        Frac_CO2    = model_g.PStoi(end,3).*model_g.species_mw(3)./ ...
+                        ((model_g.PStoi(end,3).*model_g.species_mw(3))+...
+                        (model_g.PStoi(end,4).*model_g.species_mw(4)));
+
+        Frac_H2O    = model_g.PStoi(end,4).*model_g.species_mw(4)./ ...
+                        ((model_g.PStoi(end,3).*model_g.species_mw(3))+...
+                        (model_g.PStoi(end,4).*model_g.species_mw(4)));
+
+        y_g         = cell(model_g.nSpecies,1);
+        y_g{1}      = mass_fracG{1}.*Ypr;
+        y_g{2}      = Yox;
+        y_g{3}      = (1-mass_fracG{1}).*Frac_CO2.*Ypr;
+        y_g{4}      = (1-mass_fracG{1}).*Frac_H2O.*Ypr;
+        y_g{5}      = Yf;
+        
+        sum_yG      = zeros(size(x));
+        sum_yL      = zeros(size(x));
+        for jj=1:model_g.nInerts
+            sum_yG  = sum_yG + y_g{jj};
+        end
+        for jj=model_g.nInerts+1:model_g.nSpecies
+            sum_yL  = sum_yL + y_g{jj};
+        end
+        if max(max(abs((sum_yG+sum_yL)-1)))>1e-6
+            disp('ERROR: Mass fractions not equal to 1!')
+            return
+        end
+
+
+        rho_g       = calc_rho(model_g,y_g,T_g);
+        rhoy_g      = cell(model_g.nSpecies,1);
+        for i=1:model_g.nSpecies
+            rhoy_g{i} = rho_g.*y_g{i};
+        end
+        h_g         = calc_h(T_g,y_g,model_g);
+        H_g         = h_g.*rho_g;
+        vR_0        = 0.008286095019622;
+        v_g         = vR_0*((x_lg./x).^2);
+        
+        %Initial droplet velocity:
+        y_L         = mass_fracL;
+        y_R         = {y_g{1}(1,1),y_g{2}(1,1),y_g{3}(1,1),y_g{4}(1,1),y_g{5}(1,1)};
+
+        rho_l       = calc_rho(model_l,y_L,T_0);
+        rho_g       = calc_rho(model_g,y_R,T_0);
+        w_0         = -rho_g/(rho_l-rho_g) * vR_0;
+        
+        %Final vector of initial gas fields
+        %u = {ρY1, ..., ρYN, H, v}
+        u           = [ rhoy_g; {H_g}; {v_g} ];
+    end
+
 
     %Initial condition for the gas phase from A. Millan dissertation:
     function u = u0_g_Millan(x)
@@ -152,7 +271,7 @@ function [save_vars, model_l, model_g] = ...
 
     %Select initial condition for gas phase:
     function u = u0_g(x)
-        u       = u0_g_Millan(x);
+        u       = u0_g_Turns(x);
     end
     
     %Boundary conditions:
@@ -199,6 +318,9 @@ function [save_vars, model_l, model_g] = ...
     xmesh_g         = x_lg + [ 0.0, cumsum(hElems_g) ];
     xmesh_g(end)    = x_g;
     
+    %Generate meshes combustion
+    xmesh_g = linspace(x_lg, x_g, length(xmesh_g));
+
     %Plot mesh:
     if false
         figure;
@@ -459,14 +581,14 @@ function [save_vars, model_l, model_g] = ...
             hold off
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            figure(2)
-            title(['Y, t=', sprintf('%.4E', sol.t)])
-            for kk=1:length(y_g)
-                plot(MatTranspVec(xplot_g), MatTranspVec(rhoy_g{kk}))
-                hold on
-            end
-            legend("N2", "O2", "CO2", "H20", "Fuel")
-            hold off
+            % figure(2)
+            % title(['Y, t=', sprintf('%.4E', sol.t)])
+            % for kk=1:length(y_g)
+            %     plot(MatTranspVec(xplot_g)./x_lg, MatTranspVec(y_g{kk}))
+            %     hold on
+            % end
+            % legend("N2", "O2", "CO2", "H20", "Fuel")
+            % hold off
         end
     end
     PlotFun(sol_n)

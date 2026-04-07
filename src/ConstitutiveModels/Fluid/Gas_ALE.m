@@ -38,7 +38,7 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
         A1 = model.Arr(idx_Arr, 1);
         A2 = model.Arr(idx_Arr, 2);
         A3 = model.Arr(idx_Arr, 3);
-        calc_omega = @(j) 1e-5 .* (A2(j) * T.^A3(j) .* exp(-A1(j) ./ (model.R .* T))) .* prod(cat(3, CROrder{:,j}), 3);
+        calc_omega = @(j) 1e-0.*  (A2(j) * T.^A3(j) .* exp(-A1(j) ./ (model.R .* T))) .* prod(cat(3, CROrder{:,j}), 3);
         omega = arrayfun(calc_omega, (1:model.nFuels)', 'UniformOutput', false);
         % for II=2:model.nDiff
         %     for JJ=1:model.nFuels
@@ -53,13 +53,59 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
         calc_Q = @(kk) model.species_mw(kk) .* 1e6 .* sum(Omega3D .* reshape(model.DiffStoi((1:model.nFuels)+model.nInerts, kk), 1, 1, []), 3);
         Q(1:model.nSpecies) = arrayfun(calc_Q, (1:model.nSpecies)', 'UniformOutput', false);
         Q{end}                  = zeros(size(Q{end-1}));
+        
 
+        %%%%%%%%%%%%%%%%%%%%%%%% Plots, delete %%%%%%%%%%%%%%%%%%%%%%%%
         figure(3)
         for jj=1:5
-            plot(reshape(x',[size(x,2)*size(x,1), 1]), reshape(Q{jj}',[size(Q{jj},2)*size(Q{jj},1), 1]))
+            plot(reshape(x'./((250/2)*1e-6),[size(x,2)*size(x,1), 1]), reshape(Q{jj}',[size(Q{jj},2)*size(Q{jj},1), 1]))
             hold on
         end
         hold off
+        xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
+        ylabel("$$\dot{m} \, \left[ Kg/(m^3*s) \right]$$", "Interpreter","latex")
+
+
+
+        % [~,y_g] = calc_rho_y(rhoy, model);
+        % figure(2)
+        % 
+        % for kk=1:length(y_g)
+        %     plot(reshape(x'./((250/2)*1e-6),[size(x,2)*size(x,1), 1]), MatTranspVec(y_g{kk}))
+        %     hold on
+        % end
+        % legend("N2", "O2", "CO2", "H20", "Fuel")
+        % hold off
+        % xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
+        % ylabel("$$Y_\alpha \, \left[ - \right]$$", "Interpreter","latex")
+        % 
+        % figure(4)
+        % plot(reshape(x'./((250/2)*1e-6),[size(x,2)*size(x,1), 1]), reshape(omega{1}',[size(omega{1},2)*size(omega{1},1), 1]))
+        % % xlim([10,11])
+        % xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
+        % ylabel("$$\omega \, \left[ mol/(m^3*s) \right]$$", "Interpreter","latex")
+        % 
+        % figure(5)
+        % for kk=1:length(CROrder)
+        %     plot(reshape(x'./((250/2)*1e-6),[size(x,2)*size(x,1), 1]), MatTranspVec(CROrder{kk}))
+        %     hold on
+        % end
+        % legend("N2", "O2", "CO2", "H20", "Fuel")
+        % hold off
+        % xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
+        % ylabel("$$C \, \left[ (mol/cm^3)^{ReacOrder} \right]$$", "Interpreter","latex")
+        % 
+        % figure(6)
+        % for kk=1:length(C)
+        %     plot(reshape(x'./((250/2)*1e-6),[size(x,2)*size(x,1), 1]), MatTranspVec(C{kk}))
+        %     hold on
+        % end
+        % legend("N2", "O2", "CO2", "H20", "Fuel")
+        % hold off
+        % xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
+        % ylabel("$$C \, \left[ mol/cm^3 \right]$$", "Interpreter","latex")
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         % Q               = repmat({zeros(12, 11)}, 6, 1);
     end
@@ -84,7 +130,7 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
     model.fuel_mw     = calcula_fuel_mw(model, model.bool_liq); %[Kg/mol]
     model.species_mw  = cat(2,model.Inerts_mw, model.fuel_mw);  %[Kg/mol]
     model.Tmin        = 300; 
-    model.Tmax        = 2500;
+    model.Tmax        = 5000;
     model.P           = 101325;
     model.N_polyfit   = 5;
     model.matrix      = Polyfit_properties_pureCompounds(model.gota, model.comp_inerts, model.Tmin, model.Tmax, model.P, model.N_polyfit);

@@ -51,10 +51,12 @@ for id_compound=1:N_inerts
 
     % Row 5: rho_g [inert]
     Ru=8.314; % J/mol/K
-    rho_gas(id_T) = calcula_rho_gas_monocomponente(comp_inerts{id_compound}, T_eval, Pressure, Ru, gota);
+    % rho_gas(id_T) = calcula_rho_gas_monocomponente(comp_inerts{id_compound}, T_eval, Pressure, Ru, gota);
+    rho_gas(id_T) = 1.0;
 
     % Row 6: Cp_g [inert]
-    Cp_gas(id_T) = calcula_Cp_gas_monocomponente(comp_inerts{id_compound}, T_eval);
+    % Cp_gas(id_T) = calcula_Cp_gas_monocomponente(comp_inerts{id_compound}, T_eval);
+    Cp_gas(id_T) = 1500;
 
     % Row 7: k_g [inert]
     % k_gas(id_T) = calcula_lambda_vapor_Kee(comp_inerts{id_compound}, 0, T_eval);
@@ -117,13 +119,16 @@ T_liq = linspace(T_min, 510, Npoints);
     mu_liq(id_T)=devuelve_propiedad_fuel(gota, 'mu', gota.tipo_combustible{id_compound-N_inerts}, 'liquido', Tl_eval);
 
     % Row 5: rho_g [fuel]
-    rho_gas(id_T) = calcula_rho_gas_monocomponente(gota.tipo_combustible{id_compound-N_inerts}, Tg_eval, Pressure, Ru, gota);
+    % rho_gas(id_T) = calcula_rho_gas_monocomponente(gota.tipo_combustible{id_compound-N_inerts}, Tg_eval, Pressure, Ru, gota);
+    rho_gas(id_T) = 1.0;
     
     % Row 6: Cp_g [fuel]
-    Cp_gas(id_T) =devuelve_propiedad_fuel(gota, 'cp', gota.tipo_combustible{id_compound-N_inerts}, 'vapor', Tg_eval);
+    % Cp_gas(id_T) =devuelve_propiedad_fuel(gota, 'cp', gota.tipo_combustible{id_compound-N_inerts}, 'vapor', Tg_eval);
+    Cp_gas(id_T) = 1500;
     
     % Row 7: k_g [fuel]
-    k_gas(id_T) = calcula_lambda_vapor_Kee(gota.tipo_combustible{id_compound-N_inerts}, gota, Tg_eval);
+    % k_gas(id_T) = calcula_lambda_vapor_Kee(gota.tipo_combustible{id_compound-N_inerts}, gota, Tg_eval);
+    k_gas(id_T) = 0.05;
 
    
     end
