@@ -128,19 +128,19 @@ function [save_vars, model_l, model_g] = ...
         Yf_1            = Yf_inner(x_1_f);
         Yf_2            = Yf_outer(x_2_f);
         Yf              = reshape(cat(1,Yf_1,Yf_2),[length(x(1,:)),length(x(:,1))])';
-        Yft             = Yf';
+        % Yft             = Yf';
 
         %%%%%%%%%%%%%%%%%% MODIFICADO PARA PRUEBA %%%%%%%%%%%%%%%%%%
-        radio_llama     = 5;
+        radio_llama     = 0;
         x_1_ox          = x_v(x_v<=(Unknowns(5)-radio_llama*x_lg));
         x_2_ox          = x_v(x_v>(Unknowns(5)-radio_llama*x_lg));
         Yox_inner       = @(x) 0.0*x;
-        Yox_outer       = @(x) 0.3*IC_class.nu*((exp(-Zt*Unknowns(1)./x)/exp(-Zt*Unknowns(1)./(Unknowns(5)-radio_llama*x_lg))) - 1);
+        Yox_outer       = @(x) IC_class.nu*((exp(-Zt*Unknowns(1)./x)/exp(-Zt*Unknowns(1)./(Unknowns(5)-radio_llama*x_lg))) - 1); %*0.3;
     
         Yox_1           = Yox_inner(x_1_ox);
         Yox_2           = Yox_outer(x_2_ox);
         Yox             = reshape(cat(1,Yox_1,Yox_2),[length(x(1,:)),length(x(:,1))])';
-        Yoxt            = Yox'; %Solo sirve para plot, borrar
+        % Yoxt            = Yox'; %Solo sirve para plot, borrar
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         % Ypr_1           = 1-Yf_1;
@@ -148,12 +148,12 @@ function [save_vars, model_l, model_g] = ...
         % Ypr             = reshape(cat(1,Ypr_1,Ypr_2),[length(x(1,:)),length(x(:,1))])';
         Ypr             = ones(size(Yox)) - Yox - Yf;
         % Yprt            = Ypr'; %Solo sirve para plot, borrar
-
-        % xt              = x';
+        % 
+        xt              = x';
         % Y_f_ox          = Yft+Yoxt;
-        % % plot(xt(:), Y_f_ox(:))
-        % % plot(xt(:), Yft(:))
-        % % hold on
+        % plot(xt(:), Y_f_ox(:))
+        % plot(xt(:), Yft(:))
+        % hold on
         % plot(xt(:), Yoxt(:))
         % plot(xt(:), Yprt(:))
         % 
@@ -170,11 +170,32 @@ function [save_vars, model_l, model_g] = ...
                         (model_g.PStoi(end,4).*model_g.species_mw(4)));
 
         y_g         = cell(model_g.nSpecies,1);
-        y_g{1}      = mass_fracG{1}.*Ypr;
-        y_g{2}      = Yox;
-        y_g{3}      = (1-mass_fracG{1}).*Frac_CO2.*Ypr;
-        y_g{4}      = (1-mass_fracG{1}).*Frac_H2O.*Ypr;
+        y_g{1}      = mass_fracG{1}.*Yox;
+        y_g{2}      = mass_fracG{2}.*Yox;
+        y_g{3}      = Frac_CO2.*Ypr;
+        y_g{4}      = Frac_H2O.*Ypr;
         y_g{5}      = Yf;
+
+        y_g_p       = cell(model_g.nSpecies,1);
+        y_g_p{1}    = mass_fracG{1}.*Yox';
+        y_g_p{2}    = mass_fracG{2}.*Yox';
+        y_g_p{3}    = Frac_CO2.*Ypr';
+        y_g_p{4}    = Frac_H2O.*Ypr';
+        y_g_p{5}    = Yf';
+
+        %%%%%%%%%%%%%%%%%% INITIAL SOLUTION PLOT %%%%%%%%%%%%%%%%%%
+        
+        % figure(10)
+        % for kk=1:length(y_g)
+        %     y_p = y_g_p{kk};
+        %     plot(xt(:), y_p(:))
+        %     hold on
+        % end
+        % 
+        % legend("N2", "O2", "CO2", "H2O", "Fuel")
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        
         
         sum_yG      = zeros(size(x));
         sum_yL      = zeros(size(x));
@@ -322,7 +343,7 @@ function [save_vars, model_l, model_g] = ...
     xmesh_g = linspace(x_lg, x_g, length(xmesh_g));
 
     %Plot mesh:
-    if false
+    if true
         figure;
         hold on;
         plot(xmesh_l, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
@@ -332,7 +353,7 @@ function [save_vars, model_l, model_g] = ...
         title('Point distribution in liquid and gas');
         legend('Location', 'best');
         grid on;
-        return
+        % return
     end
 
     %Display minimum mesh sizes:

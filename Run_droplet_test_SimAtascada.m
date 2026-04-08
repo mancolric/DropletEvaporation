@@ -23,13 +23,13 @@ Deltat0           = 1e-9;  % Initial time step
                            % you may reduce Deltat0 to avoid them
                            % However, this is optional — time step control will automatically handle it
 
-t_final           = 8e-3;   % Final simulation time
+t_final           = 1e-1;   % Final simulation time
                            % Use the actual time you want the simulation to stop at
                            % If you want the simulation to continue until the droplet disappears, 
                            % set a value larger than the expected final time
 
 TimeAdapt         = true;  % Enable adaptive time-stepping (true/false)
-TolT              = 1e-6;  % Tolerance for temporal error (<1e-3) (used if TimeAdapt = true)
+TolT              = 1e-7;  % Tolerance for temporal error (<1e-3) (used if TimeAdapt = true)
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
