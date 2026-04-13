@@ -224,7 +224,7 @@ function [  f, df_du, df_du_dx, ...
         for II=model.nSpecies+1
             
             %Perturb H:
-            delta               = 1e-4;
+            delta               = 1e-8;
             H_pert              = H - delta;
             
             %Evaluate rho_bar:

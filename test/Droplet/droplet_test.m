@@ -340,10 +340,65 @@ function [save_vars, model_l, model_g] = ...
     xmesh_g(end)    = x_g;
     
     %Generate meshes combustion
-    xmesh_g = linspace(x_lg, x_g, length(xmesh_g));
+    IC_class        = clase_IC(model_g, T_0, T_inf, x_lg);
+    Unknowns        = InitialCond(IC_class, [1,1,1,1,1]'); %[mdot, Ts, Tf, Yfs, rf]
+    rf              = Unknowns(5);
+    disp("Posición de la llama teórico = " + rf)
+   
+    hmin_lg = 10 * hmin_g;
+
+    L_L1 = (rf - x_lg) / 2;
+    L_L2 = (rf - x_lg) / 2;
+    L_R  = x_g - rf;
+   
+    W_1 = log(L_L1 / hmin_lg);
+    W_2 = log(L_L2 / hmin_g);
+    W_3 = log(L_R  / hmin_g);
+    W_total = W_1 + W_2 + W_3;
+   
+    nElems_1 = max(2, round(nElems_g * (W_1 / W_total)));
+    nElems_2 = max(2, round(nElems_g * (W_2 / W_total)));
+    nElems_3 = max(2, nElems_g - nElems_1 - nElems_2);
+   
+    tol_1 = 1e-5 * (L_L1 / hmin_lg);
+    tol_2 = 1e-5 * (L_L2 / hmin_g);
+    tol_3 = 1e-5 * (L_R  / hmin_g);
+
+    r_max_1 = (L_L1/hmin_lg)^(1/(nElems_1-1));
+    [mr_1, ~, flag_1] = NewtonRaphson(...
+                        @(r, ComputeJ) MeshFactor(r, hmin_lg, nElems_1, L_L1), ...
+                        r_max_1, tol_1, 0.0, 200);
+    if flag_1 < 0, error('Error en malla Zona 1 (Gota).'); end
+    hElems_1 = hmin_lg * mr_1.^(0:nElems_1-1);
+
+    r_max_2 = (L_L2/hmin_g)^(1/(nElems_2-1));
+    [mr_2, ~, flag_2] = NewtonRaphson(...
+                        @(r, ComputeJ) MeshFactor(r, hmin_g, nElems_2, L_L2), ...
+                        r_max_2, tol_2, 0.0, 200);
+    if flag_2 < 0, error('Error en malla Zona 2 (Llama interna).'); end
+    hElems_2 = hmin_g * mr_2.^(0:nElems_2-1);
+   
+    hElems_2_reversed = fliplr(hElems_2);
+
+    r_max_3 = (L_R/hmin_g)^(1/(nElems_3-1));
+    [mr_3, ~, flag_3] = NewtonRaphson(...
+                        @(r, ComputeJ) MeshFactor(r, hmin_g, nElems_3, L_R), ...
+                        r_max_3, tol_3, 0.0, 200);
+    if flag_3 < 0, error('Error en malla Zona 3 (Llama externa).'); end
+    hElems_3 = hmin_g * mr_3.^(0:nElems_3-1);
+
+    hElems_Izquierda = [hElems_1, hElems_2_reversed];
+   
+    xmesh_L = x_lg + [0.0, cumsum(hElems_Izquierda)];
+    xmesh_L(end) = rf;
+   
+    xmesh_R = rf + cumsum(hElems_3);
+    xmesh_R(end) = x_g;
+   
+    xmesh_g = [xmesh_L, xmesh_R(2:end)];
 
     %Plot mesh:
-    if true
+    if false
         figure;
         hold on;
         plot(xmesh_l, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
@@ -357,13 +412,13 @@ function [save_vars, model_l, model_g] = ...
     end
 
     %Display minimum mesh sizes:
-    disp([  'hmin_l=', sprintf('%.2E', min(hElems_l)), ...
-            ', r_l=', sprintf('%.2E', mr_l), ...
-            ', hmax_g=', sprintf('%.2E', max(hElems_l))])
-    disp([  'hmin_g=', sprintf('%.2E', min(hElems_g)), ...
-            ', r_g=', sprintf('%.2E', mr_g), ...
-            ', hmax_g=', sprintf('%.2E', max(hElems_g))])
-    disp(' ')
+    % disp([  'hmin_l=', sprintf('%.2E', min(hElems_l)), ...
+    %         ', r_l=', sprintf('%.2E', mr_l), ...
+    %         ', hmax_g=', sprintf('%.2E', max(hElems_l))])
+    % disp([  'hmin_g=', sprintf('%.2E', min(hElems_g)), ...
+    %         ', r_g=', sprintf('%.2E', mr_g), ...
+    %         ', hmax_g=', sprintf('%.2E', max(hElems_g))])
+    % disp(' ')
     
     %----------------------------------------------------------------------
     %INITIAL CONDITION (EXACT FOR DIFFERENTIAL VARIABLES, GUESS FOR ALGEBRAIC ONES):
