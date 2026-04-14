@@ -56,6 +56,7 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
         
 
         %%%%%%%%%%%%%%%%%%%%%%%% Plots, delete %%%%%%%%%%%%%%%%%%%%%%%%
+        hold off
         figure(3)
         for jj=1:5
             plot(reshape(x'./((250/2)*1e-6),[size(x,2)*size(x,1), 1]), reshape(Q{jj}',[size(Q{jj},2)*size(Q{jj},1), 1]))
@@ -78,7 +79,7 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
         % hold off
         % xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
         % ylabel("$$Y_\alpha \, \left[ - \right]$$", "Interpreter","latex")
-        % 
+        
         % figure(4)
         % plot(reshape(x'./((250/2)*1e-6),[size(x,2)*size(x,1), 1]), reshape(omega{1}',[size(omega{1},2)*size(omega{1},1), 1]))
         % % xlim([10,11])
@@ -192,7 +193,7 @@ function [  f, df_du, df_du_dx, ...
         for II=1:model.nSpecies
             
             %Perturb rhoY:
-            delta               = 1e-5;
+            delta               = 1e-8;
             rhoY_pert           = rhoy;
             rhoY_pert{II}       = rhoy{II} - delta;
             
