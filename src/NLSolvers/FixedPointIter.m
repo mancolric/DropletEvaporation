@@ -30,6 +30,10 @@ function [x_n, Iteration, flag] = FixedPointIter(fun, x0, TolG, MaxIter)
             warning('Reached maximum of iterations')
             flag   = -1;
             break
+        elseif any(isnan(g_n))
+            warning('Found NaNs in preconditioned residual')
+            flag    = -2;
+            break
         end
 
         %Update solution:

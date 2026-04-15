@@ -1113,21 +1113,29 @@ function [save_vars, model_l, model_g] = ...
     %The Jacobian is hence Jhat = Sr*df/dy*Sy and we solve
     %g:=Jhat\fhat(yhat)=0
     function gscaled = PrecResidualFun(yscaled, istage)
-        
+
         %Compute residual:
-        y       = Sy*yscaled;
-        [r,~]   = ResidualFun(y, false, istage);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
-        if any(isnan(r{1})) || any(isnan(r{2})) || any(isnan(r{3})) 
+        y       = Sy*yscaled;         %aquí pasamos de "y escalada" a "y sin escalar"
+        [r,J]   = ResidualFun(y, true, istage);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
+        if any(isnan(r{1})) || any(isnan(r{2})) || any(isnan(r{3}))
             gscaled = NaN;
             return
         end
-        
+
+
+        %Ahora tenemos que resolver gscaled = Jscaled \ rscaled, teniendo en cuenta que:
+
+        %J_scaled{1}     = identidad,     J_scaled{2} = identidad,     Jscaled{3} = Srinv{3}*J{3}*Sy(block_ul(1):end, block_ul(1):end))
+
         %Compute preconditioned residual:
+
+        J_scaled3   = Srinv{3}*J{3}*Sy(block_ul(1):end, block_ul(1):end);
+
         g_mesh_l    = Srinv{1}*r{1};    %Jacobian for this block is the identity
         g_mesh_g    = Srinv{2}*r{2};
-        g_lgz       = LUSolve(A_n_fact{3},Srinv{3}*r{3});
+        g_lgz       = J_scaled3\(Srinv{3}*r{3});
         gscaled     = cat(1, g_mesh_l, g_mesh_g, g_lgz);
-                
+
     end
 
     %March:
@@ -1262,6 +1270,10 @@ function [save_vars, model_l, model_g] = ...
                                                     @(yhat)PrecResidualFun(yhat,ii), ...
                                                         diag(Sy).\yv_np1, ...
                                                         sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50, 'final');
+                % [yscaled_np1, nIters, NLSFlag]  = FixedPointIter(...
+                %                                     @(yhat)PrecResidualFun(yhat,ii), ...
+                %                                         diag(Sy).\yv_np1, ...
+                %                                         sqrt(NDOF)*TolA, NLS_MaxIter);
                 yv_np1                          = Sy*yscaled_np1;
                 if NLSFlag<0
                     break
