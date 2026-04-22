@@ -1,4 +1,4 @@
-%[x_n, Iteration, flag] = Anderson(fun, x0, TolX, TolG, MaxIter, m, Display)
+%[x_n, nIters, flag] = FixedPointIter(fun, x0, TolG, MaxIter)
 %
 %Normally, an equation of the form
 %   f(x)    = 0
@@ -9,11 +9,8 @@
 %   g(x)    = 0
 %via the fixed point iteration
 %   x       = x - g(x)
-%accelerated with Anderson's method. "m" is the number of last iterations
-%saved.
-%
-%fun receives the argument x and returns g(x)
-function [x_n, nIters, flag] = Anderson(fun, x0, TolX, TolG, MaxIter, m, Display)
+%fun receives the argument x and returns g(x) 
+function [x_n, nIters, flag] = FixedPointIter2(fun, x0, TolX, TolG, MaxIter, m, Display)
 
     %First iteration:
     nIters      = 0;
@@ -95,17 +92,18 @@ function [x_n, nIters, flag] = Anderson(fun, x0, TolX, TolG, MaxIter, m, Display
         
     end
     
+
     %Display info:
     if Display=="final"
         if flag>0
-            disp(['Anderson converged', ...
+            disp(['FixedPoint converged', ...
                 ', nIters=', sprintf('%d', nIters), ...
                 ', |x|=', sprintf('%.3E', norm(x_n)), ...
                 ', |p|=', sprintf('%.3E', norm(p_n)), ...
                 ', |g0|=', sprintf('%.3E', g_0), ...
                 ', |g|=', sprintf('%.3E', norm(g_n))])
         else
-            disp(['Anderson failed', ...
+            disp(['FixedPoint failed', ...
                 ', nIters=', sprintf('%d', nIters), ...
                 ', |x|=', sprintf('%.3E', norm(x_n)), ...
                 ', |p|=', sprintf('%.3E', norm(p_n)), ...
@@ -113,6 +111,5 @@ function [x_n, nIters, flag] = Anderson(fun, x0, TolX, TolG, MaxIter, m, Display
                 ', |g|=', sprintf('%.3E', norm(g_n))])
         end
     end
-    
 end
 

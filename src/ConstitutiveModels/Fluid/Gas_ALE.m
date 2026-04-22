@@ -56,15 +56,15 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
         
 
         %%%%%%%%%%%%%%%%%%%%%%%% Plots, delete %%%%%%%%%%%%%%%%%%%%%%%%
-        hold off
-        figure(3)
-        for jj=1:5
-            plot(reshape(x'./((250/2)*1e-6),[size(x,2)*size(x,1), 1]), reshape(Q{jj}',[size(Q{jj},2)*size(Q{jj},1), 1]))
-            hold on
-        end
-        hold off
-        xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
-        ylabel("$$\dot{m} \, \left[ Kg/(m^3*s) \right]$$", "Interpreter","latex")
+        % hold off
+        % figure(3)
+        % for jj=1:5
+        %     plot(reshape(x'./((250/2)*1e-6),[size(x,2)*size(x,1), 1]), reshape(Q{jj}',[size(Q{jj},2)*size(Q{jj},1), 1]))
+        %     hold on
+        % end
+        % hold off
+        % xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
+        % ylabel("$$\dot{m} \, \left[ Kg/(m^3*s) \right]$$", "Interpreter","latex")
 
 
 
@@ -108,7 +108,7 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-        % Q               = repmat({zeros(12, 11)}, 6, 1);
+        Q               = repmat({zeros(1199, 11)}, 6, 1);
     end
     model.Q           = @Qfun;
     model.u1          = @(t) {    1.0;
@@ -133,7 +133,7 @@ function model=Gas_ALE(fuel_names, comp_inerts, frac_masG)
     model.Tmin        = 300; 
     model.Tmax        = 5000;
     model.P           = 101325;
-    model.N_polyfit   = 5;
+    model.N_polyfit   = 4;
     model.matrix      = Polyfit_properties_pureCompounds(model.gota, model.comp_inerts, model.Tmin, model.Tmax, model.P, model.N_polyfit);
     model.NF          = [];    %Normalization factors
     

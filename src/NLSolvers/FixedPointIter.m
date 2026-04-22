@@ -15,16 +15,15 @@ function [x_n, Iteration, flag] = FixedPointIter(fun, x0, TolG, MaxIter)
     %First iteration:
     Iteration   = 0;
     x_n         = x0;
-
+    
     %Iterate:
     while true
-
         %Preconditioned residual:
         g_n         = fun(x_n);
 
         %Exit loop:
-        if norm(g_n)<TolG
-            flag    = 1;
+        if norm(g_n)<=TolG
+            flag    = 2;
             break
         elseif Iteration==MaxIter
             warning('Reached maximum of iterations')
@@ -39,8 +38,25 @@ function [x_n, Iteration, flag] = FixedPointIter(fun, x0, TolG, MaxIter)
         %Update solution:
         Iteration   = Iteration + 1;
         x_n         = x_n - g_n;
+        
+
 
     end
     
+
+    %Display info:
+    if true
+        if flag>0
+            disp(['FixedPoint converged', ...
+                ', nIters=', sprintf('%d', Iteration), ...
+                ', |x|=', sprintf('%.3E', norm(x_n)), ...
+                ', |g|=', sprintf('%.3E', norm(g_n))])
+        else
+            disp(['FixedPoint failed', ...
+                ', nIters=', sprintf('%d', Iteration), ...
+                ', |x|=', sprintf('%.3E', norm(x_n)), ...
+                ', |g|=', sprintf('%.3E', norm(g_n))])
+        end
+    end
 end
 

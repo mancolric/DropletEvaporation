@@ -292,7 +292,7 @@ function [save_vars, model_l, model_g] = ...
 
     %Select initial condition for gas phase:
     function u = u0_g(x)
-        u       = u0_g_Turns(x);
+        u       = u0_g_Millan(x);
     end
     
     %Boundary conditions:
@@ -1112,32 +1112,61 @@ function [save_vars, model_l, model_g] = ...
     %Sr and Sy two scaling matrices:
     %The Jacobian is hence Jhat = Sr*df/dy*Sy and we solve
     %g:=Jhat\fhat(yhat)=0
-    function gscaled = PrecResidualFun(yscaled, istage)
+    function gscaled = PrecResidualFun_Anderson(yscaled, istage)
+        
+        %Compute residual:
+        y       = Sy*yscaled;
+        [r,~]   = ResidualFun(y, false, istage);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
+        if any(isnan(r{1})) || any(isnan(r{2})) || any(isnan(r{3})) 
+            gscaled = NaN;
+            return
+        end
+        
+        %Compute preconditioned residual:
+        g_mesh_l    = Srinv{1}*r{1};    %Jacobian for this block is the identity
+        g_mesh_g    = Srinv{2}*r{2};
+        g_lgz       = LUSolve(A_n_fact{3},Srinv{3}*r{3});
+        gscaled     = cat(1, g_mesh_l, g_mesh_g, g_lgz);
+                
+    end
+
+    function gscaled = PrecResidualFun_FixedPoint(yscaled, istage)
 
         %Compute residual:
-        y       = Sy*yscaled;         %aquí pasamos de "y escalada" a "y sin escalar"
-        [r,J]   = ResidualFun(y, true, istage);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
+        y             = Sy*yscaled;         %aquí pasamos de "y escalada" a "y sin escalar"
+
+        [r,J]         = ResidualFun(y, true, istage);
+        J_fact        = { 1.0;
+            1.0;
+            LUFactorization(Srinv{3}*J{3}*Sy(block_ul(1):end, block_ul(1):end)) };
         if any(isnan(r{1})) || any(isnan(r{2})) || any(isnan(r{3}))
             gscaled = NaN;
             return
         end
 
-
-        %Ahora tenemos que resolver gscaled = Jscaled \ rscaled, teniendo en cuenta que:
-
-        %J_scaled{1}     = identidad,     J_scaled{2} = identidad,     Jscaled{3} = Srinv{3}*J{3}*Sy(block_ul(1):end, block_ul(1):end))
-
-        %Compute preconditioned residual:
-
-        J_scaled3   = Srinv{3}*J{3}*Sy(block_ul(1):end, block_ul(1):end);
-
         g_mesh_l    = Srinv{1}*r{1};    %Jacobian for this block is the identity
         g_mesh_g    = Srinv{2}*r{2};
-        g_lgz       = J_scaled3\(Srinv{3}*r{3});
+        g_lgz       = LUSolve(J_fact{3},Srinv{3}*r{3});
         gscaled     = cat(1, g_mesh_l, g_mesh_g, g_lgz);
 
     end
 
+    function [f,J] = PrecResidualFun_NR(yscaled, bool_J, istage)
+
+        %Compute residual:
+        y           = Sy*yscaled;
+        [r,dr_dy]   = ResidualFun(y, bool_J, istage);   %r={rmesh_l, rmesh_g, [r_l, r_g, r_z]}
+        r{1}        = Srinv{1}*r{1};
+        r{2}        = Srinv{2}*r{2};
+        r{3}        = Srinv{3}*r{3};
+
+        dr_dy{1}    = eye(length(r{1}));
+        dr_dy{2}    = eye(length(r{2}));
+        % dr_dy{3}    = Srinv{3}*dr_dy{3}*Sy(block_ul(1):end, block_ul(1):end);
+
+        f           = cat(1,r{:});
+        J           = blkdiag(dr_dy{:});
+    end
     %March:
     N_save          = 1;
     FLAG            = 0;
@@ -1267,13 +1296,23 @@ function [save_vars, model_l, model_g] = ...
                 %also modified when solving the last stage:
                 NDOF                            = length(yv_np1); 
                 [yscaled_np1, nIters, NLSFlag]  = Anderson(...
-                                                    @(yhat)PrecResidualFun(yhat,ii), ...
+                                                    @(yhat)PrecResidualFun_Anderson(yhat,ii), ...
                                                         diag(Sy).\yv_np1, ...
                                                         sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50, 'final');
-                % [yscaled_np1, nIters, NLSFlag]  = FixedPointIter(...
-                %                                     @(yhat)PrecResidualFun(yhat,ii), ...
+
+                % [yscaled_np1, nIters, NLSFlag]  = NewtonRaphsonLS(...
+                %                                     @(yhat, bool_J)PrecResidualFun_NR(yhat, bool_J,ii), ...
                 %                                         diag(Sy).\yv_np1, ...
-                %                                         sqrt(NDOF)*TolA, NLS_MaxIter);
+                %                                         sqrt(NDOF)*TolA, sqrt(NDOF)*TolA, NLS_MaxIter, NLS_MaxIter);
+                % [yscaled_np1, nIters, NLSFlag]  = NewtonRaphson(...
+                %                                     @(yhat, bool_J)PrecResidualFun_NR(yhat, bool_J,ii), ...
+                %                                         diag(Sy).\yv_np1, ...
+                %                                         sqrt(NDOF)*TolA, sqrt(NDOF)*TolA, NLS_MaxIter);
+
+                [yscaled_np1, nIters, NLSFlag]  = FixedPointIter2(...
+                                                    @(yhat)PrecResidualFun_FixedPoint(yhat,ii), ...
+                                                        diag(Sy).\yv_np1, ...
+                                                        sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50, 'final');
                 yv_np1                          = Sy*yscaled_np1;
                 if NLSFlag<0
                     break

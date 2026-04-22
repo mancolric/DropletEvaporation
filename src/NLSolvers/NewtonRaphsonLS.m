@@ -22,6 +22,11 @@ while true
         break
     end
 
+    if any(isnan(Delta_u_n))
+        warning('Found NaNs in preconditioned residual')
+        flag    = -3;
+        break
+    end
     if Iteration==MaxIter
         warning('Reached maximum of iterations')
         flag   = -1;
