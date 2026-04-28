@@ -12,7 +12,7 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 % ---------------------- MESH AND TIME CONFIGURATION ----------------------
 
 nElems_l          = 12;    % Number of elements in the liquid phase
-nElems_g          = 1200;    % Number of elements in the gas phase
+nElems_g          = 115;    % Number of elements in the gas phase
 hmin_l            = 1e-6;  
 hmin_g            = 1e-9; 
 p                 = 5;     % Degree of the polynomial basis functions
@@ -31,7 +31,7 @@ t_final           = 1e-1;   % Final simulation time
                            % set a value larger than the expected final time
 
 TimeAdapt         = true;  % Enable adaptive time-stepping (true/false)
-TolT              = 1e-7;  % Tolerance for temporal error (<1e-3) (used if TimeAdapt = true)
+TolT              = 1e-4;  % Tolerance for temporal error (<1e-3) (used if TimeAdapt = true)
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 

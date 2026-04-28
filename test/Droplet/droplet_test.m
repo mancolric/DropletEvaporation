@@ -292,7 +292,7 @@ function [save_vars, model_l, model_g] = ...
 
     %Select initial condition for gas phase:
     function u = u0_g(x)
-        u       = u0_g_Millan(x);
+        u       = u0_g_Turns(x);
     end
     
     %Boundary conditions:
@@ -345,32 +345,44 @@ function [save_vars, model_l, model_g] = ...
     rf              = Unknowns(5);
     disp("Posición de la llama teórico = " + rf)
    
-    hmin_lg = 10 * hmin_g;
+    hmin_lg = 10 * hmin_g; % Tamaño deseado en la superficie de la gota (x_lg)
 
-    L_L1 = (rf - x_lg) / 2;
-    L_L2 = (rf - x_lg) / 2;
-    L_R  = x_g - rf;
+    % 1. Definir subdominios físicos
+    L_L1 = (rf - x_lg) / 2; % De x_lg hacia la derecha
+    L_L2 = (rf - x_lg) / 2; % De rf hacia la izquierda
+    L_R  = x_g - rf;        % De rf hacia el infinito
    
+    % ==========================================================
+    % 2. REPARTO DE ELEMENTOS (75% Izquierda, 25% Derecha)
+    nElems_Izquierda = round(nElems_g * 0.85);
+    nElems_Derecha   = nElems_g - nElems_Izquierda;
+    
+    % Reparto logarítmico SOLO para repartir el 75% entre Z1 y Z2
     W_1 = log(L_L1 / hmin_lg);
     W_2 = log(L_L2 / hmin_g);
-    W_3 = log(L_R  / hmin_g);
-    W_total = W_1 + W_2 + W_3;
+    W_Izquierda_total = W_1 + W_2;
    
-    nElems_1 = max(2, round(nElems_g * (W_1 / W_total)));
-    nElems_2 = max(2, round(nElems_g * (W_2 / W_total)));
-    nElems_3 = max(2, nElems_g - nElems_1 - nElems_2);
+    nElems_1 = max(2, round(nElems_Izquierda * (W_1 / W_Izquierda_total)));
+    nElems_2 = max(2, nElems_Izquierda - nElems_1); % El resto de la izq para Z2
+    
+    % La Zona 3 se queda con el 25% de los elementos directamente
+    nElems_3 = max(2, nElems_Derecha); 
    
+    % ==========================================================
+    % 3. TOLERANCIAS Y GENERACIÓN DE SUB-MALLAS
     tol_1 = 1e-5 * (L_L1 / hmin_lg);
     tol_2 = 1e-5 * (L_L2 / hmin_g);
     tol_3 = 1e-5 * (L_R  / hmin_g);
-
+    
+    % --- Zona 1 ---
     r_max_1 = (L_L1/hmin_lg)^(1/(nElems_1-1));
     [mr_1, ~, flag_1] = NewtonRaphson(...
                         @(r, ComputeJ) MeshFactor(r, hmin_lg, nElems_1, L_L1), ...
                         r_max_1, tol_1, 0.0, 200);
     if flag_1 < 0, error('Error en malla Zona 1 (Gota).'); end
     hElems_1 = hmin_lg * mr_1.^(0:nElems_1-1);
-
+    
+    % --- Zona 2 ---
     r_max_2 = (L_L2/hmin_g)^(1/(nElems_2-1));
     [mr_2, ~, flag_2] = NewtonRaphson(...
                         @(r, ComputeJ) MeshFactor(r, hmin_g, nElems_2, L_L2), ...
@@ -378,27 +390,30 @@ function [save_vars, model_l, model_g] = ...
     if flag_2 < 0, error('Error en malla Zona 2 (Llama interna).'); end
     hElems_2 = hmin_g * mr_2.^(0:nElems_2-1);
    
-    hElems_2_reversed = fliplr(hElems_2);
-
+    hElems_2_reversed = fliplr(hElems_2); % Invertimos para que sea fina en rf
+    
+    % --- Zona 3 ---
     r_max_3 = (L_R/hmin_g)^(1/(nElems_3-1));
     [mr_3, ~, flag_3] = NewtonRaphson(...
                         @(r, ComputeJ) MeshFactor(r, hmin_g, nElems_3, L_R), ...
                         r_max_3, tol_3, 0.0, 200);
     if flag_3 < 0, error('Error en malla Zona 3 (Llama externa).'); end
     hElems_3 = hmin_g * mr_3.^(0:nElems_3-1);
-
+    
+    % ==========================================================
+    % 4. ENSAMBLAJE
     hElems_Izquierda = [hElems_1, hElems_2_reversed];
    
     xmesh_L = x_lg + [0.0, cumsum(hElems_Izquierda)];
-    xmesh_L(end) = rf;
+    xmesh_L(end) = rf; % Anclaje forzado en rf
    
     xmesh_R = rf + cumsum(hElems_3);
-    xmesh_R(end) = x_g;
+    xmesh_R(end) = x_g; % Anclaje forzado en infinito
    
-    xmesh_g = [xmesh_L, xmesh_R(2:end)];
+    xmesh_g = [xmesh_L, xmesh_R(2:end)]; % Unimos sin duplicar rf
 
     %Plot mesh:
-    if false
+    if true
         figure;
         hold on;
         plot(xmesh_l, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
@@ -731,6 +746,10 @@ function [save_vars, model_l, model_g] = ...
         
         %Extract mesh velocity:
         [~, wmesh_l_np1, ~, wmesh_g_np1]    = MeshVelocities(sol_np1);
+        % wmesh_l_np1 = 0.0*wmesh_l_np1;
+        % wmesh_g_np1 = 0.0*wmesh_g_np1;
+
+
         sol_np1.ul{nDAE_l+1}                = P1ToPX(wmesh_l_np1, sol_np1.fesl);
         sol_np1.ug{nDAE_g+1}                = P1ToPX(wmesh_g_np1, sol_np1.fesg);
         
@@ -756,6 +775,8 @@ function [save_vars, model_l, model_g] = ...
         kmesh_g_RK(:,is)    = wmesh_g_np1;
         r_mesh_l            = xmesh_l_np1 - bmesh_l_ii - Deltat_n*RKmethod.aI(is,is)*kmesh_l_RK(:,is);
         r_mesh_g            = xmesh_g_np1 - bmesh_g_ii - Deltat_n*RKmethod.aI(is,is)*kmesh_g_RK(:,is);
+        % r_mesh_l            = xmesh_l_np1 - xmesh_l';
+        % r_mesh_g            = xmesh_g_np1 - xmesh_g';
         
         %------------------------------------------------------------------
         %IMPOSE DAE FOR LIQUID:
@@ -793,6 +814,7 @@ function [save_vars, model_l, model_g] = ...
                                                     sol_np1.fesl.nDof);
             dwnodes_dw                  = (xmesh_l_np1-xmesh_l_np1(1))/...
                                             (xmesh_l_np1(end)-xmesh_l_np1(1));
+            % dwnodes_dw                  = 0*dwnodes_dw;
             %df_i/dw = df_i/dwNodes_j * dwNodes_j/dw: 
             dfDAE_dw                    = dfDAE_dwLag*P1ToPX(dwnodes_dw, sol_np1.fesl);
             J_lz.iv                     = cat(1, J_lz.iv, (1:nDAE_l*sol_np1.fesl.nDof).' );
@@ -808,6 +830,7 @@ function [save_vars, model_l, model_g] = ...
                                                     N_ul, length(xmesh_l_np1));
             dMul_dw                     = Deltat_n*RKmethod.aI(2,2) * ...
                                             ( dMul_dxmeshl*dwnodes_dw );
+            % dMul_dw                     = 0.0 * ( dMul_dxmeshl*dwnodes_dw );
             J_lz.iv                     = cat(1, J_lz.iv, (1:N_ul).' );
             J_lz.jv                     = cat(1, J_lz.jv, repmat(N_L+N_R+1, N_ul, 1));
             J_lz.sv                     = cat(1, J_lz.sv, dMul_dw);
@@ -866,6 +889,7 @@ function [save_vars, model_l, model_g] = ...
                                                     sol_np1.fesg.nDof);
             dwnodes_dw                  = (xmesh_g_np1-xmesh_g_np1(end))/...
                                             (xmesh_g_np1(1)-xmesh_g_np1(end));
+            % dwnodes_dw                  = 0*dwnodes_dw;
             %df_i/dw = df_i/dwNodes_j * dwNodes_j/dw: 
             dfDAE_dw                    = dfDAE_dwLag*P1ToPX(dwnodes_dw, sol_np1.fesg);
             J_gz.iv                     = cat(1, J_gz.iv, (1:nDAE_g*sol_np1.fesg.nDof).' );
@@ -881,6 +905,7 @@ function [save_vars, model_l, model_g] = ...
                                                     N_ug, length(xmesh_g_np1));
             dMug_dw                     = Deltat_n*RKmethod.aI(2,2) * ...
                                             ( dMug_dxmeshg*dwnodes_dw );
+            % dMug_dw                     = 0.0 * ( dMug_dxmeshg*dwnodes_dw );
             J_gz.iv                     = cat(1, J_gz.iv, (1:N_ug).' );
             J_gz.jv                     = cat(1, J_gz.jv, repmat(N_L+N_R+1, N_ug, 1));
             J_gz.sv                     = cat(1, J_gz.sv, dMug_dw);
@@ -1299,7 +1324,6 @@ function [save_vars, model_l, model_g] = ...
                                                     @(yhat)PrecResidualFun_Anderson(yhat,ii), ...
                                                         diag(Sy).\yv_np1, ...
                                                         sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50, 'final');
-
                 % [yscaled_np1, nIters, NLSFlag]  = NewtonRaphsonLS(...
                 %                                     @(yhat, bool_J)PrecResidualFun_NR(yhat, bool_J,ii), ...
                 %                                         diag(Sy).\yv_np1, ...
@@ -1309,11 +1333,15 @@ function [save_vars, model_l, model_g] = ...
                 %                                         diag(Sy).\yv_np1, ...
                 %                                         sqrt(NDOF)*TolA, sqrt(NDOF)*TolA, NLS_MaxIter);
 
-                [yscaled_np1, nIters, NLSFlag]  = FixedPointIter2(...
-                                                    @(yhat)PrecResidualFun_FixedPoint(yhat,ii), ...
-                                                        diag(Sy).\yv_np1, ...
-                                                        sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50, 'final');
+                % [yscaled_np1, nIters, NLSFlag]  = FixedPointIter2(...
+                %                                     @(yhat)PrecResidualFun_FixedPoint(yhat,ii), ...
+                %                                         diag(Sy).\yv_np1, ...
+                %                                         sqrt(NDOF)*TolA, 0.0, NLS_MaxIter, 50, 'final');
                 yv_np1                          = Sy*yscaled_np1;
+
+                yv_np1(block_mesh_l)            = xmesh_l';
+                yv_np1(block_mesh_g)            = xmesh_g';
+
                 if NLSFlag<0
                     break
                 else
