@@ -35,10 +35,10 @@ TolT              = 1e-4;  % Tolerance for temporal error (<1e-3) (used if TimeA
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = true;  % Plot intermediate results (true/false)
+PlotRes           = false;  % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
-Save              = false; % Save results to file (true/false)
+Save              = true; % Save results to file (true/false)
                            % NOTE: if true, PlotRes must be false
                            
 n_saved_solutions = 3000;   % Number of solution snapshots to save throughout simulation
@@ -76,9 +76,9 @@ return
 % NOTE: Deltat0 may need to be smaller
 % If the simulation is performed in parts, this call restarts it from 
 % a previously saved state (e.g., after an interruption or for long simulations)
-FileName    = 'Saved_solutions4_51.mat'; % File containing saved variables from previous run
-
-[save_vars] = droplet_testRestart(nElems_l, nElems_g, p, Deltat0, ...
-    t_final, TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, ...
-    inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, ...
-    R_end_percent, n_saves, FileName);
+% FileName    = 'Saved_solutions4_51.mat'; % File containing saved variables from previous run
+% 
+% [save_vars] = droplet_testRestart(nElems_l, nElems_g, p, Deltat0, ...
+%     t_final, TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, ...
+%     inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, ...
+%     R_end_percent, n_saves, FileName);
