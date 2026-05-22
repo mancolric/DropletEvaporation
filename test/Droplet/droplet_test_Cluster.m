@@ -156,6 +156,9 @@ end
                                 Unknowns(3)) /...
                                 (exp(-Zt*Unknowns(1)./Unknowns(5)) - 1);
 
+
+        %%%%%%%%%%%%%%%%%% MODIFICADO PARA PRUEBA %%%%%%%%%%%%%%%%%%
+        
         % T_peak          = @(x) ((x-(Unknowns(5)-(peak_radii/2)))*(T_inner(Unknowns(5)-(peak_radii/2))-T_outer(Unknowns(5)+(peak_radii/2)))/(-peak_radii))...
         %                         + T_inner(Unknowns(5)-(peak_radii/2));
         % T_peak          = @(x) (1 - W(x)) .* T_inner(x) + W(x) .* T_outer(x);
@@ -190,7 +193,7 @@ end
         Yf_3            = Yf_outer(x_3_f);
         Yf              = reshape(cat(1,Yf_1,Yf_2,Yf_3),[length(x(1,:)),length(x(:,1))])';
 
-        %%%%%%%%%%%%%%%%%% MODIFICADO PARA PRUEBA %%%%%%%%%%%%%%%%%%
+        
         x_1_ox          = x_v(x_v<=Unknowns(5)-(peak_radii/2));
         x_2_ox          = x_v((Unknowns(5)-(peak_radii/2)<x_v)&(x_v<=Unknowns(5)+(peak_radii/2)));
         x_3_ox          = x_v(x_v>Unknowns(5)+(peak_radii/2));
@@ -354,7 +357,7 @@ end
 
     %Select initial condition for gas phase:
     function u = u0_g(x)
-        u       = u0_g_Millan(x);
+        u       = u0_g_Turns(x);
     end
     
     %Boundary conditions:
@@ -406,32 +409,32 @@ end
     Unknowns        = InitialCond(IC_class, [1,1,1,1,1]'); %[mdot, Ts, Tf, Yfs, rf]
     rf              = Unknowns(5);
     disp("Posición de la llama teórico = " + rf)
-   
+
     hmin_lg = 10 * hmin_g; % Tamaño deseado en la superficie de la gota (x_lg)
 
     % 1. Definir subdominios físicos
     L_L1 = (rf - x_lg) / 2; % De x_lg hacia la derecha
     L_L2 = (rf - x_lg) / 2; % De rf hacia la izquierda
     L_R  = x_g - rf;        % De rf hacia el infinito
-   
+
     % ==========================================================
     nElems_Izquierda = round(nElems_g * 0.2); % Porcentaje a la izquierda
     nElems_Derecha   = nElems_g - nElems_Izquierda;
-    
+
     W_1 = log(L_L1 / hmin_lg);
     W_2 = log(L_L2 / hmin_g);
     W_Izquierda_total = W_1 + W_2;
-   
+
     nElems_1 = max(2, round(nElems_Izquierda * (W_1 / W_Izquierda_total)));
     nElems_2 = max(2, nElems_Izquierda - nElems_1);
 
     nElems_3 = max(2, nElems_Derecha); 
-   
+
     % ==========================================================
     tol_1 = 1e-5 * (L_L1 / hmin_lg);
     tol_2 = 1e-5 * (L_L2 / hmin_g);
     tol_3 = 1e-5 * (L_R  / hmin_g);
-    
+
     % --- Zona 1 ---
     r_max_1 = (L_L1/hmin_lg)^(1/(nElems_1-1));
     [mr_1, ~, flag_1] = NewtonRaphson(...
@@ -439,7 +442,7 @@ end
                         r_max_1, tol_1, 0.0, 200);
     if flag_1 < 0, error('Error en malla Zona 1 (Gota).'); end
     hElems_1 = hmin_lg * mr_1.^(0:nElems_1-1);
-    
+
     % --- Zona 2 ---
     r_max_2 = (L_L2/hmin_g)^(1/(nElems_2-1));
     [mr_2, ~, flag_2] = NewtonRaphson(...
@@ -447,9 +450,9 @@ end
                         r_max_2, tol_2, 0.0, 200);
     if flag_2 < 0, error('Error en malla Zona 2 (Llama interna).'); end
     hElems_2 = hmin_g * mr_2.^(0:nElems_2-1);
-   
+
     hElems_2_reversed = fliplr(hElems_2);
-    
+
     % --- Zona 3 ---
         r_max_3 = (L_R/hmin_g)^(1/(nElems_3-1));
     [mr_3, ~, flag_3] = NewtonRaphson(...
@@ -457,20 +460,20 @@ end
                         r_max_3, tol_3, 0.0, 200);
     if flag_3 < 0, error('Error en malla Zona 3 (Llama externa).'); end
     hElems_3 = hmin_g * mr_3.^(0:nElems_3-1);
-    
+
     % ==========================================================
     hElems_Izquierda = [hElems_1, hElems_2_reversed];
-   
+
     xmesh_L = x_lg + [0.0, cumsum(hElems_Izquierda)];
     xmesh_L(end) = rf;
-   
+
     xmesh_R = rf + cumsum(hElems_3);
     xmesh_R(end) = x_g;
-   
+
     xmesh_g = [xmesh_L, xmesh_R(2:end)];
 
     %Plot mesh:
-    if false
+    if true
         figure;
         hold on;
         plot(xmesh_l./x_lg, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
@@ -678,7 +681,7 @@ end
             hold off
             colorm      = hsv(model_g.nSpecies);
             for II=1:model_g.nSpecies
-                plot(MatTranspVec(xplot_g), MatTranspVec(rhoy_g{II}), 'color', colorm(II,:))
+                plot(MatTranspVec(xplot_g), MatTranspVec(y_g{II}), 'color', colorm(II,:))
                 hold on
                 % plot(sol_xmesh_g(1), rhoy_qg{II}, 'color', colorm(II,:), 'marker', 'x')
             end
@@ -701,7 +704,7 @@ end
             %
             subplot(mPlot, nPlot, nPlot+2)
             hold off
-            plot(MatTranspVec(xplot_g), MatTranspVec(H_g), 'r')
+            plot(MatTranspVec(xplot_g), MatTranspVec(T_g), 'r')
             hold on
             plot(sol_xmesh_g(1), T_qg, 'color', 'r', 'marker', 'x')
             title(['T_g, t=', sprintf('%.4E', sol.t)])
