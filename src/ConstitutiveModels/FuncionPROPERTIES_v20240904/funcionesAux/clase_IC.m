@@ -5,7 +5,8 @@ classdef clase_IC
     properties
         diff_h
         nu
-        cpg
+        cpFuel
+        cpO2
         T_inf
         hfg
         kg
@@ -20,10 +21,13 @@ classdef clase_IC
             % obj.nu      = 3.52;
             obj.nu      = gas.RStoi(end,2)* gas.species_mw(2) / (gas.RStoi(end,end) * gas.species_mw(end));     %Suponiendo un solo combustible
             obj.diff_h  = gas.gota.h_comb * gas.frac_masG{2};
-            obj.cpg     = calc_Cp(T_0, {0,0,0,0,1}, gas);
+            obj.cpFuel  = calc_Cp(T_0, {0,0,0,0,1}, gas);
+            % obj.cpO2    = calc_Cp(T_0, {0,1,0,0,0}, gas);
+            obj.cpO2    = 1250;
             obj.T_inf   = T_inf;
             obj.hfg     = gas.Lv;
-            obj.kg      = calc_D_T(T_0, {0,0,0,0,1}, gas);
+            % obj.kg      = calc_D_T(T_0, {0,0,0,0,1}, gas);
+            obj.kg      = MixtureRules('k_gas', T_0, zeros(4,1), 1, gas.matrix, gas.gota, gas.comp_inerts, gas.P);
             obj.rs      = x_lg;
             obj.Tb      = gas.gota.Tb;
         end

@@ -3,10 +3,10 @@ format long            % Display numerical results with high precision
 close all              % Close all Plots
 clc                    % Clear Command Window
 
-ruta_actual = fileparts(mfilename('fullpath'));
+ruta_actual       = fileparts(mfilename('fullpath'));
 data = readcell(fullfile(ruta_actual,'Parametros.txt'), 'Delimiter', '\t');% MAIN SCRIPT TO LAUNCH THE DROPLET EVAPORATION SIMULATION
 % data = readmatrix(fullfile('/home/tfd/dbetran/Simulaciones_14000','Parametros.txt'));
-simID   = [data{Id_sim, 1}];
+simID             = [data{Id_sim, 1}];
 
 
 addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATLAB path
@@ -37,10 +37,10 @@ TolT              = [data{Id_sim, 10}];  % Tolerance for temporal error (<1e-3) 
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = false;  % Plot intermediate results (true/false)
+PlotRes           = true;  % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
-Save              = true; % Save results to file (true/false)
+Save              = false; % Save results to file (true/false)
                            % NOTE: if true, PlotRes must be false
                            
 n_saved_solutions = [data{Id_sim, 11}];   % Number of solution snapshots to save throughout simulation
@@ -72,6 +72,8 @@ mass_fracG        = num2cell(str2double(strsplit([data{Id_sim, 20}], ',')));
 PreExp            = [data{Id_sim, 21}];
 ActEnergy         = [data{Id_sim, 22}];
 T_exp             = [data{Id_sim, 23}];
+Fuel_exp          = [data{Id_sim, 24}];
+O2_exp            = [data{Id_sim, 25}];
 
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 
@@ -81,7 +83,7 @@ mkdir(ruta_actual, folderName);
 [~] = droplet_test_Cluster(nElems_l, nElems_g, hmin_l, hmin_g, p, Deltat0, t_final, ...
     TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
-    n_saves, folderName, PreExp, ActEnergy, T_exp);
+    n_saves, folderName, PreExp, ActEnergy, T_exp, Fuel_exp, O2_exp);
 return
 
 end

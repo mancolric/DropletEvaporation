@@ -1,17 +1,17 @@
 clear
 clc
 close all
-load('./results/Saved_varsEnd.mat')
+load('./Sim_101/Saved_varsEnd.mat')
 
 Nt              = length([save_vars{1,:}]);
-
+disp("The droplet life was: " + save_vars{1,Nt} + " [s]")
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%              m_dot                 %%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-mdot_i          = [save_vars{6,1:Nt}];
-mdot_total      = sum(cell2mat(mdot_i),1);
+% mdot_i          = [save_vars{6,1:Nt}];
+% mdot_total      = sum(cell2mat(mdot_i),1);
 
 % figure(1)
 % plot([save_vars{1, 1:Nt}], mdot_total, '-b')
@@ -25,18 +25,18 @@ mdot_total      = sum(cell2mat(mdot_i),1);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%              T_gas                 %%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Time_instant    = 3;
-disp("Time instant " + Time_instant + " correspond to t = " + save_vars{1,Time_instant})
-
-
-T_gas           = [save_vars{12,Time_instant}];
-x_gas           = [save_vars{17,Time_instant}];
-
+% Time_instant    = Nt;
+% disp("Time instant " + Time_instant + " correspond to t = " + save_vars{1,Time_instant})
+% 
+% 
+% T_gas           = [save_vars{12,Time_instant}];
+% x_gas           = [save_vars{17,Time_instant}]./(save_vars{7,1}/2);
+% 
 % figure(2)
 % plot(x_gas, T_gas, '-b')
 % hold on
 % 
-% xlabel("$$r[m]$$", Interpreter="latex", FontSize=16)
+% xlabel("$$r/a_0$$", Interpreter="latex", FontSize=16)
 % ylabel("$$Temperature [K]$$", Interpreter="latex", FontSize=16)
 % legend("Present model", 'Interpreter','latex', 'Location','northwest', FontSize=16)
 
@@ -44,45 +44,122 @@ x_gas           = [save_vars{17,Time_instant}];
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%              Y_liq                 %%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Time_instant    = 16;
-disp("Time instant " + Time_instant + " correspond to t = " + save_vars{1,Time_instant})
+% Time_instant    = 16;
+% disp("Time instant " + Time_instant + " correspond to t = " + save_vars{1,Time_instant})
+% 
+% Y_liq           = save_vars{4,Time_instant};
+% nSpecies        = length(Y_liq);
+% names           = cell(nSpecies,1);
+% x_liq           = [save_vars{16,Time_instant}];
 
-Y_liq           = save_vars{4,Time_instant};
-nSpecies        = length(Y_liq);
-names           = cell(nSpecies,1);
-x_liq           = [save_vars{16,Time_instant}];
-
-figure(3)
-hold on
-for ii=1:nSpecies
-    plot(x_liq, Y_liq{ii})
-    name        = "Specie " + ii;
-    names{ii}   = name;
-end
-
-xlabel("$$r[m]$$", Interpreter="latex", FontSize=16)
-ylabel("$$Temperature [K]$$", Interpreter="latex", FontSize=16)
-legend(names, 'Interpreter','latex', 'Location','northwest', 'FontSize', 16);
+% figure(3)
+% hold on
+% for ii=1:nSpecies
+%     plot(x_liq, Y_liq{ii})
+%     name        = "Specie " + ii;
+%     names{ii}   = name;
+% end
+% 
+% xlabel("$$r[m]$$", Interpreter="latex", FontSize=16)
+% ylabel("$$Temperature [K]$$", Interpreter="latex", FontSize=16)
+% legend(names, 'Interpreter','latex', 'Location','northwest', 'FontSize', 16);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%              Y_gas                 %%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Time_instant    = 60;
-disp("Time instant " + Time_instant + " correspond to t = " + save_vars{1,Time_instant})
+% Time_instant    = 60;
+% disp("Time instant " + Time_instant + " correspond to t = " + save_vars{1,Time_instant})
+% 
+% Y_gas           = save_vars{5,Time_instant};
+% nSpecies        = length(Y_gas);
+% names           = cell(nSpecies,1);
+% x_gas           = [save_vars{17,Time_instant}];
 
-Y_gas           = save_vars{5,Time_instant};
-nSpecies        = length(Y_gas);
-names           = cell(nSpecies,1);
-x_gas           = [save_vars{17,Time_instant}];
+% figure(3)
+% hold on
+% for ii=1:nSpecies
+%     plot(x_gas, Y_gas{ii})
+%     name        = "Specie " + ii;
+%     names{ii}   = name;
+% end
+% 
+% xlabel("$$r[m]$$", Interpreter="latex", FontSize=16)
+% ylabel("$$Temperature [K]$$", Interpreter="latex", FontSize=16)
+% legend(names, 'Interpreter','latex', 'Location','northwest', 'FontSize', 16);
 
-figure(3)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%             Kumar Tª               %%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+t_buscada     = 0.3*save_vars{1,Nt};
+[~, posicion] = min(abs([save_vars{1,:}] - t_buscada));
+disp("t/tb = 0.3 correspond to t = " + t_buscada + "; The nearest value is t = " + save_vars{1,posicion})
+
+T_gas           = [save_vars{12,posicion}];
+x_gas           = [save_vars{17,posicion}]./(save_vars{7,1}/2);
+
+figure(4)
+plot(x_gas, T_gas, '-b')
 hold on
-for ii=1:nSpecies
-    plot(x_gas, Y_gas{ii})
-    name        = "Specie " + ii;
-    names{ii}   = name;
-end
 
-xlabel("$$r[m]$$", Interpreter="latex", FontSize=16)
+xlabel("$$r/a_0$$", Interpreter="latex", FontSize=16)
 ylabel("$$Temperature [K]$$", Interpreter="latex", FontSize=16)
-legend(names, 'Interpreter','latex', 'Location','northwest', 'FontSize', 16);
+
+t_buscada     = 0.5*save_vars{1,Nt};
+[~, posicion] = min(abs([save_vars{1,:}] - t_buscada));
+disp("t/tb = 0.5 correspond to t = " + t_buscada + "; The nearest value is t = " + save_vars{1,posicion})
+
+T_gas           = [save_vars{12,posicion}];
+x_gas           = [save_vars{17,posicion}]./(save_vars{7,1}/2);
+
+plot(x_gas, T_gas, '-b')
+
+t_buscada     = 0.7*save_vars{1,Nt};
+[~, posicion] = min(abs([save_vars{1,:}] - t_buscada));
+disp("t/tb = 0.7 correspond to t = " + t_buscada + "; The nearest value is t = " + save_vars{1,posicion})
+
+T_gas           = [save_vars{12,posicion}];
+x_gas           = [save_vars{17,posicion}]./(save_vars{7,1}/2);
+
+plot(x_gas, T_gas, '-b')
+xlim([0 25])
+
+hold on
+
+
+load('./Sim_102/Saved_varsEnd.mat')
+
+Nt              = length([save_vars{1,:}]);
+disp("The droplet life was: " + save_vars{1,Nt} + " [s]")
+
+
+t_buscada     = 0.3*save_vars{1,Nt};
+[~, posicion] = min(abs([save_vars{1,:}] - t_buscada));
+disp("t/tb = 0.3 correspond to t = " + t_buscada + "; The nearest value is t = " + save_vars{1,posicion})
+
+T_gas           = [save_vars{12,posicion}];
+x_gas           = [save_vars{17,posicion}]./(save_vars{7,1}/2);
+
+plot(x_gas, T_gas, '-r')
+
+xlabel("$$r/a_0$$", Interpreter="latex", FontSize=16)
+ylabel("$$Temperature [K]$$", Interpreter="latex", FontSize=16)
+
+t_buscada     = 0.5*save_vars{1,Nt};
+[~, posicion] = min(abs([save_vars{1,:}] - t_buscada));
+disp("t/tb = 0.5 correspond to t = " + t_buscada + "; The nearest value is t = " + save_vars{1,posicion})
+
+T_gas           = [save_vars{12,posicion}];
+x_gas           = [save_vars{17,posicion}]./(save_vars{7,1}/2);
+
+plot(x_gas, T_gas, '-r')
+
+t_buscada     = 0.7*save_vars{1,Nt};
+[~, posicion] = min(abs([save_vars{1,:}] - t_buscada));
+disp("t/tb = 0.7 correspond to t = " + t_buscada + "; The nearest value is t = " + save_vars{1,posicion})
+
+T_gas           = [save_vars{12,posicion}];
+x_gas           = [save_vars{17,posicion}]./(save_vars{7,1}/2);
+
+plot(x_gas, T_gas, '-r')
+xlim([0 25])

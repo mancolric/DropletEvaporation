@@ -18,7 +18,7 @@ function [save_vars, model_l, model_g] = ...
         PlotRes, Save, fuel_names, mass_fracL, ...
         inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, ...
         x_lg, XRad, R_end_percent, n_saves, folderName, PreExp,...
-        ActEnergy, T_exp)
+        ActEnergy, T_exp, Fuel_exp, O2_exp)
 
     tStart = tic;
 
@@ -26,7 +26,7 @@ function [save_vars, model_l, model_g] = ...
     %DATA:
     
     %Maximum and target nb of iterations in nonlinear solver:
-    NLS_MaxIter     = 100;   
+    NLS_MaxIter     = 125;   
     NLS_IterTarget  = Inf;
     
     % NOTE: a factor controlling the time step is sqrt(NLS_IterTarget/NLS_iters) 
@@ -55,7 +55,7 @@ function [save_vars, model_l, model_g] = ...
     
     %Load models:
     model_l        = Liquid_ALE(fuel_names,mass_fracL, inert_comps, mass_fracG);
-    model_g        = Gas_ALE_Cluster(fuel_names, inert_comps, mass_fracG, PreExp, ActEnergy, T_exp);
+    model_g        = Gas_ALE_Cluster(fuel_names, inert_comps, mass_fracG, PreExp, ActEnergy, T_exp, Fuel_exp, O2_exp);
     
     %Initial gas and droplet velocity. To be initialized in u0_g:
     vR_0           = NaN;
@@ -96,6 +96,39 @@ function [save_vars, model_l, model_g] = ...
     y_fuel_inf  = repmat({0.0}, model_l.nSpecies, 1);
     y_inf       = [y_gas_inf; y_fuel_inf];
     
+
+    function [y] = PerfilSuaveSimple(x_v, x1_xy, x2_xy, x3_xy)
+%   Calcula el perfil de temperaturas asegurando que la pendiente de
+%   bajada sea simétrica/similar a la pendiente de subida.
+
+    % --- Extracción de Coordenadas ---
+    x1 = x1_xy(1); y1 = x1_xy(2);
+    x2 = x2_xy(1); y2 = x2_xy(2);
+    x3 = x3_xy(1); y3 = x3_xy(2);
+
+    % --- Control de las pendientes ---
+    ancho_subida = x2 - x1;
+    % Forzamos a que la bajada ocurra en el mismo espacio que la subida
+    % (Puedes multiplicar esto por 1.5 o 2 si quieres que la bajada sea un pelín más tendida)
+    ancho_bajada = ancho_subida * 1.0; 
+
+    % --- Filtro de suavizado (Smoothstep de 5º orden C2) ---
+    S = @(t) t.^3 .* (10 - 15*t + 6*t.^2);
+
+    % --- Normalización Local con el nuevo ancho ---
+    % Ahora t_der llega a 1 muchísimo antes de llegar a x3
+    t_izq = min(max((x_v - x1) / ancho_subida, 0), 1);
+    t_der = min(max((x_v - x2) / ancho_bajada, 0), 1);
+
+    % --- Cálculo de las dos mitades ---
+    y_izq = y1 + (y2 - y1) .* S(t_izq);
+    y_der = y2 - (y2 - y3) .* S(t_der);
+
+    % --- Combinación ---
+    y = y_izq .* (x_v <= x2) + y_der .* (x_v > x2);
+
+end
+
     %Initial condition for the gas phase from Turns:
     function u = u0_g_Turns(x)
         % Habrá que normalizar todo esto por que seguro estamos cometiendo
@@ -103,63 +136,78 @@ function [save_vars, model_l, model_g] = ...
         IC_class        = clase_IC(model_g, T_0, T_inf, x_lg);
         Unknowns        = InitialCond(IC_class, [1,1,1,1,1]'); %[mdot, Ts, Tf, Yfs, rf]
         x_v             = reshape(x', [length(x(1,:))*length(x(:,1)),1]);
-        x_1             = x_v(x_v<=Unknowns(5));
-        x_2             = x_v(x_v>Unknowns(5));
-        Zt              = IC_class.cpg/(4*pi*IC_class.kg);
+        peak_radii      = 2*x_lg;
+        x_1             = x_v(x_v<=Unknowns(5)-(peak_radii/2));
+        x_2             = x_v((Unknowns(5)-(peak_radii/2)<x_v)&(x_v<=Unknowns(5)+(peak_radii/2)));
+        x_3             = x_v(x_v>Unknowns(5)+(peak_radii/2));
+        
+        x_peakL         = Unknowns(5) - (peak_radii/2);
+        x_peakR         = Unknowns(5) + (peak_radii/2);
+
+        Zt              = IC_class.cpFuel/(4*pi*IC_class.kg);
         
         T_inner         = @(x) (((Unknowns(2)-Unknowns(3))*exp(-Zt*Unknowns(1)./x))...
                                 + (Unknowns(3)*exp(-Zt*Unknowns(1)./IC_class.rs))...
                                 - (Unknowns(2)*exp(-Zt*Unknowns(1)./Unknowns(5)))) / ...
                                 (exp(-Zt*Unknowns(1)./IC_class.rs) - exp(-Zt*Unknowns(1)./Unknowns(5)));
+        
         T_outer         = @(x) (((Unknowns(3)-IC_class.T_inf) * exp(-Zt*Unknowns(1)./x)) + ...
                                 (IC_class.T_inf*exp(-Zt*Unknowns(1)./Unknowns(5))) - ...
                                 Unknowns(3)) /...
                                 (exp(-Zt*Unknowns(1)./Unknowns(5)) - 1);
 
-        T_1             = T_inner(x_1);
-        T_2             = T_outer(x_2);
-        T_g             = reshape(cat(1,T_1,T_2),[length(x(1,:)),length(x(:,1))])';
+        % T_peak          = @(x) ((x-(Unknowns(5)-(peak_radii/2)))*(T_inner(Unknowns(5)-(peak_radii/2))-T_outer(Unknowns(5)+(peak_radii/2)))/(-peak_radii))...
+        %                         + T_inner(Unknowns(5)-(peak_radii/2));
+        % T_peak          = @(x) (1 - W(x)) .* T_inner(x) + W(x) .* T_outer(x);
+        dx = 1e-8;
 
+        % interpolamos usando el método 'spline' con 4 puntos estratégicos
+        T_peak = @(x) interp1([x_peakL - dx, x_peakL, x_peakR, x_peakR + dx], ...
+            [T_inner(x_peakL - dx), T_inner(x_peakL), T_outer(x_peakR), T_outer(x_peakR + dx)], ...
+            x, 'spline');
+
+        T_1             = T_inner(x_1);
+        T_2             = T_peak(x_2);
+        T_3             = T_outer(x_3);
+        T_g             = reshape(cat(1,T_1,T_2,T_3),[length(x(1,:)),length(x(:,1))])';
+
+        T_g             = PerfilSuaveSimple(x_v, [x_lg,T_0], [rf,2000], [x_g,T_inf]);
+        T_g             = reshape(T_g,[length(x(1,:)),length(x(:,1))])';
+        
+        dx_peak  = (peak_radii / 4); % Para muestrear la pendiente de las funciones originales
 
         Yf_inner        = @(x) 1- (((1-Unknowns(4))*exp(-Zt*Unknowns(1)./x))) / ...
                                 exp(-Zt*Unknowns(1)./IC_class.rs);
         Yf_outer        = @(x) 0.0*x;
-        x_1_f           = x_v(x_v<=Unknowns(5));
-        x_2_f           = x_v(x_v>Unknowns(5));
+        Yf_peak = @(x) interp1([x_peakL - dx_peak, x_peakL, x_peakR, x_peakR + dx_peak], ...
+                       [Yf_inner(x_peakL - dx_peak), Yf_inner(x_peakL), Yf_outer(x_peakR), Yf_outer(x_peakR + dx_peak)], ...
+                       x, 'pchip');
+        x_1_f           = x_v(x_v<=Unknowns(5)-(peak_radii/2));
+        x_2_f           = x_v((Unknowns(5)-(peak_radii/2)<x_v)&(x_v<=Unknowns(5)+(peak_radii/2)));
+        x_3_f           = x_v(x_v>Unknowns(5)+(peak_radii/2));
         Yf_1            = Yf_inner(x_1_f);
-        Yf_2            = Yf_outer(x_2_f);
-        Yf              = reshape(cat(1,Yf_1,Yf_2),[length(x(1,:)),length(x(:,1))])';
-        % Yft             = Yf';
+        Yf_2            = Yf_peak(x_2_f);
+        Yf_3            = Yf_outer(x_3_f);
+        Yf              = reshape(cat(1,Yf_1,Yf_2,Yf_3),[length(x(1,:)),length(x(:,1))])';
 
         %%%%%%%%%%%%%%%%%% MODIFICADO PARA PRUEBA %%%%%%%%%%%%%%%%%%
-        radio_llama     = 0;
-        x_1_ox          = x_v(x_v<=(Unknowns(5)-radio_llama*x_lg));
-        x_2_ox          = x_v(x_v>(Unknowns(5)-radio_llama*x_lg));
+        x_1_ox          = x_v(x_v<=Unknowns(5)-(peak_radii/2));
+        x_2_ox          = x_v((Unknowns(5)-(peak_radii/2)<x_v)&(x_v<=Unknowns(5)+(peak_radii/2)));
+        x_3_ox          = x_v(x_v>Unknowns(5)+(peak_radii/2));
         Yox_inner       = @(x) 0.0*x;
-        Yox_outer       = @(x) IC_class.nu*((exp(-Zt*Unknowns(1)./x)/exp(-Zt*Unknowns(1)./(Unknowns(5)-radio_llama*x_lg))) - 1); %*0.3;
+        Yox_outer       = @(x) IC_class.nu*((exp(-Zt*Unknowns(1)./x)/exp(-Zt*Unknowns(1)./Unknowns(5))) - 1); %*0.3;
+        Yox_peak = @(x) interp1([x_peakL - dx_peak, x_peakL, x_peakR, x_peakR + dx_peak], ...
+                        [Yox_inner(x_peakL - dx_peak), Yox_inner(x_peakL), Yox_outer(x_peakR), Yox_outer(x_peakR + dx_peak)], ...
+                        x, 'pchip');
     
         Yox_1           = Yox_inner(x_1_ox);
-        Yox_2           = Yox_outer(x_2_ox);
-        Yox             = reshape(cat(1,Yox_1,Yox_2),[length(x(1,:)),length(x(:,1))])';
-        % Yoxt            = Yox'; %Solo sirve para plot, borrar
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        Yox_2           = Yox_peak(x_2_ox);
+        Yox_3           = Yox_outer(x_3_ox);
+        Yox             = reshape(cat(1,Yox_1,Yox_2,Yox_3),[length(x(1,:)),length(x(:,1))])';
 
-        % Ypr_1           = 1-Yf_1;
-        % Ypr_2           = 1-Yox_2;
-        % Ypr             = reshape(cat(1,Ypr_1,Ypr_2),[length(x(1,:)),length(x(:,1))])';
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        
         Ypr             = ones(size(Yox)) - Yox - Yf;
-        % Yprt            = Ypr'; %Solo sirve para plot, borrar
-        % 
-        xt              = x';
-        % Y_f_ox          = Yft+Yoxt;
-        % plot(xt(:), Y_f_ox(:))
-        % plot(xt(:), Yft(:))
-        % hold on
-        % plot(xt(:), Yoxt(:))
-        % plot(xt(:), Yprt(:))
-        % 
-        % disp(max(Yf(:)+Yox(:)+Ypr(:)))
-        % disp(min(Yf(:)+Yox(:)+Ypr(:)))
 
       
         Frac_CO2    = model_g.PStoi(end,3).*model_g.species_mw(3)./ ...
@@ -183,20 +231,6 @@ function [save_vars, model_l, model_g] = ...
         y_g_p{3}    = Frac_CO2.*Ypr';
         y_g_p{4}    = Frac_H2O.*Ypr';
         y_g_p{5}    = Yf';
-
-        %%%%%%%%%%%%%%%%%% INITIAL SOLUTION PLOT %%%%%%%%%%%%%%%%%%
-        
-        % figure(10)
-        % for kk=1:length(y_g)
-        %     y_p = y_g_p{kk};
-        %     plot(xt(:), y_p(:))
-        %     hold on
-        % end
-        % 
-        % legend("N2", "O2", "CO2", "H2O", "Fuel")
-
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        
         
         sum_yG      = zeros(size(x));
         sum_yL      = zeros(size(x));
@@ -219,8 +253,9 @@ function [save_vars, model_l, model_g] = ...
         end
         h_g         = calc_h(T_g,y_g,model_g);
         H_g         = h_g.*rho_g;
-        vR_0        = 0.008286095019622;
+        vR_0        = 0.008;
         v_g         = vR_0*((x_lg./x).^2);
+        % v_g         = vR_0*ones(size(x));
         
         %Initial droplet velocity:
         y_L         = mass_fracL;
@@ -233,6 +268,32 @@ function [save_vars, model_l, model_g] = ...
         %Final vector of initial gas fields
         %u = {ρY1, ..., ρYN, H, v}
         u           = [ rhoy_g; {H_g}; {v_g} ];
+
+
+
+        %%%%%%%%%%%%%%%%%% INITIAL SOLUTION PLOT %%%%%%%%%%%%%%%%%%
+        
+        % figure(10)
+        % for kk=1:length(y_g)
+        %     y_p = y_g_p{kk};
+        %     plot(xt(:)./x_lg, y_p(:))
+        %     hold on
+        % end
+        % 
+        % legend("N2", "O2", "CO2", "H2O", "Fuel")
+        % 
+        % hold off
+        % figure(11)
+        % T_g_t = T_g';
+        % plot(xt(:)./x_lg, T_g_t(:))
+        % hold off
+        % 
+        % figure(12)
+        % H_g_t = H_g';
+        % plot(xt(:)./x_lg, H_g_t(:))
+        % hold off
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     end
 
 
@@ -293,7 +354,7 @@ function [save_vars, model_l, model_g] = ...
 
     %Select initial condition for gas phase:
     function u = u0_g(x)
-        u       = u0_g_Turns(x);
+        u       = u0_g_Millan(x);
     end
     
     %Boundary conditions:
@@ -354,23 +415,19 @@ function [save_vars, model_l, model_g] = ...
     L_R  = x_g - rf;        % De rf hacia el infinito
    
     % ==========================================================
-    % 2. REPARTO DE ELEMENTOS (75% Izquierda, 25% Derecha)
-    nElems_Izquierda = round(nElems_g * 0.6);
+    nElems_Izquierda = round(nElems_g * 0.2); % Porcentaje a la izquierda
     nElems_Derecha   = nElems_g - nElems_Izquierda;
     
-    % Reparto logarítmico SOLO para repartir el 75% entre Z1 y Z2
     W_1 = log(L_L1 / hmin_lg);
     W_2 = log(L_L2 / hmin_g);
     W_Izquierda_total = W_1 + W_2;
    
     nElems_1 = max(2, round(nElems_Izquierda * (W_1 / W_Izquierda_total)));
-    nElems_2 = max(2, nElems_Izquierda - nElems_1); % El resto de la izq para Z2
-    
-    % La Zona 3 se queda con el 25% de los elementos directamente
+    nElems_2 = max(2, nElems_Izquierda - nElems_1);
+
     nElems_3 = max(2, nElems_Derecha); 
    
     % ==========================================================
-    % 3. TOLERANCIAS Y GENERACIÓN DE SUB-MALLAS
     tol_1 = 1e-5 * (L_L1 / hmin_lg);
     tol_2 = 1e-5 * (L_L2 / hmin_g);
     tol_3 = 1e-5 * (L_R  / hmin_g);
@@ -391,10 +448,10 @@ function [save_vars, model_l, model_g] = ...
     if flag_2 < 0, error('Error en malla Zona 2 (Llama interna).'); end
     hElems_2 = hmin_g * mr_2.^(0:nElems_2-1);
    
-    hElems_2_reversed = fliplr(hElems_2); % Invertimos para que sea fina en rf
+    hElems_2_reversed = fliplr(hElems_2);
     
     % --- Zona 3 ---
-    r_max_3 = (L_R/hmin_g)^(1/(nElems_3-1));
+        r_max_3 = (L_R/hmin_g)^(1/(nElems_3-1));
     [mr_3, ~, flag_3] = NewtonRaphson(...
                         @(r, ComputeJ) MeshFactor(r, hmin_g, nElems_3, L_R), ...
                         r_max_3, tol_3, 0.0, 200);
@@ -402,25 +459,24 @@ function [save_vars, model_l, model_g] = ...
     hElems_3 = hmin_g * mr_3.^(0:nElems_3-1);
     
     % ==========================================================
-    % 4. ENSAMBLAJE
     hElems_Izquierda = [hElems_1, hElems_2_reversed];
    
     xmesh_L = x_lg + [0.0, cumsum(hElems_Izquierda)];
-    xmesh_L(end) = rf; % Anclaje forzado en rf
+    xmesh_L(end) = rf;
    
     xmesh_R = rf + cumsum(hElems_3);
-    xmesh_R(end) = x_g; % Anclaje forzado en infinito
+    xmesh_R(end) = x_g;
    
-    xmesh_g = [xmesh_L, xmesh_R(2:end)]; % Unimos sin duplicar rf
+    xmesh_g = [xmesh_L, xmesh_R(2:end)];
 
     %Plot mesh:
     if false
         figure;
         hold on;
-        plot(xmesh_l, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
-        plot(xmesh_g, zeros(size(xmesh_g)), 'r*', 'MarkerSize', 6, 'LineWidth', 1.5, 'DisplayName', 'Gas'); 
+        plot(xmesh_l./x_lg, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
+        plot(xmesh_g./x_lg, zeros(size(xmesh_g)), 'r*', 'MarkerSize', 6, 'LineWidth', 1.5, 'DisplayName', 'Gas'); 
         plot(x_lg, 0, 'go', 'MarkerSize', 10, 'LineWidth', 2, 'DisplayName', 'Interface');
-        xlabel('x [m]');
+        xlabel('x/r0 [-]');
         title('Point distribution in liquid and gas');
         legend('Location', 'best');
         grid on;
@@ -556,7 +612,7 @@ function [save_vars, model_l, model_g] = ...
             %Define plot nodes and evaluate solution:
             xiplot      = linspace(-1.0, 1.0, (p+1)^2);
             xplot_l     = PhysicalCoordinates(sol.fesl.mesh, xiplot);
-            xplot_g     = PhysicalCoordinates(sol.fesg.mesh, xiplot);
+            xplot_g     = PhysicalCoordinates(sol.fesg.mesh, xiplot)./x_lg;
             num_sol_l   = EvalSolution(sol.ul, sol.fesl, 1:sol.fesl.mesh.nElems, xiplot);
             num_sol_g   = EvalSolution(sol.ug, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
             
@@ -624,14 +680,15 @@ function [save_vars, model_l, model_g] = ...
             for II=1:model_g.nSpecies
                 plot(MatTranspVec(xplot_g), MatTranspVec(rhoy_g{II}), 'color', colorm(II,:))
                 hold on
-                plot(sol_xmesh_g(1), rhoy_qg{II}, 'color', colorm(II,:), 'marker', 'x')
+                % plot(sol_xmesh_g(1), rhoy_qg{II}, 'color', colorm(II,:), 'marker', 'x')
             end
-            plot(MatTranspVec(xplot_g), MatTranspVec(rhobar_g), '+c')
-            plot(MatTranspVec(xplot_g), MatTranspVec(rho_g), 'k')
-            plot(sol_xmesh_g(1), rho_qg, 'color', 'k', 'marker', 'x')
+            % plot(MatTranspVec(xplot_g), MatTranspVec(rhobar_g), '+c')
+            % plot(MatTranspVec(xplot_g), MatTranspVec(rho_g), 'k')
+            % plot(sol_xmesh_g(1), rho_qg, 'color', 'k', 'marker', 'x')
             title(['\rho_g, t=', sprintf('%.4E', sol.t)])
+            legend("N2", "O2", "CO2", "H2O", "Fuel")
             grid on
-%             xlim([0,1e-2])
+            xlim([0,12])
             
             %Plot temperatures:
             subplot(mPlot, nPlot, 2)
@@ -644,12 +701,12 @@ function [save_vars, model_l, model_g] = ...
             %
             subplot(mPlot, nPlot, nPlot+2)
             hold off
-            plot(MatTranspVec(xplot_g), MatTranspVec(T_g), 'r')
+            plot(MatTranspVec(xplot_g), MatTranspVec(H_g), 'r')
             hold on
             plot(sol_xmesh_g(1), T_qg, 'color', 'r', 'marker', 'x')
             title(['T_g, t=', sprintf('%.4E', sol.t)])
             grid on
-%             xlim([0,1e-2])
+            xlim([0,12])
             
             %Plot velocities and mesh velocity:
             subplot(mPlot, nPlot, 3)
@@ -667,7 +724,7 @@ function [save_vars, model_l, model_g] = ...
             plot(MatTranspVec(xplot_g), MatTranspVec(w_g), 'm')
             title(['v_g, w_g, t=', sprintf('%.4E', sol.t)])
             grid on
-%             xlim([0,1e-4])
+            xlim([0,12])
 
             hold off
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1296,6 +1353,8 @@ function [save_vars, model_l, model_g] = ...
             
             %Loop stages:
             NLS_iters       = 0;
+
+
             for ii=2:RKmethod.s 
                 
                 %Update time:

@@ -1,4 +1,4 @@
-function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEnergy, T_exp)
+function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEnergy, T_exp, Fuel_exp, O2_exp)
 
     %Default values for user-defined parameters:
     model.bool_liq    = false;
@@ -24,33 +24,42 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
 
         Q             = cell(model.nDiff,1);
 
-        C             = cellfun(@(r, mw) r ./ (1e6*mw), rhoy, num2cell(model.species_mw(:)), 'UniformOutput', false);   %[mol/cm3]
-        MatrixExpo    = model.ROrder((1:model.nFuels) + model.nInerts, min(1:model.nSpecies, model.nInerts+1)).';
-        CROrder       = cellfun(@(c, exp) abs(c).^exp, repmat(C, 1, model.nFuels), num2cell(MatrixExpo), 'UniformOutput', false);
+        %%%%%%%%%%%%%%%%%%%%%%%% Forma Original %%%%%%%%%%%%%%%%%%%%%%%%
+        % C2            = cell(model.nDiff-1,1);
+        % CROrder2      = cell(model.nDiff-1,1);
+        % Q2            = cell(model.nDiff,1);
+
         
-        % for JJ=1:model.nFuels           % JJ = number of reactions
-        %     k{JJ}     = model.Arr(JJ+model.nInerts,2)*T.^model.Arr(JJ+model.nInerts ,3).*...
-        %                     exp(-model.Arr(JJ+model.nInerts,1)./(model.R.*T));
-        %     omega{JJ} = k{JJ}.*prod(cat(3, CROrder{:,JJ}), 3);
+
+        % for II=1:model.nDiff-1
+        %     C2{II}          = 1e-6.*rhoy{II}./model.species_mw(II);
+        %     CROrder2{II}    = C2{II}.^model.ROrder(5,II);
         % end
+        % 
+        % k2            = model.Arr(5,2)*T.^model.Arr(5,3).*exp(-model.Arr(5,1)./(model.R.*T));
+        % omega2        = k2.*CROrder2{2}.*CROrder2{5};
+        % for II=1:model.nDiff-1
+        %     Q2{II}          = 1e6*model.species_mw(II).*omega2.*model.DiffStoi(5,II);
+        % end
+        % Q2{end}       = zeros(size(Q2{end-1}));
+        % Q             = Q2;
+
+        %%%%%%%%%%%%%%%%%%%%%%%% Forma Compacta %%%%%%%%%%%%%%%%%%%%%%%%
+
+        C             = cellfun(@(r, mw) 1e-6*r./mw, rhoy, num2cell(model.species_mw(:)), 'UniformOutput', false);   %[mol/cm3]
+        MatrixExpo    = model.ROrder((1:model.nFuels) + model.nInerts, min(1:model.nSpecies, model.nInerts+1)).';
+        CROrder       = cellfun(@(c, exp) c.^exp, repmat(C, 1, model.nFuels), num2cell(MatrixExpo), 'UniformOutput', false);
 
         idx_Arr = (1:model.nFuels) + model.nInerts;
         A1 = model.Arr(idx_Arr, 1);
         A2 = model.Arr(idx_Arr, 2);
         A3 = model.Arr(idx_Arr, 3);
-        calc_omega = @(j) 1e-0.*  (A2(j) * T.^A3(j) .* exp(-A1(j) ./ (model.R .* T))) .* prod(cat(3, CROrder{:,j}), 3);
+        calc_omega = @(j) (A2(j) * T.^A3(j) .* exp(-A1(j) ./ (model.R .* T))) .* prod(cat(3, CROrder{:,j}), 3);
         omega = arrayfun(calc_omega, (1:model.nFuels)', 'UniformOutput', false);
-        % for II=2:model.nDiff
-        %     for JJ=1:model.nFuels
-        %         omega_DiffS{JJ}   = omega{JJ}.*model.DiffStoi(JJ+model.nInerts,II-1); 
-        %     end
-        %     Q{II} = model.species_mw(II-1) .* sum(cat(3, omega_DiffS{:}), 3);
-        % end
+        
         Omega3D = cat(3, omega{:});
-        % calc_Q = @(ii) model.species_mw(ii-1) .* sum(Omega3D .* reshape(model.DiffStoi((1:model.nFuels)+model.nInerts, ii-1), 1, 1, []), 3);
-        % Q(2:model.nDiff) = arrayfun(calc_Q, (2:model.nDiff)', 'UniformOutput', false);
 
-        calc_Q = @(kk) model.species_mw(kk) .* 1e6 .* sum(Omega3D .* reshape(model.DiffStoi((1:model.nFuels)+model.nInerts, kk), 1, 1, []), 3);
+        calc_Q = @(kk) model.species_mw(kk).* 1e6 .* sum(Omega3D .* reshape(model.DiffStoi((1:model.nFuels)+model.nInerts, kk), 1, 1, []), 3);
         Q(1:model.nSpecies) = arrayfun(calc_Q, (1:model.nSpecies)', 'UniformOutput', false);
         Q{end}                  = zeros(size(Q{end-1}));
         
@@ -58,14 +67,28 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
         %%%%%%%%%%%%%%%%%%%%%%%% Plots, delete %%%%%%%%%%%%%%%%%%%%%%%%
         % hold off
         % figure(3)
+        % x_plot = reshape(x'./4.2e-4,[size(x,2)*size(x,1), 1]);
         % for jj=1:5
-        %     plot(reshape(x'./((250/2)*1e-6),[size(x,2)*size(x,1), 1]), reshape(Q{jj}',[size(Q{jj},2)*size(Q{jj},1), 1]))
+        %     plot(x_plot, reshape(Q{jj}',[size(Q{jj},2)*size(Q{jj},1), 1]))
         %     hold on
         % end
         % hold off
         % xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
         % ylabel("$$\dot{m} \, \left[ Kg/(m^3*s) \right]$$", "Interpreter","latex")
-        % xlim([0.95 25])
+        % % xlim([0.95 25])
+        % % xlim([8.545 8.565])
+        % idx_primero = find(abs(reshape(Q{3}',[size(Q{3},2)*size(Q{3},1), 1])) > 1e-10, 1, 'first');
+        % idx_ultimo = find(abs(reshape(Q{3}',[size(Q{3},2)*size(Q{3},1), 1])) > 1e-10, 1, 'last');
+        % if isempty(idx_primero) || isempty(idx_ultimo)
+        %     xlim([min(x_plot), max(x_plot)]);
+        % else
+        %     x_inicial = x_plot(idx_primero);
+        %     x_final   = x_plot(idx_ultimo);
+        %     xlim([x_inicial, x_final]);
+        % end
+
+        
+        % ylim([-0.007, 0.007])
         % 
         % 
         % 
@@ -110,9 +133,15 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-        % Q               = repmat({zeros(1199, 11)}, 6, 1);
+        % Q               = repmat({zeros(299, 11)}, 6, 1);
+    end
+
+    function Q=Qfun_fake(model, T, rhoy, x)
+        Q               = repmat({zeros(114, 11)}, 6, 1);
+        error('Usando Q fake')
     end
     model.Q           = @Qfun;
+    model.Q_fake      = @Qfun_fake;
     model.u1          = @(t) {    1.0;
                                   1.0; 
                                   1.0;
@@ -127,16 +156,19 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
     model.Hf          = calcula_Hf(model, model.bool_liq);
     model.Arr         = calcula_Arrhenius(model, model.bool_liq); %[Activation energy,Preexponential factor, Temperature exponent]
 
-    model.Arr(5:model.nSpecies,:) = [ActEnergy, PreExp, T_exp];
+    model.Arr(5:model.nSpecies,:)       = [ActEnergy, PreExp, T_exp];
     
     model.RStoi       = calcula_R_Stoichiometric(model, model.bool_liq);
     model.ROrder      = calcula_ReactionOrders(model, model.bool_liq);
+
+    model.ROrder(5:model.nSpecies,:)    = [0, O2_exp, 0, 0, Fuel_exp];
+
     model.PStoi       = calcula_P_Stoichiometric(model, model.bool_liq);
     model.DiffStoi    = model.PStoi - model.RStoi;
     model.fuel_mw     = calcula_fuel_mw(model, model.bool_liq); %[Kg/mol]
     model.species_mw  = cat(2,model.Inerts_mw, model.fuel_mw);  %[Kg/mol]
     model.Tmin        = 300; 
-    model.Tmax        = 5000;
+    model.Tmax        = 2500;
     model.P           = 101325;
     model.N_polyfit   = 4;
     model.matrix      = Polyfit_properties_pureCompounds(model.gota, model.comp_inerts, model.Tmin, model.Tmax, model.P, model.N_polyfit);

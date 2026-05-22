@@ -101,10 +101,10 @@ f_vib=rho*D_kk/mu_k;
 
 lambda=mu_k/(mw/1000)*(f_trans*Cv_trans + f_rot*Cv_rot + f_vib*Cv_vib);
 
-if (strcmpi('H2O',compuesto))
-  lambda=(2.0103 - 7.9139*T/1000 + 35.922*(T/1000)^2 - 41.39*(T/1000)^3 +  35.993*(T/1000)^4 - 18.974*(T/1000)^5 + 4.1531*(T/1000)^6)*1/10^2; %Perrys (* W/m/K *)
-    
-end
+% if (strcmpi('H2O',compuesto))
+%   lambda=(2.0103 - 7.9139*T/1000 + 35.922*(T/1000)^2 - 41.39*(T/1000)^3 +  35.993*(T/1000)^4 - 18.974*(T/1000)^5 + 4.1531*(T/1000)^6)*1/10^2; %Perrys (* W/m/K *)
+% 
+% end
 
 return
 

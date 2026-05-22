@@ -85,6 +85,7 @@ function [  f, df_du, df_du_dx, ...
 
     %Source:
     Q                       = model.Q(t,x);
+    error("DG ?")
     [dQ_du, dQ_du_dx]       = Cells_Allocate(model.nDiff, model.nVars, ComputeJ, rhoy{1});
     
     %Restriction:
