@@ -136,7 +136,7 @@ end
         IC_class        = clase_IC(model_g, T_0, T_inf, x_lg);
         Unknowns        = InitialCond(IC_class, [1,1,1,1,1]'); %[mdot, Ts, Tf, Yfs, rf]
         x_v             = reshape(x', [length(x(1,:))*length(x(:,1)),1]);
-        peak_radii      = 2*x_lg;
+        peak_radii      = 1*x_lg;
         x_1             = x_v(x_v<=Unknowns(5)-(peak_radii/2));
         x_2             = x_v((Unknowns(5)-(peak_radii/2)<x_v)&(x_v<=Unknowns(5)+(peak_radii/2)));
         x_3             = x_v(x_v>Unknowns(5)+(peak_radii/2));
@@ -174,8 +174,8 @@ end
         T_3             = T_outer(x_3);
         T_g             = reshape(cat(1,T_1,T_2,T_3),[length(x(1,:)),length(x(:,1))])';
 
-        T_g             = PerfilSuaveSimple(x_v, [x_lg,T_0], [rf,2000], [x_g,T_inf]);
-        T_g             = reshape(T_g,[length(x(1,:)),length(x(:,1))])';
+        % T_g             = PerfilSuaveSimple(x_v, [x_lg,T_0], [rf,2000], [x_g,T_inf]);
+        % T_g             = reshape(T_g,[length(x(1,:)),length(x(:,1))])';
         
         dx_peak  = (peak_radii / 4); % Para muestrear la pendiente de las funciones originales
 
@@ -275,27 +275,30 @@ end
 
 
         %%%%%%%%%%%%%%%%%% INITIAL SOLUTION PLOT %%%%%%%%%%%%%%%%%%
-        
-        % figure(10)
-        % for kk=1:length(y_g)
-        %     y_p = y_g_p{kk};
-        %     plot(xt(:)./x_lg, y_p(:))
-        %     hold on
-        % end
-        % 
-        % legend("N2", "O2", "CO2", "H2O", "Fuel")
-        % 
-        % hold off
-        % figure(11)
-        % T_g_t = T_g';
-        % plot(xt(:)./x_lg, T_g_t(:))
-        % hold off
-        % 
-        % figure(12)
-        % H_g_t = H_g';
-        % plot(xt(:)./x_lg, H_g_t(:))
-        % hold off
 
+        if false
+            xt = x';
+
+            figure(10)
+            for kk=1:length(y_g)
+                y_p = y_g_p{kk};
+                plot(xt(:)./x_lg, y_p(:))
+                hold on
+            end
+
+            legend("N2", "O2", "CO2", "H2O", "Fuel")
+
+            hold off
+            figure(11)
+            T_g_t = T_g';
+            plot(xt(:)./x_lg, T_g_t(:))
+            hold off
+
+            figure(12)
+            H_g_t = H_g';
+            plot(xt(:)./x_lg, H_g_t(:))
+            hold off
+        end
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     end
 
@@ -473,7 +476,7 @@ end
     xmesh_g = [xmesh_L, xmesh_R(2:end)];
 
     %Plot mesh:
-    if true
+    if false
         figure;
         hold on;
         plot(xmesh_l./x_lg, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
@@ -1566,7 +1569,7 @@ end
                 rhoy_g{j} = num_sol_g{j}; 
             end
             [~,y_gas]  = calc_rho_y(rhoy_g, model_g);
-            save_rhoy_g = rhoy_g(model_g.nInerts+1:model_g.nSpecies);
+            save_rhoy_g = rhoy_g(1:model_g.nSpecies);
             H_l         = num_sol_l{model_l.nDiff};
             T_l         = calc_T(H_l,rhoy_l,model_l);
             save_Tc     = T_l(1,1);
