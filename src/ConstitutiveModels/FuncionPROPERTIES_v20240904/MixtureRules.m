@@ -187,6 +187,22 @@ switch property
         % The k_gas of the mixture is:
         retArray = 0.5*(sum(term_1)+1./(sum(term_2)));
 
+    case 'ap_gas'
+         % First: obtain the individual ap values at the target
+         % temperature:
+         row_ap_gas=8;
+         ap_gas_individual  = zeros(N_inerts+N_fuels, size(T_eval,2));
+         retArray           = cell(N_inerts+N_fuels,1);
+        for id_i=1:N_inerts
+            polynomial                  =squeeze(MatrixProperties{row_ap_gas, id_i});
+            ap_gas_individual(id_i, :)  = Polyval(polynomial, T_eval);
+            retArray{id_i}              = ap_gas_individual(id_i, :);
+        end    
+        for id_i=N_inerts+1:N_inerts+N_fuels
+            polynomial                  =squeeze(MatrixProperties{row_ap_gas, id_i});
+            ap_gas_individual(id_i, :)  = Polyval(polynomial, T_eval);
+            retArray{id_i}              = ap_gas_individual(id_i, :);
+        end  
 
     case 'D_gas'
     % Step 1: obtain the binary diffusion coefficients between fuel

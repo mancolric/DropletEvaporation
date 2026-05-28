@@ -282,9 +282,8 @@ end
 
         %%%%%%%%%%%%%%%%%% INITIAL SOLUTION PLOT %%%%%%%%%%%%%%%%%%
 
-        if true
-            xt = x';
-
+        if false
+            
             figure(10)
             for kk=1:length(y_g)
                 y_p = y_g_p{kk};
@@ -299,6 +298,8 @@ end
             T_g_t = T_g';
             plot(xt(:)./x_lg, T_g_t(:))
             hold off
+            xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
+            ylabel("$$T \, \left[ K \right]$$", "Interpreter","latex")
 
             figure(12)
             H_g_t = H_g';

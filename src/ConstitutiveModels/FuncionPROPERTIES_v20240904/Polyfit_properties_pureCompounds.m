@@ -16,7 +16,7 @@ verification_plots=0; %1-activates visualization of the polynomial fittings
 % INITIALIZE FINAL MATRIX PROPERTIES:
 N_inerts=size(comp_inerts,2);
 N_fuels=size(gota.tipo_combustible,2);
-N_properties=7;
+N_properties=8;
 matrixProperties = cell(N_properties, N_inerts+N_fuels);
 
 % INITIALIZE TEMPERATURE ARRAYS
@@ -62,13 +62,16 @@ for id_compound=1:N_inerts
     k_gas(id_T) = calcula_lambda_vapor_Kee(comp_inerts{id_compound}, 0, T_eval);
     % k_gas(id_T) = 0.04;
 
+    % Row 8: ap [inert]
+    ap_gas(id_T) = calcula_ap_gas_monocomponente(comp_inerts{id_compound}, T_eval);
+
    
     end
     % Fit the data to the polynomial and store the coefficients in the matrix:
     matrixProperties{5, id_compound}=Polyfit(T_gas, rho_gas, poly_order);
     matrixProperties{6, id_compound}=Polyfit(T_gas, Cp_gas, poly_order);
     matrixProperties{7, id_compound}=Polyfit(T_gas, k_gas, poly_order);
-
+    matrixProperties{8, id_compound}=Polyfit(T_gas, ap_gas, poly_order);
 
 %     % Optional: Check Polyfit accuracy (disabled by default)
     if verification_plots==1
@@ -89,6 +92,12 @@ for id_compound=1:N_inerts
         hold on
         plot(T_gas, Polyval(Polyfit(T_gas, k_gas, poly_order), T_gas))
         title(['k gas adjustement, order: ' num2str(poly_order)])
+
+        figure(8)
+        plot(T_gas, ap_gas, 'Marker', 'o')
+        hold on
+        plot(T_gas, Polyval(Polyfit(T_gas, ap_gas, poly_order), T_gas))
+        title(['ap gas adjustement, order: ' num2str(poly_order)])
 
         
     end
@@ -130,6 +139,8 @@ T_liq = linspace(T_min, 510, Npoints);
     k_gas(id_T) = calcula_lambda_vapor_Kee(gota.tipo_combustible{id_compound-N_inerts}, gota, Tg_eval);
     % k_gas(id_T) = 0.04;
 
+    % Row 8: ap [fuel]
+    ap_gas(id_T) =devuelve_propiedad_fuel(gota, 'ap', gota.tipo_combustible{id_compound-N_inerts}, 'vapor', Tg_eval);
    
     end
     % Fit the data to the polynomial and store the coefficients in the matrix:
@@ -140,7 +151,7 @@ T_liq = linspace(T_min, 510, Npoints);
     matrixProperties{5, id_compound}=Polyfit(T_gas, rho_gas, poly_order);
     matrixProperties{6, id_compound}=Polyfit(T_gas, Cp_gas, poly_order);
     matrixProperties{7, id_compound}=Polyfit(T_gas, k_gas, poly_order);
-
+    matrixProperties{8, id_compound}=Polyfit(T_gas, ap_gas, poly_order);
     
     % Optional: Check Polyfit accuracy (disabled by default)
     if verification_plots==1
@@ -183,7 +194,10 @@ T_liq = linspace(T_min, 510, Npoints);
         hold on
         plot(T_gas, Polyval(Polyfit(T_gas, k_gas, poly_order), T_gas))
 
-
+        figure(8)
+        plot(T_gas, ap_gas, 'Marker', 'o')
+        hold on
+        plot(T_gas, Polyval(Polyfit(T_gas, ap_gas, poly_order), T_gas))
     end
 
 end
@@ -209,6 +223,9 @@ if verification_plots==1
     legend(repelem([comp_inerts, gota.tipo_combustible],2))
 
     figure(7) %k_gas: both inerts and fuels
+    legend(repelem([comp_inerts, gota.tipo_combustible],2))
+
+    figure(8) %ap_gas: both inerts and fuels
     legend(repelem([comp_inerts, gota.tipo_combustible],2))
 
 end 

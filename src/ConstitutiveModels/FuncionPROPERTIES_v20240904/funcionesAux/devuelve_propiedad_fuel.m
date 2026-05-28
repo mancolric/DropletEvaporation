@@ -185,6 +185,10 @@ if strcmpi(comb,'heptano')
             % Entalpía de formación, 'Hf' [J/Kg]
         elseif strcmpi(propiedad,'Hf')
                 value=-187.78*1000/(MW/1000);
+
+            % Planck mean absorption coefficient, 'ap' [1/(m*atm)]
+        elseif strcmpi(propiedad,'ap')
+                value=0.0; 
                 
             %Molecular weight [Kg/mol]
         elseif strcmpi(propiedad,'MW')

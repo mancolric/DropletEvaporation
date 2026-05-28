@@ -22,6 +22,7 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
 
     function Q=Qfun(model, T, rhoy, x)
 
+        [m,n]         = size(T);
         Q             = cell(model.nDiff,1);
 
         %%%%%%%%%%%%%%%%%%%%%%%% Forma Original %%%%%%%%%%%%%%%%%%%%%%%%
@@ -61,9 +62,35 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
 
         calc_Q = @(kk) model.species_mw(kk).* 1e6 .* sum(Omega3D .* reshape(model.DiffStoi((1:model.nFuels)+model.nInerts, kk), 1, 1, []), 3);
         Q(1:model.nSpecies) = arrayfun(calc_Q, (1:model.nSpecies)', 'UniformOutput', false);
-        Q{end}                  = zeros(size(Q{end-1}));
-        
 
+
+        %%%%%%%%%%%%%%%%%%%%% Radiación (cambiado) %%%%%%%%%%%%%%%%%%%%
+        [~,y] = calc_rho_y(rhoy,model);
+        ap = calc_ap(T, y, model);                      %Plank noseque (1/m*atm)
+        Yi_eval = zeros(model.nInerts, m*n); 
+        for II=1:model.nInerts
+            Yi_eval(II,:) = y{II}(:)';
+        end
+
+        Yf_eval = zeros(model.nSpecies-model.nInerts, m*n);
+        for II=1:model.nSpecies-model.nInerts
+
+            Yf_eval(II,:) = y{II+model.nInerts}(:)';
+        end
+        [X_i, X_f]  = calculate_moleFractions(model.comp_inerts,Yi_eval, model.gota, Yf_eval);
+        %Con un facil cat quitamos un bucle for
+        ap_PP               = cell(model.nSpecies,1);       %Presión parcial en atmósferas * ap
+        for II=1:model.nInerts
+            ap_PP{II}                   = reshape(X_i(II,:).*model.P./101325,m,n).*ap{II};
+        end
+        for II=1:model.nSpecies-model.nInerts
+            ap_PP{II+model.nInerts}     = reshape(X_f(II,:).*model.P./101325,m,n).*ap{II+model.nInerts};
+        end
+        sum_ap_PP                       = sum(cat(3, ap_PP{:}), 3);
+
+        Q{end}                          = 4*model.SBcte*sum_ap_PP.*(T.^4 - T(end,end).^4);
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %%%%%%%%%%%%%%%%%%%%%%%% Plots, delete %%%%%%%%%%%%%%%%%%%%%%%%
         % hold off
         % figure(3)
@@ -87,6 +114,26 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
         %     xlim([x_inicial, x_final]);
         % end
 
+
+        % hold off
+        % figure(266)
+        % x_plot = reshape(x'./4.2e-4,[size(x,2)*size(x,1), 1]);
+        % for jj=1:5
+        %     plot(x_plot, reshape(ap{jj}',[size(ap{jj},2)*size(ap{jj},1), 1]))
+        %     hold on
+        % end
+        % legend("N2", "O2", "CO2", "H20", "Fuel")
+        % hold off
+        % xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
+        % ylabel("$$ap \, \left[ 1/(atm*m) \right]$$", "Interpreter","latex")
+
+        % figure(267)
+        % x_plot = reshape(x'./4.2e-4,[size(x,2)*size(x,1), 1]);
+        % plot(x_plot, reshape(Q{end}',[size(Q{end},2)*size(Q{end},1), 1]))
+        % hold off
+        % xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
+        % ylabel("$$S \, \left[ J/(m^3*s) \right]$$", "Interpreter","latex")
+        
         
         % ylim([-0.007, 0.007])
         % 
@@ -170,7 +217,8 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
     model.Tmin        = 300; 
     model.Tmax        = 2500;
     model.P           = 101325;
-    model.N_polyfit   = 4;
+    model.SBcte       = 5.669e-08; %[W/(m^2*k^4)]
+    model.N_polyfit   = 6;
     model.matrix      = Polyfit_properties_pureCompounds(model.gota, model.comp_inerts, model.Tmin, model.Tmax, model.P, model.N_polyfit);
     model.NF          = [];    %Normalization factors
     
