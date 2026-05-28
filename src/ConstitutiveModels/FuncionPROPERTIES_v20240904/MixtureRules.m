@@ -136,6 +136,12 @@ switch property
     Ru=8.314; % J/mol/K
     retArray = Pressure*MW_avg./(Ru*T_eval);
 
+    %%%%%%%%%%%%%%%%%%%% Cambiado %%%%%%%%%%%%%%%%%%%%
+
+    % retArray = 0.5*ones(size(retArray));
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
     case 'Cp_gas'
          % First: obtain the individual Cp values at the target temperature
@@ -186,6 +192,8 @@ switch property
     % Step 1: obtain the binary diffusion coefficients between fuel
     % (averaged kinetic theory properties) and the 4 inert compounds.
     % Method: kinetic theory of gases detailed in (Kee et al. (2005)).
+    retArray           = cell(5,1);
+
     [Xi_eval, Xf_eval] = calculate_moleFractions(comp_inerts,Yi_eval, gota, Yf_eval);
     Xf_eval            = max(Xf_eval, 1e-12);
     if N_fuels>1
@@ -194,10 +202,19 @@ switch property
         epsilon_f_eval = Xf_eval./Xf_eval;
     end
 
-    D_fN2=calcula_D_binario_Kee_vector(gota, 'N2', T_eval, epsilon_f_eval);
-    D_fO2=calcula_D_binario_Kee_vector(gota, 'O2', T_eval, epsilon_f_eval);
-    D_fCO2=calcula_D_binario_Kee_vector(gota, 'CO2', T_eval, epsilon_f_eval);
-    D_fH2O=calcula_D_binario_Kee_vector(gota, 'H2O', T_eval, epsilon_f_eval);
+    D_fN2       = calcula_D_binario_Kee_vector2(gota, 'N2', T_eval, epsilon_f_eval);
+    D_fO2       = calcula_D_binario_Kee_vector2(gota, 'O2', T_eval, epsilon_f_eval);
+    D_fCO2      = calcula_D_binario_Kee_vector2(gota, 'CO2', T_eval, epsilon_f_eval);
+    D_fH2O      = calcula_D_binario_Kee_vector2(gota, 'H2O', T_eval, epsilon_f_eval);
+    
+    D_N2O2      = calcula_D_binario_Kee_vector2('N2', 'O2', T_eval, epsilon_f_eval);
+    D_N2CO2     = calcula_D_binario_Kee_vector2('N2', 'CO2', T_eval, epsilon_f_eval);
+    D_N2H2O     = calcula_D_binario_Kee_vector2('N2', 'H2O', T_eval, epsilon_f_eval);
+
+    D_O2CO2     = calcula_D_binario_Kee_vector2('O2', 'CO2', T_eval, epsilon_f_eval);
+    D_O2H2O     = calcula_D_binario_Kee_vector2('O2', 'H2O', T_eval, epsilon_f_eval);
+
+    D_CO2H2O    = calcula_D_binario_Kee_vector2('CO2', 'H2O', T_eval, epsilon_f_eval);
 
     % Step 2: Calculate a global mass diffusion coefficient through the Wilke approximation
     % (Fairbanks and Wilke, 1950). This simplified aproach allows for a
@@ -211,12 +228,15 @@ switch property
     X_O2=Xi_eval(2, :);
     X_CO2=Xi_eval(3, :);
     X_H2O=Xi_eval(4, :);
-    retArray = (1 - X_f_tot)./(X_O2./D_fO2 + X_N2./D_fN2 + X_H2O./D_fH2O + X_CO2./D_fCO2);
-    % retArray = ones(size(retArray))*5e-5;
-           
+
+    retArray{1}     = (1 - X_N2) ./(X_O2./D_N2O2  + X_CO2./D_N2CO2 + X_H2O./D_N2H2O  + X_f_tot./D_fN2);
+    retArray{2}     = (1 - X_O2) ./(X_N2./D_N2O2  + X_CO2./D_O2CO2 + X_H2O./D_O2H2O  + X_f_tot./D_fO2);
+    retArray{3}     = (1 - X_CO2)./(X_N2./D_N2CO2 + X_O2./D_O2CO2  + X_H2O./D_CO2H2O + X_f_tot./D_fCO2);
+    retArray{4}     = (1 - X_H2O)./(X_N2./D_N2H2O + X_O2./D_O2H2O  + X_CO2./D_CO2H2O + X_f_tot./D_fH2O);
+
+    retArray{5}     = (1 - X_f_tot)./(X_O2./D_fO2 + X_N2./D_fN2 + X_H2O./D_fH2O + X_CO2./D_fCO2);
         
     otherwise
         error('Property not found: %s', property)
 end
 end
-

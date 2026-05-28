@@ -361,13 +361,18 @@ function [f, df_du, df_du_dx, Dmax] = ...
     %Compute dependent variables:
     T     = calc_T(H, rhoy, model);
     D_T   = calc_D_T(T,y,model);
-    D_rho = calc_D_rho(T,y,model);
-    h_i   = calc_h_i(T,model);
+
+    %%%%%%%%%%%%%%%%%%%% Cambiado %%%%%%%%%%%%%%%%%%%%
     
+    D_rho = calc_D_rho(T,y,model);
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    h_i   = calc_h_i(T,model);
+
     %Diffusive flux:
     f = cell(model.nDiff,1);
     for II=1:model.nSpecies
-        f{II}           = - D_rho.* (drhoy_dx{II} - drho_dx.*y{II});
+        f{II}           = - D_rho{II}.* (drhoy_dx{II} - drho_dx.*y{II});
     end
     f{model.nDiff}      = - D_T.* dH_dx;
     for II=1:model.nSpecies
@@ -381,12 +386,12 @@ function [f, df_du, df_du_dx, Dmax] = ...
         %Mass diffusion flux:
         for II=1:model.nSpecies
             for JJ=1:model.nSpecies
-                df_du{II,JJ}                = + D_rho.* drho_dx.* (rho.^-2).* ((II==JJ).*rho - rhoy{II});
+                df_du{II,JJ}                = + D_rho{II}.* drho_dx.* (rho.^-2).* ((II==JJ).*rho - rhoy{II});
             end
         end
         for II=1:model.nSpecies
             for JJ=1:model.nSpecies
-                df_du_dx{II,JJ}             = - D_rho.* ((II==JJ) - y{II});
+                df_du_dx{II,JJ}             = - D_rho{II}.* ((II==JJ) - y{II});
             end
         end
 
@@ -405,7 +410,7 @@ function [f, df_du, df_du_dx, Dmax] = ...
     end
 
     %Maximum diffusion coefficient:
-    Dmax        = max( D_rho, D_T );
+    Dmax        = max( D_rho{2}, D_T );
     
 end
 
@@ -424,8 +429,11 @@ function [f, df_duL, df_duR] = f_penalty(model, uL, uR, hp, ComputeJ)
         H                   = u{model.nSpecies+1};
         T                   = calc_T(H, rhoy, model);
         D_T                 = calc_D_T(T,y,model);
+        %%%%%%%%%%%%%%%%%%%% Cambiado %%%%%%%%%%%%%%%%%%%%
         D_rho               = calc_D_rho(T,y,model);
-        Dv                  = cat(1, repmat(D_rho, model.nSpecies, 1), D_T);              
+        D_rho               = [D_rho{:}]';
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        Dv                  = cat(1, D_rho, D_T);              
     end
     sigmav                  = model.CW*max([Dfun(uL),Dfun(uR)],[],2);
     

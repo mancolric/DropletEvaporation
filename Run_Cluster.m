@@ -4,8 +4,7 @@ close all              % Close all Plots
 clc                    % Clear Command Window
 
 ruta_actual       = fileparts(mfilename('fullpath'));
-data = readcell(fullfile(ruta_actual,'Parametros.txt'), 'Delimiter', '\t');% MAIN SCRIPT TO LAUNCH THE DROPLET EVAPORATION SIMULATION
-% data = readmatrix(fullfile('/home/tfd/dbetran/Simulaciones_14000','Parametros.txt'));
+data = readcell(fullfile(ruta_actual,'Parametros.txt'), 'Delimiter', '\t');
 simID             = [data{Id_sim, 1}];
 
 
@@ -37,10 +36,10 @@ TolT              = [data{Id_sim, 10}];  % Tolerance for temporal error (<1e-3) 
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = true;  % Plot intermediate results (true/false)
+PlotRes           = false;  % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
-Save              = false; % Save results to file (true/false)
+Save              = true; % Save results to file (true/false)
                            % NOTE: if true, PlotRes must be false
                            
 n_saved_solutions = [data{Id_sim, 11}];   % Number of solution snapshots to save throughout simulation

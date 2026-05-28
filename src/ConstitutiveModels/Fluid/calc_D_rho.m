@@ -21,20 +21,29 @@ if model.bool_liq==1 %Liquid
         Yi_liquid    = zeros(size(model.comp_inerts,2), size(T_v,2));
         vector_D     = MixtureRules('D_liq', T_v, Yi_liquid, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
     end
+    D_rho = reshape(vector_D,m,n); % D_rho[nElems x (2*p+1)]
 elseif model.bool_liq==0 % Gas
     Yi_eval = zeros(model.nInerts, size(T_v,2)); 
     for II=1:model.nInerts
     Yi_eval(II,:) = y{II}(:)';
     end
+
     Yf_eval = zeros(model.nSpecies-model.nInerts, size(T_v,2)); 
     for II=1:model.nSpecies-model.nInerts
+
         Yf_eval(II,:) = y{II+model.nInerts}(:)';
     end
-    vector_D = MixtureRules('D_gas', T_v, Yi_eval, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
+    cells_D = MixtureRules('D_gas', T_v, Yi_eval, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
+    D_rho   = cell(length(cells_D),1);
+    for II=1:model.nSpecies
+
+        D_rho{II} = reshape(cells_D{II},m,n); % D_rho[nElems x (2*p+1)]
+
+    end
 else
     error('Error calc_D_rho')
 end
 
-D_rho = reshape(vector_D,m,n); % D_rho[nElems x (2*p+1)]
+
 
 end

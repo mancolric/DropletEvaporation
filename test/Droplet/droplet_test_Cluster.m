@@ -136,13 +136,15 @@ end
         IC_class        = clase_IC(model_g, T_0, T_inf, x_lg);
         Unknowns        = InitialCond(IC_class, [1,1,1,1,1]'); %[mdot, Ts, Tf, Yfs, rf]
         x_v             = reshape(x', [length(x(1,:))*length(x(:,1)),1]);
-        peak_radii      = 1*x_lg;
+        peak_radii      = 4*x_lg;
         x_1             = x_v(x_v<=Unknowns(5)-(peak_radii/2));
         x_2             = x_v((Unknowns(5)-(peak_radii/2)<x_v)&(x_v<=Unknowns(5)+(peak_radii/2)));
         x_3             = x_v(x_v>Unknowns(5)+(peak_radii/2));
         
         x_peakL         = Unknowns(5) - (peak_radii/2);
         x_peakR         = Unknowns(5) + (peak_radii/2);
+        t_norm          = @(x) (x - x_peakL) ./ (x_peakR - x_peakL);
+        W               = @(x) 3*t_norm(x).^2 - 2*t_norm(x).^3;
 
         Zt              = IC_class.cpFuel/(4*pi*IC_class.kg);
         
@@ -156,34 +158,22 @@ end
                                 Unknowns(3)) /...
                                 (exp(-Zt*Unknowns(1)./Unknowns(5)) - 1);
 
-
-        %%%%%%%%%%%%%%%%%% MODIFICADO PARA PRUEBA %%%%%%%%%%%%%%%%%%
-        
         % T_peak          = @(x) ((x-(Unknowns(5)-(peak_radii/2)))*(T_inner(Unknowns(5)-(peak_radii/2))-T_outer(Unknowns(5)+(peak_radii/2)))/(-peak_radii))...
         %                         + T_inner(Unknowns(5)-(peak_radii/2));
-        % T_peak          = @(x) (1 - W(x)) .* T_inner(x) + W(x) .* T_outer(x);
-        dx = 1e-8;
-
-        % interpolamos usando el método 'spline' con 4 puntos estratégicos
-        T_peak = @(x) interp1([x_peakL - dx, x_peakL, x_peakR, x_peakR + dx], ...
-            [T_inner(x_peakL - dx), T_inner(x_peakL), T_outer(x_peakR), T_outer(x_peakR + dx)], ...
-            x, 'spline');
+        T_peak          = @(x) (1 - W(x)) .* T_inner(x) + W(x) .* T_outer(x);
 
         T_1             = T_inner(x_1);
         T_2             = T_peak(x_2);
         T_3             = T_outer(x_3);
         T_g             = reshape(cat(1,T_1,T_2,T_3),[length(x(1,:)),length(x(:,1))])';
-
-        % T_g             = PerfilSuaveSimple(x_v, [x_lg,T_0], [rf,2000], [x_g,T_inf]);
-        % T_g             = reshape(T_g,[length(x(1,:)),length(x(:,1))])';
         
-        dx_peak  = (peak_radii / 4); % Para muestrear la pendiente de las funciones originales
+        dx  = 1e-8; % Para muestrear la pendiente de las funciones originales
 
         Yf_inner        = @(x) 1- (((1-Unknowns(4))*exp(-Zt*Unknowns(1)./x))) / ...
                                 exp(-Zt*Unknowns(1)./IC_class.rs);
         Yf_outer        = @(x) 0.0*x;
-        Yf_peak = @(x) interp1([x_peakL - dx_peak, x_peakL, x_peakR, x_peakR + dx_peak], ...
-                       [Yf_inner(x_peakL - dx_peak), Yf_inner(x_peakL), Yf_outer(x_peakR), Yf_outer(x_peakR + dx_peak)], ...
+        Yf_peak = @(x) interp1([x_peakL - dx, x_peakL, x_peakR, x_peakR + dx], ...
+                       [Yf_inner(x_peakL - dx), Yf_inner(x_peakL), Yf_outer(x_peakR), Yf_outer(x_peakR + dx)], ...
                        x, 'pchip');
         x_1_f           = x_v(x_v<=Unknowns(5)-(peak_radii/2));
         x_2_f           = x_v((Unknowns(5)-(peak_radii/2)<x_v)&(x_v<=Unknowns(5)+(peak_radii/2)));
@@ -192,25 +182,41 @@ end
         Yf_2            = Yf_peak(x_2_f);
         Yf_3            = Yf_outer(x_3_f);
         Yf              = reshape(cat(1,Yf_1,Yf_2,Yf_3),[length(x(1,:)),length(x(:,1))])';
+        % Yft             = Yf';
 
-        
+        %%%%%%%%%%%%%%%%%% MODIFICADO PARA PRUEBA %%%%%%%%%%%%%%%%%%
         x_1_ox          = x_v(x_v<=Unknowns(5)-(peak_radii/2));
         x_2_ox          = x_v((Unknowns(5)-(peak_radii/2)<x_v)&(x_v<=Unknowns(5)+(peak_radii/2)));
         x_3_ox          = x_v(x_v>Unknowns(5)+(peak_radii/2));
         Yox_inner       = @(x) 0.0*x;
         Yox_outer       = @(x) IC_class.nu*((exp(-Zt*Unknowns(1)./x)/exp(-Zt*Unknowns(1)./Unknowns(5))) - 1); %*0.3;
-        Yox_peak = @(x) interp1([x_peakL - dx_peak, x_peakL, x_peakR, x_peakR + dx_peak], ...
-                        [Yox_inner(x_peakL - dx_peak), Yox_inner(x_peakL), Yox_outer(x_peakR), Yox_outer(x_peakR + dx_peak)], ...
+        Yox_peak = @(x) interp1([x_peakL - dx, x_peakL, x_peakR, x_peakR + dx], ...
+                        [Yox_inner(x_peakL - dx), Yox_inner(x_peakL), Yox_outer(x_peakR), Yox_outer(x_peakR + dx)], ...
                         x, 'pchip');
     
         Yox_1           = Yox_inner(x_1_ox);
         Yox_2           = Yox_peak(x_2_ox);
         Yox_3           = Yox_outer(x_3_ox);
         Yox             = reshape(cat(1,Yox_1,Yox_2,Yox_3),[length(x(1,:)),length(x(:,1))])';
-
+        % Yoxt            = Yox'; %Solo sirve para plot, borrar
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        
+
+        % Ypr_1           = 1-Yf_1;
+        % Ypr_2           = 1-Yox_2;
+        % Ypr             = reshape(cat(1,Ypr_1,Ypr_2),[length(x(1,:)),length(x(:,1))])';
         Ypr             = ones(size(Yox)) - Yox - Yf;
+        % Yprt            = Ypr'; %Solo sirve para plot, borrar
+        % 
+        xt              = x';
+        % Y_f_ox          = Yft+Yoxt;
+        % plot(xt(:), Y_f_ox(:))
+        % plot(xt(:), Yft(:))
+        % hold on
+        % plot(xt(:), Yoxt(:))
+        % plot(xt(:), Yprt(:))
+        % 
+        % disp(max(Yf(:)+Yox(:)+Ypr(:)))
+        % disp(min(Yf(:)+Yox(:)+Ypr(:)))
 
       
         Frac_CO2    = model_g.PStoi(end,3).*model_g.species_mw(3)./ ...
@@ -276,7 +282,7 @@ end
 
         %%%%%%%%%%%%%%%%%% INITIAL SOLUTION PLOT %%%%%%%%%%%%%%%%%%
 
-        if false
+        if true
             xt = x';
 
             figure(10)
@@ -684,7 +690,7 @@ end
             hold off
             colorm      = hsv(model_g.nSpecies);
             for II=1:model_g.nSpecies
-                plot(MatTranspVec(xplot_g), MatTranspVec(y_g{II}), 'color', colorm(II,:))
+                plot(MatTranspVec(xplot_g), MatTranspVec(rhoy_g{II}), 'color', colorm(II,:))
                 hold on
                 % plot(sol_xmesh_g(1), rhoy_qg{II}, 'color', colorm(II,:), 'marker', 'x')
             end
@@ -709,10 +715,10 @@ end
             hold off
             plot(MatTranspVec(xplot_g), MatTranspVec(T_g), 'r')
             hold on
-            plot(sol_xmesh_g(1), T_qg, 'color', 'r', 'marker', 'x')
+            % plot(sol_xmesh_g(1), T_qg, 'color', 'r', 'marker', 'x')
             title(['T_g, t=', sprintf('%.4E', sol.t)])
             grid on
-            xlim([0,12])
+            % xlim([0,12])
             
             %Plot velocities and mesh velocity:
             subplot(mPlot, nPlot, 3)
@@ -730,7 +736,7 @@ end
             plot(MatTranspVec(xplot_g), MatTranspVec(w_g), 'm')
             title(['v_g, w_g, t=', sprintf('%.4E', sol.t)])
             grid on
-            xlim([0,12])
+            % xlim([0,12])
 
             hold off
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1255,7 +1261,7 @@ end
     times_triggered = false(size(target_times));
     t_prev          = sol_n.t;
     t_save          = DeltaSaveI;
-    save_vars       = cell(17,100);
+    save_vars       = cell(18,100);
     Nt              = 0;
     yv_n            = cat(1,    sol_n.fesl.mesh.x_faces, ...
                                 sol_n.fesg.mesh.x_faces, ...
@@ -1570,6 +1576,7 @@ end
             end
             [~,y_gas]  = calc_rho_y(rhoy_g, model_g);
             save_rhoy_g = rhoy_g(1:model_g.nSpecies);
+            save_rhoy_l = rhoy_l(1:model_l.nSpecies);
             H_l         = num_sol_l{model_l.nDiff};
             T_l         = calc_T(H_l,rhoy_l,model_l);
             save_Tc     = T_l(1,1);
@@ -1627,6 +1634,9 @@ end
             save_rhoy_g = cellfun(@(M) reshape(M', [], 1),...
                 save_rhoy_g, 'UniformOutput', false);
 
+            save_rhoy_l = cellfun(@(M) reshape(M', [], 1),...
+                save_rhoy_l, 'UniformOutput', false);
+
             save_Tl         = reshape(save_Tl', [], 1);
             save_Tg         = reshape(save_Tg', [], 1);
             save_vl         = reshape(save_vl', [], 1);
@@ -1652,6 +1662,7 @@ end
             save_vars{15,Nt} = save_f_s;
             save_vars{16,Nt} = save_x_l;
             save_vars{17,Nt} = save_x_g;
+            save_vars{18,Nt} = save_rhoy_l;
 
             Guide =[
                 "Time [s]";
@@ -1670,7 +1681,8 @@ end
                 "Latent Heat through surface [W/m2]";
                 "Sensible Heat through surface [W/m2]";
                 "Liquid Field point positions [m]";
-                "Gas Field point positions [m]"
+                "Gas Field point positions [m]";
+                "Density by mass fraction in liq [kg/m3]"
             ];
     
             t = sol_n.t;
