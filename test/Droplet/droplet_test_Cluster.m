@@ -18,7 +18,7 @@ function [save_vars, model_l, model_g] = ...
         PlotRes, Save, fuel_names, mass_fracL, ...
         inert_comps, mass_fracG, n_saved_solutions, T_0, T_inf, ...
         x_lg, XRad, R_end_percent, n_saves, folderName, PreExp,...
-        ActEnergy, T_exp, Fuel_exp, O2_exp)
+        ActEnergy, T_exp, Fuel_exp, O2_exp, bool_spark, time_spark, T_spark)
 
     tStart = tic;
 
@@ -312,7 +312,8 @@ end
 
     %Initial condition for the gas phase from A. Millan dissertation:
     function u = u0_g_Millan(x)
-        
+        t_0_millan_T = 1e-4;
+        t_0_millan_Y = 1e-8;
         %Left and right states:
         T_R         = T_0;
         y_L         = mass_fracL;
@@ -324,10 +325,10 @@ end
         
         %Initial Condition (A.Millan):
         D_T         = calc_D_T(T_inf,y_inf,model_g);
-        T_g         = T_inf+(x_lg./x).*(T_R-T_inf).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
+        T_g         = T_inf+(x_lg./x).*(T_R-T_inf).*erfc((x-x_lg)./(2*sqrt(D_T*t_0_millan_T)));
         y_g         = cell(model_g.nSpecies,1);
         for i=1:model_g.nSpecies
-            y_g{i}  = y_inf{i}+(x_lg./x).*(y_R{i}-y_inf{i}).*erfc((x-x_lg)./(2*sqrt(D_T*1e-5)));
+            y_g{i}  = y_inf{i}+(x_lg./x).*(y_R{i}-y_inf{i}).*erfc((x-x_lg)./(2*sqrt(D_T*t_0_millan_Y)));
         end
 
         %Ensure the sum of all species mass fractions equals 1 (sanity check)
@@ -363,11 +364,39 @@ end
         %u = {ρY1, ..., ρYN, H, v}
         u           = [ rhoy_g; {H_g}; {v_g} ];
         
+
+        %%%%%%%%%%%%%%%%%% INITIAL SOLUTION PLOT %%%%%%%%%%%%%%%%%%
+        xt              = x';
+        if false
+            
+            figure(10)
+            for kk=1:length(y_g)
+                y_p = y_g{kk}';
+                plot(xt(:)./x_lg, y_p(:))
+                hold on
+            end
+
+            legend("N2", "O2", "CO2", "H2O", "Fuel")
+
+            hold off
+            figure(11)
+            T_g_t = T_g';
+            plot(xt(:)./x_lg, T_g_t(:))
+            hold off
+            xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
+            ylabel("$$T \, \left[ K \right]$$", "Interpreter","latex")
+
+            figure(12)
+            H_g_t = H_g';
+            plot(xt(:)./x_lg, H_g_t(:))
+            hold off
+        end
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     end
 
     %Select initial condition for gas phase:
     function u = u0_g(x)
-        u       = u0_g_Turns(x);
+        u       = u0_g_Millan(x);
     end
     
     %Boundary conditions:
@@ -428,7 +457,7 @@ end
     L_R  = x_g - rf;        % De rf hacia el infinito
 
     % ==========================================================
-    nElems_Izquierda = round(nElems_g * 0.2); % Porcentaje a la izquierda
+    nElems_Izquierda = round(nElems_g * 0.8); % Porcentaje a la izquierda
     nElems_Derecha   = nElems_g - nElems_Izquierda;
 
     W_1 = log(L_L1 / hmin_lg);
@@ -463,13 +492,33 @@ end
 
     hElems_2_reversed = fliplr(hElems_2);
 
-    % --- Zona 3 ---
-        r_max_3 = (L_R/hmin_g)^(1/(nElems_3-1));
-    [mr_3, ~, flag_3] = NewtonRaphson(...
-                        @(r, ComputeJ) MeshFactor(r, hmin_g, nElems_3, L_R), ...
-                        r_max_3, tol_3, 0.0, 200);
-    if flag_3 < 0, error('Error en malla Zona 3 (Llama externa).'); end
-    hElems_3 = hmin_g * mr_3.^(0:nElems_3-1);
+        % --- Zona 3 ---
+    nElems_3A = nElems_Derecha   - 100; % Porcentaje a la izquierda
+    nElems_3B = 100;
+    
+    if nElems_3B <= 2
+        error('La Zona 3A tiene demasiados elementos. Reduce nElems_3A o aumenta el total de la malla.');
+    end
+
+    hElems_3A = hmin_g * ones(1, nElems_3A);
+    L_3A      = sum(hElems_3A);
+    L_3B      = L_R - L_3A; 
+    
+    if L_3B <= 0
+        error('La zona de alta resolución (3A) es más larga que el dominio total L_R.');
+    end
+    
+    r_max_3B = (L_3B/hmin_g)^(1/(nElems_3B-1));
+    [mr_3B, ~, flag_3B] = NewtonRaphson(...
+                        @(r, ComputeJ) MeshFactor(r, hmin_g, nElems_3B, L_3B), ...
+                        r_max_3B, tol_3, 0.0, 200);
+    if flag_3B < 0, error('Error en malla Zona 3B (Lejos de la llama).'); end
+    
+    hElems_3B = hmin_g * mr_3B.^(0:nElems_3B-1);
+    
+    % Unimos las dos subzonas para crear la Zona 3 final
+    hElems_3 = [hElems_3A, hElems_3B];
+    
 
     % ==========================================================
     hElems_Izquierda = [hElems_1, hElems_2_reversed];
@@ -625,7 +674,7 @@ end
             %Define plot nodes and evaluate solution:
             xiplot      = linspace(-1.0, 1.0, (p+1)^2);
             xplot_l     = PhysicalCoordinates(sol.fesl.mesh, xiplot);
-            xplot_g     = PhysicalCoordinates(sol.fesg.mesh, xiplot)./x_lg;
+            xplot_g     = PhysicalCoordinates(sol.fesg.mesh, xiplot);
             num_sol_l   = EvalSolution(sol.ul, sol.fesl, 1:sol.fesl.mesh.nElems, xiplot);
             num_sol_g   = EvalSolution(sol.ug, sol.fesg, 1:sol.fesg.mesh.nElems, xiplot);
             
@@ -753,6 +802,80 @@ end
         end
     end
     PlotFun(sol_n)
+
+    %----------------------------------------------------------------------
+    %FUNCTION TO CREATE A SPARK:
+
+    function sol = sparkFunction(sol)
+        
+        function u = u_spark(x_g)
+
+            num_sol_g   = EvalSolution(sol.ug, sol.fesg, 1:sol.fesg.mesh.nElems, sol.fesg.QuadRule.xi);
+
+            rhoy_g      = num_sol_g(1:model_g.nSpecies);
+            H_g         = num_sol_g{model_g.nDiff};
+            T_g         = calc_T(H_g,rhoy_g,model_g);
+
+            [T_M, T_N]  = size(T_g);
+            x_g         = MatTranspVec(x_g);
+            T_g         = MatTranspVec(T_g);
+            %Puntos entre 6 y 8 radios:
+
+            posiciones1 = find(x_g >= 6*x_lg & x_g <= 8*x_lg);
+
+            T_g(posiciones1(1):posiciones1(end)) = ...
+                linspace(T_g(posiciones1(1)),T_spark,length(posiciones1));
+            %Puntos entre 8 y 10 radios:
+
+            posiciones2 = find(x_g >= 8*x_lg & x_g <= 10*x_lg);
+
+            T_g(posiciones2(1):posiciones2(end)) = ...
+                T_spark;
+
+            %Puntos entre 10 y 12 radios:
+            posiciones3 = find(x_g >= 10*x_lg & x_g <= 12*x_lg);
+
+            T_g(posiciones3(1):posiciones3(end)) = ...
+                linspace(T_spark,T_g(posiciones3(end)),length(posiciones3));
+
+            T_g = reshape(T_g, T_N, T_M).';
+
+            rhoy_g      = num_sol_g(1:model_g.nSpecies);
+            [~,y_g] = calc_rho_y(rhoy_g, model_g);
+
+            rho_g       = calc_rho(model_g,y_g,T_g);
+            rhoy_g      = cell(model_g.nSpecies,1);
+            for i=1:model_g.nSpecies
+                rhoy_g{i} = rho_g.*y_g{i};
+            end
+
+            h_g         = calc_h(T_g,y_g,model_g);
+            H_g         = h_g.*rho_g;
+
+            u           = [ rhoy_g; {H_g}; {num_sol_g{7}} ];
+        end
+
+        M_II            = MassMatrix(sol.fesg);
+        M_II_F          = LUFactorization(M_II);
+        b               = ProjectFun(@u_spark, sol.fesg);
+        for II=1:model_g.nDiff+model_g.nAlg
+            sol.ug{II}        = LUSolve(M_II_F, b((II-1)*sol.fesg.nDof+1:II*sol.fesg.nDof));
+        end
+
+        if false
+            xplot_g     = PhysicalCoordinates(sol.fesg.mesh, sol.fesg.QuadRule.xi)./x_lg;
+            num_sol_g   = EvalSolution(sol.ug, sol.fesg, 1:sol.fesg.mesh.nElems, sol.fesg.QuadRule.xi);
+
+            rhoy_g      = num_sol_g(1:model_g.nSpecies);
+            H_g         = num_sol_g{model_g.nDiff};
+            T_g         = calc_T(H_g,rhoy_g,model_g);
+
+            x_g         = MatTranspVec(xplot_g);
+            T_g         = MatTranspVec(T_g);
+
+            plot(x_g, T_g)
+        end
+    end
     
     %----------------------------------------------------------------------
     %MARCH IN TIME:
@@ -1285,6 +1408,11 @@ end
         else
             RKmethod    = calcRKmethod_imex('KC35');
         end
+
+        if sol_n.t >= time_spark && bool_spark
+            sol_n       = sparkFunction(sol_n);
+            bool_spark  = false;
+        end
         
         %Allocate derivatives:
         kDAE_l_RK       = zeros(nDAE_l*sol_n.fesl.nDof, RKmethod.s);    %For diff variables + alg variables + mesh velocity
@@ -1300,6 +1428,8 @@ end
             t_np1           = sol_n.t + Deltat_n;
             if t_np1>=t_final
                 t_np1       = t_final;
+            % elseif t_np1>=time_spark
+            %     t_np1       = time_spark;
             end
             Deltat_n        = t_np1-sol_n.t;
 

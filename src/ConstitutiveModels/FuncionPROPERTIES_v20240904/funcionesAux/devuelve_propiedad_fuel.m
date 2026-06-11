@@ -1324,6 +1324,35 @@ elseif strcmpi(comb,'etanol')
         elseif strcmpi(propiedad,'Hf')
                 value=-234.95*1000/(MW/1000);
 
+                % Planck mean absorption coefficient, 'ap' [1/(m*atm)]
+        elseif strcmpi(propiedad,'ap')
+            value=0.0;
+        
+        elseif strcmpi(propiedad,'MW')
+            value=(MW/1000);
+
+            % Ctes Arrhenius, 'Arr'[Activation energy,
+            %                       Preexponential factor,
+            %                       Temperature exponent]
+        elseif strcmpi(propiedad,'Arr')
+            value=[30*4184, 8.16e13, -0.0];
+
+            %Products stoichiometric coefficients, 'PSoi'
+            %   [N2, O2, CO2, H2O, Heptano]
+        elseif strcmpi(propiedad,'PSoi')
+            value=[0.0, 0.0, 2.0, 3.0, 0.0];
+
+            %Reactivos stoichiometric coefficients, 'RSoi'
+            %   [N2, O2, CO2, H2O, Heptano]
+        elseif strcmpi(propiedad,'RSoi')
+            value=[0.0, 3.0, 0.0, 0.0, 1.0];
+
+            %Reactant orders, 'ROrder'
+            %   [N2, O2, CO2, H2O, Heptano]
+        elseif strcmpi(propiedad,'ROrder')
+            % value=[0.0, 1.5, 0.0, 0.0, 0.25]; %Original Paper
+            value=[0.0, 1.0, 0.0, 0.0, 1.0]; %Inventado
+
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')
             % NASA polynomial fit

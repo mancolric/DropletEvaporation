@@ -74,6 +74,12 @@ T_exp             = [data{Id_sim, 23}];
 Fuel_exp          = [data{Id_sim, 24}];
 O2_exp            = [data{Id_sim, 25}];
 
+% --------------------------- Spark --------------------------
+
+bool_spark        = false;                              % Do you want a spark in your simulation ?
+time_spark        = 1e-8;                               % Moment when you spark apears
+T_spark           = 1500;                               % Max temperature of your spark
+
 % ------------------------ INITIAL SIMULATION CALL ------------------------
 
 % Run the full droplet evaporation simulation from t = 0
@@ -82,7 +88,8 @@ mkdir(ruta_actual, folderName);
 [~] = droplet_test_Cluster(nElems_l, nElems_g, hmin_l, hmin_g, p, Deltat0, t_final, ...
     TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
-    n_saves, folderName, PreExp, ActEnergy, T_exp, Fuel_exp, O2_exp);
+    n_saves, folderName, PreExp, ActEnergy, T_exp, Fuel_exp, O2_exp ,...
+    bool_spark, time_spark, T_spark);
 return
 
 end

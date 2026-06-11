@@ -23,7 +23,7 @@ classdef clase_IC
             obj.diff_h  = gas.gota.h_comb * gas.frac_masG{2};
             obj.cpFuel  = calc_Cp(T_0, {0,0,0,0,1}, gas);
             % obj.cpO2    = calc_Cp(T_0, {0,1,0,0,0}, gas);
-            obj.cpO2    = 1250;
+            obj.cpO2    = 1175;
             obj.T_inf   = T_inf;
             obj.hfg     = gas.Lv;
             % obj.kg      = calc_D_T(T_0, {0,0,0,0,1}, gas);

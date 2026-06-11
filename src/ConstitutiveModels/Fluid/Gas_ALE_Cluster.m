@@ -87,8 +87,10 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
             ap_PP{II+model.nInerts}     = reshape(X_f(II,:).*model.P./101325,m,n).*ap{II+model.nInerts};
         end
         sum_ap_PP                       = sum(cat(3, ap_PP{:}), 3);
-
-        Q{end}                          = 4*model.SBcte*sum_ap_PP.*(T.^4 - T(end,end).^4);
+        
+        alpha_radiacion                 = 1.0;
+        Q{end}                          = -4*alpha_radiacion*model.SBcte*sum_ap_PP.*(T.^4 - T(end,end).^4);
+        
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %%%%%%%%%%%%%%%%%%%%%%%% Plots, delete %%%%%%%%%%%%%%%%%%%%%%%%

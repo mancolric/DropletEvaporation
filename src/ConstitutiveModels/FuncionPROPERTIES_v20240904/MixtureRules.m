@@ -237,13 +237,22 @@ switch property
     % single mass diff. coeff., which is common to all species.
     if N_fuels>1
         X_f_tot=sum(Xf_eval);
+        Y_f_tot=sum(Yf_eval);
     elseif N_fuels==1
         X_f_tot=Xf_eval;
+        Y_f_tot=Yf_eval;
     end
     X_N2=Xi_eval(1, :);
     X_O2=Xi_eval(2, :);
     X_CO2=Xi_eval(3, :);
     X_H2O=Xi_eval(4, :);
+
+    %%%%%%%%% Cambiado %%%%%%%%%
+    Y_N2=Yi_eval(1, :);
+    Y_O2=Yi_eval(2, :);
+    Y_CO2=Yi_eval(3, :);
+    Y_H2O=Yi_eval(4, :);
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     retArray{1}     = (1 - X_N2) ./(X_O2./D_N2O2  + X_CO2./D_N2CO2 + X_H2O./D_N2H2O  + X_f_tot./D_fN2);
     retArray{2}     = (1 - X_O2) ./(X_N2./D_N2O2  + X_CO2./D_O2CO2 + X_H2O./D_O2H2O  + X_f_tot./D_fO2);

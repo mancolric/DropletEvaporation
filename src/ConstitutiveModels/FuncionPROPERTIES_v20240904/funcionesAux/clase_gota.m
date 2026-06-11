@@ -55,6 +55,7 @@ classdef clase_gota<handle
                     obj.e_k(i)=494.0; %San Diego Mec
                     obj.Zrot_298(i)=1; %San Diego Mec
                     obj.molecula_lineal(i)=1;
+                    obj.h_comb=44.6e6;
                     
                 elseif strcmpi(combustible(i),'Heptano')
                     obj.tipo_combustible{i}='Heptano';
@@ -80,6 +81,7 @@ classdef clase_gota<handle
                     obj.e_k(i)=427.4; %San Diego Mec
                     obj.Zrot_298(i)=1; %San Diego Mec
                     obj.molecula_lineal(i)=1;
+                    obj.h_comb=44.6e6;
                     
                 elseif strcmpi(combustible(i),'Etanol')
                     obj.tipo_combustible{i}='Etanol';
@@ -92,6 +94,7 @@ classdef clase_gota<handle
                     obj.e_k(i)=362.6; % %Poling (Appendix B) +artículo Sazhin + CHEMKIN
                     obj.Zrot_298(i)=1; %CHEMKIN
                     obj.molecula_lineal(i)=1;
+                    obj.h_comb=44.6e6;
 
                 elseif strcmpi(combustible(i),'Metanol') 
                     obj.tipo_combustible{i}='Metanol';
@@ -104,6 +107,7 @@ classdef clase_gota<handle
                     obj.e_k(i)=481.8; % %Poling (Appendix B) + San Diego Mech + CHEMKIN
                     obj.Zrot_298(i)=1; % %CHEMKIN
                     obj.molecula_lineal(i)=0; %CHEMKIN
+                    obj.h_comb=44.6e6;
     
                     
                 elseif strcmpi(combustible(i),'Butanol') 
@@ -117,6 +121,7 @@ classdef clase_gota<handle
                     obj.e_k(i)=1.18*390.6;  % De thumb rule Kee (pag. 520 pdf): e_k=1.18*Tb
                     obj.Zrot_298(i)=1;
                     obj.molecula_lineal(i)=1;
+                    obj.h_comb=44.6e6;
 
                 
                 elseif strcmpi(combustible(i),'Acetona')
@@ -130,6 +135,7 @@ classdef clase_gota<handle
                     obj.e_k(i)=560.2;  % Poling (Appendix B)
                     obj.Zrot_298(i)=1;
                     obj.molecula_lineal(i)=1;
+                    obj.h_comb=44.6e6;
                     
                 elseif strcmpi(combustible(i),'Dodecano')
                     obj.tipo_combustible{i}='Dodecano';
@@ -142,6 +148,7 @@ classdef clase_gota<handle
                     obj.e_k(i)=1.18*489.5;  % De thumb rule Kee (pag. 520 pdf): e_k=1.18*Tb
                     obj.Zrot_298(i)=1; % Molécula más grande que heptano, que ya tiene Z=1..
                    	obj.molecula_lineal(i)=1;
+                    obj.h_comb=44.6e6;
                     
                     elseif strcmpi(combustible(i),'Tetradecano')
                     obj.tipo_combustible{i}='Tetradecano';
@@ -153,6 +160,7 @@ classdef clase_gota<handle
                     obj.sigma(i)=2.393*(693/(16e5/101325))^(1/3)*1e-10; % De thumb rule Kee (pag. 520 pdf)
                     obj.e_k(i)=1.18*523;  % De thumb rule Kee (pag. 520 pdf): e_k=1.18*Tb
                     obj.Zrot_298(i)=1; % Molécula más grande que heptano, que ya tiene Z=1.
+                    obj.h_comb=44.6e6;
 
                 elseif strcmpi(combustible(i),'Hexadecano') 
                     obj.tipo_combustible{i}='Hexadecano';
@@ -165,6 +173,7 @@ classdef clase_gota<handle
                     obj.e_k(i)=1.18*560;  % De thumb rule Kee (pag. 520 pdf)
                     obj.Zrot_298(i)=1; % Molécula más grande que heptano, que ya tiene Z=1..
                    	obj.molecula_lineal(i)=1;
+                    obj.h_comb=44.6e6;
                     
                 elseif strcmpi(combustible(i),'Eicosano')
                     obj.tipo_combustible{i}='Eicosano';
@@ -177,6 +186,7 @@ classdef clase_gota<handle
                     obj.e_k(i)=1.18*617;  % De thumb rule Kee (pag. 520 pdf)
                     obj.Zrot_298(i)=1; % Molécula más grande que heptano, que ya tiene Z=1..
                    	obj.molecula_lineal(i)=1;
+                    obj.h_comb=44.6e6;
                     
                 elseif strcmpi(combustible(i),'Naftaleno') 
                     obj.tipo_combustible{i}='Naftaleno';
@@ -189,6 +199,7 @@ classdef clase_gota<handle
                     obj.e_k(i)=1.18*491.1;  % De thumb rule Kee (pag. 520 pdf)
                     obj.Zrot_298(i)=1;
                    	obj.molecula_lineal(i)=1;
+                    obj.h_comb=44.6e6;
                     
                 elseif strcmpi(combustible(i),'1-Metilnaftaleno') 
                     obj.tipo_combustible{i}='1-Metilnaftaleno';
@@ -201,6 +212,7 @@ classdef clase_gota<handle
                     obj.e_k(i)=1.18*517.8;  % De thumb rule Kee (pag. 520 pdf)
                     obj.Zrot_298(i)=1; 
                    	obj.molecula_lineal(i)=1;
+                    obj.h_comb=44.6e6;
                     
                     elseif strcmpi(combustible(i),'Glicerina')
                     obj.tipo_combustible{i}='Glicerina';
@@ -213,6 +225,7 @@ classdef clase_gota<handle
                     obj.e_k(i)=1.18*560.3;  % De thumb rule Kee (pag. 520 pdf)
                     obj.Zrot_298(i)=1; 
                    	obj.molecula_lineal(i)=1;
+                    obj.h_comb=44.6e6;
                     
                 else
                     % Combustible no reconocido:
