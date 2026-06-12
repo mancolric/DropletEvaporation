@@ -203,18 +203,18 @@ if strcmpi(comb,'heptano')
             %Products stoichiometric coefficients, 'PSoi'
             %   [N2, O2, CO2, H2O, Heptano]
         elseif strcmpi(propiedad,'PSoi')
-            value=[0.0, 0.0, 7.0, 8.0, 0.0];
+            value=[0.0, 0.0, 7.0, 8.0, 0.0, 0.0];
 
             %Reactivos stoichiometric coefficients, 'RSoi'
             %   [N2, O2, CO2, H2O, Heptano]
         elseif strcmpi(propiedad,'RSoi')
-            value=[0.0, 11.0, 0.0, 0.0, 1.0];
+            value=[0.0, 11.0, 0.0, 0.0, 0.0, 1.0];
 
             %Reactant orders, 'ROrder'
             %   [N2, O2, CO2, H2O, Heptano]
         elseif strcmpi(propiedad,'ROrder')
             % value=[0.0, 1.5, 0.0, 0.0, 0.25]; %Original Paper
-            value=[0.0, 1.0, 0.0, 0.0, 1.0]; %Inventado
+            value=[0.0, 1.0, 0.0, 0.0, 0.0, 1.0]; %Inventado
 
 
             % Calor específico a presión constante, 'cp' [J/kg.K]
@@ -1340,18 +1340,18 @@ elseif strcmpi(comb,'etanol')
             %Products stoichiometric coefficients, 'PSoi'
             %   [N2, O2, CO2, H2O, Heptano]
         elseif strcmpi(propiedad,'PSoi')
-            value=[0.0, 0.0, 2.0, 3.0, 0.0];
+            value=[0.0, 0.0, 2.0, 3.0, 0.0, 0.0];
 
             %Reactivos stoichiometric coefficients, 'RSoi'
             %   [N2, O2, CO2, H2O, Heptano]
         elseif strcmpi(propiedad,'RSoi')
-            value=[0.0, 3.0, 0.0, 0.0, 1.0];
+            value=[0.0, 3.0, 0.0, 0.0, 0.0, 1.0];
 
             %Reactant orders, 'ROrder'
             %   [N2, O2, CO2, H2O, Heptano]
         elseif strcmpi(propiedad,'ROrder')
             % value=[0.0, 1.5, 0.0, 0.0, 0.25]; %Original Paper
-            value=[0.0, 1.0, 0.0, 0.0, 1.0]; %Inventado
+            value=[0.0, 1.0, 0.0, 0.0, 0.0, 1.0]; %Inventado
 
             % Calor específico a presión constante, 'cp' [J/kg.K]
         elseif strcmpi(propiedad,'cp')

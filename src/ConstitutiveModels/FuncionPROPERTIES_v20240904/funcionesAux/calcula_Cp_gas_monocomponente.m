@@ -43,9 +43,20 @@ elseif strcmpi(tipo_gas,'H2O')
         a1=2.67703787e0; a2=2.97318329e-3; a3=-7.73769690e-7; a4=9.44336689e-11; a5=-4.26900959e-15;
         Cp_g=R*1000*(a1+a2*T+a3*T^2+a4*T^3+a5*T^4)/mw_g;
     end
+
+
+elseif strcmpi(tipo_gas,'CO')
+    % http://combustion.berkeley.edu/gri-mech/version30/files30/thermo30.dat
+    % (NASA)
+    mw_g = 28;  %(* kg/kmol *)
+    if (200 <= T)&&(T <= 1000) %Primer intervalo
+        a1= 3.57953347E+00; a2= -6.10353680E-04; a3= 1.01681433E-06; a4= 9.07005884E-10; a5= -9.04424499E-13;
+        Cp_g=R*1000*(a1+a2*T+a3*T^2+a4*T^3+a5*T^4)/mw_g;
+    elseif (T > 1000) %Segundo intervalo
+        a1= 2.71518561E+00; a2= 2.06252743E-03; a3= -9.98825771E-07; a4= 2.30053008E-10; a5= -2.03647716E-14;
+        Cp_g=R*1000*(a1+a2*T+a3*T^2+a4*T^3+a5*T^4)/mw_g;
+    end
 end
-
-
 
 end
 

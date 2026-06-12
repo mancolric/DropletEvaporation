@@ -16,7 +16,7 @@ if model.bool_liq==1 % Liquid
         Yf_eval(II,:) = (ones(1, size(Yi_eval,2))-sum(Yi_eval)).*y{II}(:)';
     end
     if model.nSpecies==1 % Monocomponent
-        row_rho_liq=1; row_C_liq=2; row_k_liq=3; id_f=5;
+        row_rho_liq=1; row_C_liq=2; row_k_liq=3; id_f=model.nInerts+1;
         vector_rho = Polyval(squeeze(model.matrix{row_rho_liq, id_f}), T_v);
         vector_C   = Polyval(squeeze(model.matrix{row_C_liq, id_f}), T_v);
         vector_k   = Polyval(squeeze(model.matrix{row_k_liq, id_f}), T_v);

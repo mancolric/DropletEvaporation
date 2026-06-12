@@ -29,6 +29,14 @@ elseif strcmpi(tipo_gas,'H2O')
    e_k=572.4; % (K) Lennard-Jones energy N2, CHEMKIN transport
    Zrot_298=4; % Sacado de pdf transporte de CHEMKIN
    molecula_lineal=0; % Sacado de pdf transporte de CHEMKIN
+
+elseif strcmpi(tipo_gas,'CO')
+   mw = 28/1000 ; %(* kg/mol *)
+   sigma=3.650*1e-10; % (m) Lennard-Jones length CO, CHEMKIN transport
+   e_k=98.100; % (K) Lennard-Jones energy CO, CHEMKIN transport
+   Zrot_298=1.800; % Sacado de pdf transporte de CHEMKIN
+   molecula_lineal=1;
+
 end
 
 

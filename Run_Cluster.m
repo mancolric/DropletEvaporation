@@ -36,10 +36,10 @@ TolT              = [data{Id_sim, 10}];  % Tolerance for temporal error (<1e-3) 
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = false;  % Plot intermediate results (true/false)
+PlotRes           = true;  % Plot intermediate results (true/false)
                            % NOTE: if true, Save must be false
 
-Save              = true; % Save results to file (true/false)
+Save              = false; % Save results to file (true/false)
                            % NOTE: if true, PlotRes must be false
                            
 n_saved_solutions = [data{Id_sim, 11}];   % Number of solution snapshots to save throughout simulation
@@ -60,7 +60,7 @@ T_inf             = [data{Id_sim, 17}];       % Ambient (far-field) temperature 
 fuel_names        = strsplit([data{Id_sim, 18}], ',');
 mass_fracL        = num2cell(str2double(strsplit(string(data{Id_sim, 19}), ',')));
                                                             % Mass fraction of each fuel component (same order as above)
-inert_comps       = {'N2', 'O2', 'CO2', 'H2O'};             % Inert gas species (DO NOT MODIFY)
+inert_comps       = {'N2', 'O2', 'CO2', 'H2O', 'CO'};       % Inert gas species (DO NOT MODIFY)
 
 % DE AQUÍ SOLO SE USA EL % DE N2 EN COMBUSTIÓN
 mass_fracG        = num2cell(str2double(strsplit([data{Id_sim, 20}], ',')));
@@ -68,11 +68,20 @@ mass_fracG        = num2cell(str2double(strsplit([data{Id_sim, 20}], ',')));
 
 % --------------------------- COMBUSTION PARAMET --------------------------
 
-PreExp            = [data{Id_sim, 21}];
-ActEnergy         = [data{Id_sim, 22}];
-T_exp             = [data{Id_sim, 23}];
-Fuel_exp          = [data{Id_sim, 24}];
-O2_exp            = [data{Id_sim, 25}];
+% PreExp       = [data{Id_sim, 21}];
+% ActEnergy    = [data{Id_sim, 22}];
+% T_exp        = [data{Id_sim, 23}];
+% Fuel_exp     = [data{Id_sim, 24}];
+% O2_exp       = [data{Id_sim, 25}];
+
+
+% ------------------- Combustion + CO Reduction PARAMET -------------------
+
+PreExp            = num2cell(str2double(strsplit(string(data{Id_sim, 21}), ',')));
+ActEnergy         = num2cell(str2double(strsplit(string(data{Id_sim, 22}), ',')));
+T_exp             = num2cell(str2double(strsplit(string(data{Id_sim, 23}), ',')));
+Fuel_exp          = num2cell(str2double(strsplit(string(data{Id_sim, 24}), ',')));
+O2_exp            = num2cell(str2double(strsplit(string(data{Id_sim, 25}), ',')));
 
 % --------------------------- Spark --------------------------
 

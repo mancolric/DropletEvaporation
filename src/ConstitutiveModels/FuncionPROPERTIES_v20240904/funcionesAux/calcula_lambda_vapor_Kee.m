@@ -10,7 +10,7 @@ R=8.314; %(J/molK)
 % Listado de combustibles y gases que tenemos, de forma que podamos saber
 % qué estamos calculando:
 combustibles = {'heptano' 'hexano' 'octano' 'dodecano' 'tetradecano' 'hexadecano' 'eicosano' 'metanol' 'etanol' 'butanol' 'acetona' 'naftaleno' '1-metilnaftaleno' 'glicerina'};
-gases= {'N2' 'H2O' 'CO2' 'O2'};
+gases= {'N2' 'H2O' 'CO2' 'O2', 'CO'};
 
 ind_f=find(strcmpi(combustibles,compuesto), 1);
 ind_g=find(strcmpi(gases,compuesto), 1);
@@ -101,10 +101,9 @@ f_vib=rho*D_kk/mu_k;
 
 lambda=mu_k/(mw/1000)*(f_trans*Cv_trans + f_rot*Cv_rot + f_vib*Cv_vib);
 
-% if (strcmpi('H2O',compuesto))
-%   lambda=(2.0103 - 7.9139*T/1000 + 35.922*(T/1000)^2 - 41.39*(T/1000)^3 +  35.993*(T/1000)^4 - 18.974*(T/1000)^5 + 4.1531*(T/1000)^6)*1/10^2; %Perrys (* W/m/K *)
-% 
-% end
+if (strcmpi('CO',compuesto))
+  warning("Revisar si cambia algo al meter el CO aquí. Está sin revisar")
+end
 
 return
 

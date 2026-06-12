@@ -748,9 +748,9 @@ end
             % plot(MatTranspVec(xplot_g), MatTranspVec(rho_g), 'k')
             % plot(sol_xmesh_g(1), rho_qg, 'color', 'k', 'marker', 'x')
             title(['\rho_g, t=', sprintf('%.4E', sol.t)])
-            legend("N2", "O2", "CO2", "H2O", "Fuel")
+            legend("N2", "O2", "CO2", "H2O", "CO", "Fuel")
             grid on
-            xlim([0,12])
+            % xlim([0,12])
             
             %Plot temperatures:
             subplot(mPlot, nPlot, 2)
