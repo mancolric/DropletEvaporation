@@ -19,7 +19,7 @@ classdef clase_IC
             %CLASE_IC Construct an instance of this class
             %   Detailed explanation goes here
             % obj.nu      = 3.52;
-            obj.nu      = gas.RStoi(end,2)* gas.species_mw(2) / (gas.RStoi(end,end) * gas.species_mw(end));     %Suponiendo un solo combustible
+            obj.nu      = gas.RStoi(1,2)* gas.species_mw(2) / (gas.RStoi(1,end) * gas.species_mw(end));     %Suponiendo un solo combustible
             obj.diff_h  = gas.gota.h_comb * gas.frac_masG{2};
             Cell_F          = cell(1, gas.nInerts + 1);
             Cell_F(1:end-1) = {0};  

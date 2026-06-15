@@ -14,34 +14,34 @@ addpath(genpath(pwd)); % Add all subfolders of the current directory to the MATL
 
 nElems_l          = [data{Id_sim, 2}];    % Number of elements in the liquid phase
 nElems_g          = [data{Id_sim, 3}];    % Number of elements in the gas phase
-hmin_l            = [data{Id_sim, 4}];  
-hmin_g            = [data{Id_sim, 5}]; 
+hmin_l            = [data{Id_sim, 4}];
+hmin_g            = [data{Id_sim, 5}];
 p                 = [data{Id_sim, 6}];     % Degree of the polynomial basis functions
 
 Deltat0           = [data{Id_sim, 7}];  % Initial time step
-                           % If you get warnings like:
-                           %   “Nonlinear solver did not converge at stage 2. Reducing time step”
-                           %   or
-                           %   "Time error (0.xxxxx) too large. Multiplying time step by a factor 0.xxxxx",
-                           % you may reduce Deltat0 to avoid them
-                           % However, this is optional — time step control will automatically handle it
+% If you get warnings like:
+%   “Nonlinear solver did not converge at stage 2. Reducing time step”
+%   or
+%   "Time error (0.xxxxx) too large. Multiplying time step by a factor 0.xxxxx",
+% you may reduce Deltat0 to avoid them
+% However, this is optional — time step control will automatically handle it
 
 t_final           = [data{Id_sim, 8}];   % Final simulation time
-                           % Use the actual time you want the simulation to stop at
-                           % If you want the simulation to continue until the droplet disappears, 
-                           % set a value larger than the expected final time
+% Use the actual time you want the simulation to stop at
+% If you want the simulation to continue until the droplet disappears,
+% set a value larger than the expected final time
 
 TimeAdapt         = [data{Id_sim, 9}];  % Enable adaptive time-stepping (true/false)
 TolT              = [data{Id_sim, 10}];  % Tolerance for temporal error (<1e-3) (used if TimeAdapt = true)
 
 % ---------------------------- OUTPUT OPTIONS -----------------------------
 
-PlotRes           = true;  % Plot intermediate results (true/false)
-                           % NOTE: if true, Save must be false
+PlotRes           = false;  % Plot intermediate results (true/false)
+% NOTE: if true, Save must be false
 
-Save              = false; % Save results to file (true/false)
-                           % NOTE: if true, PlotRes must be false
-                           
+Save              = true; % Save results to file (true/false)
+% NOTE: if true, PlotRes must be false
+
 n_saved_solutions = [data{Id_sim, 11}];   % Number of solution snapshots to save throughout simulation
 n_saves           = [data{Id_sim, 12}];    % Number of intermediate "safety saves" during simulation
 
@@ -59,12 +59,12 @@ T_inf             = [data{Id_sim, 17}];       % Ambient (far-field) temperature 
 % fuel_names        = %{'Heptano'};              % Fuel components
 fuel_names        = strsplit([data{Id_sim, 18}], ',');
 mass_fracL        = num2cell(str2double(strsplit(string(data{Id_sim, 19}), ',')));
-                                                            % Mass fraction of each fuel component (same order as above)
+% Mass fraction of each fuel component (same order as above)
 inert_comps       = {'N2', 'O2', 'CO2', 'H2O', 'CO'};       % Inert gas species (DO NOT MODIFY)
 
 % DE AQUÍ SOLO SE USA EL % DE N2 EN COMBUSTIÓN
 mass_fracG        = num2cell(str2double(strsplit([data{Id_sim, 20}], ',')));
-                                                            % Mass fraction of each inert species in the gas phase (same order as above)
+% Mass fraction of each inert species in the gas phase (same order as above)
 
 % --------------------------- COMBUSTION PARAMET --------------------------
 
@@ -77,11 +77,15 @@ mass_fracG        = num2cell(str2double(strsplit([data{Id_sim, 20}], ',')));
 
 % ------------------- Combustion + CO Reduction PARAMET -------------------
 
-PreExp            = num2cell(str2double(strsplit(string(data{Id_sim, 21}), ',')));
-ActEnergy         = num2cell(str2double(strsplit(string(data{Id_sim, 22}), ',')));
-T_exp             = num2cell(str2double(strsplit(string(data{Id_sim, 23}), ',')));
-Fuel_exp          = num2cell(str2double(strsplit(string(data{Id_sim, 24}), ',')));
-O2_exp            = num2cell(str2double(strsplit(string(data{Id_sim, 25}), ',')));
+PreExp            = num2cell(str2num(char(string(data{Id_sim, 21}))));
+ActEnergy         = num2cell(str2num(char(string(data{Id_sim, 22}))));
+T_exp             = num2cell(str2num(char(string(data{Id_sim, 23}))));
+Fuel_exp          = num2cell(str2num(char(string(data{Id_sim, 24}))));
+N2_exp            = num2cell(str2num(char(string(data{Id_sim, 25}))));
+O2_exp            = num2cell(str2num(char(string(data{Id_sim, 26}))));
+CO2_exp           = num2cell(str2num(char(string(data{Id_sim, 27}))));
+H20_exp           = num2cell(str2num(char(string(data{Id_sim, 28}))));
+CO_exp            = num2cell(str2num(char(string(data{Id_sim, 29}))));
 
 % --------------------------- Spark --------------------------
 
@@ -97,8 +101,8 @@ mkdir(ruta_actual, folderName);
 [~] = droplet_test_Cluster(nElems_l, nElems_g, hmin_l, hmin_g, p, Deltat0, t_final, ...
     TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
-    n_saves, folderName, PreExp, ActEnergy, T_exp, Fuel_exp, O2_exp ,...
-    bool_spark, time_spark, T_spark);
+    n_saves, folderName, PreExp, ActEnergy, T_exp, Fuel_exp, N2_exp, O2_exp ,...
+    CO2_exp, H20_exp, CO_exp, bool_spark, time_spark, T_spark);
 return
 
 end

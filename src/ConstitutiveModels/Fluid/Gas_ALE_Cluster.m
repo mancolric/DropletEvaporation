@@ -1,4 +1,5 @@
-function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEnergy, T_exp, Fuel_exp, O2_exp)
+function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEnergy,...
+    T_exp, Fuel_exp, N2_exp, O2_exp, CO2_exp, H20_exp, CO_exp)
 
 %Default values for user-defined parameters:
 model.bool_liq    = false;
@@ -10,6 +11,7 @@ model.frac_masG   = frac_masG;
 model.species     = [model.comp_inerts , fuel_names];
 model.nSpecies    = length(model.species);
 model.nFuels      = model.nSpecies-model.nInerts;
+model.nReaction   = length(PreExp);
 model.C           = 1000;
 model.CW          = 50.0;         %Penalty coefficient
 model.R           = 8.3145;       % Universal Gas Cte [J/mol/K]
@@ -47,20 +49,20 @@ model.R           = 8.3145;       % Universal Gas Cte [J/mol/K]
         
         %%%%%%%%%%%%%%%%%%%%%%%% Forma Compacta %%%%%%%%%%%%%%%%%%%%%%%%
         
-        C             = cellfun(@(r, mw) 1e-6*r./mw, rhoy, num2cell(model.species_mw(:)), 'UniformOutput', false);   %[mol/cm3]
-        MatrixExpo    = model.ROrder((1:model.nFuels) + model.nInerts, min(1:model.nSpecies, model.nInerts+1)).';
-        CROrder       = cellfun(@(c, exp) c.^exp, repmat(C, 1, model.nFuels), num2cell(MatrixExpo), 'UniformOutput', false);
+        C             = cellfun(@(r, mw) 1e-6*max(r,0)./mw, rhoy, num2cell(model.species_mw(:)), 'UniformOutput', false);   %[mol/cm3]
+        MatrixExpo    = model.ROrder(1:model.nReaction, min(1:model.nSpecies, model.nInerts+1)).';
+        CROrder       = cellfun(@(c, exp) (c+ 1e-14).^exp, repmat(C, 1, model.nReaction), num2cell(MatrixExpo), 'UniformOutput', false);
         
-        idx_Arr = (1:model.nFuels) + model.nInerts;
+        idx_Arr = (1:model.nReaction);
         A1 = model.Arr(idx_Arr, 1);
         A2 = model.Arr(idx_Arr, 2);
         A3 = model.Arr(idx_Arr, 3);
         calc_omega = @(j) (A2(j) * T.^A3(j) .* exp(-A1(j) ./ (model.R .* T))) .* prod(cat(3, CROrder{:,j}), 3);
-        omega = arrayfun(calc_omega, (1:model.nFuels)', 'UniformOutput', false);
+        omega = arrayfun(calc_omega, (1:model.nReaction)', 'UniformOutput', false);
         
         Omega3D = cat(3, omega{:});
         
-        calc_Q = @(kk) model.species_mw(kk).* 1e6 .* sum(Omega3D .* reshape(model.DiffStoi((1:model.nFuels)+model.nInerts, kk), 1, 1, []), 3);
+        calc_Q = @(kk) model.species_mw(kk).* 1e6 .* sum(Omega3D .* reshape(model.DiffStoi(1:model.nReaction, kk), 1, 1, []), 3);
         Q(1:model.nSpecies) = arrayfun(calc_Q, (1:model.nSpecies)', 'UniformOutput', false);
         
         
@@ -199,14 +201,16 @@ model.uN          = @(t) num2cell(ones(model.nSpecies + 1, 1));
 model.gota        = clase_gota(fuel_names);
 model.Lv          = calcula_Lv_fuel(model.gota,[],298.15,[]); % Lv(298.15K)
 model.Hf          = calcula_Hf(model, model.bool_liq);
-model.Arr         = calcula_Arrhenius(model, model.bool_liq); %[Activation energy,Preexponential factor, Temperature exponent]
 
-model.Arr(model.nInerts+1:model.nSpecies,:)       = [ActEnergy{1}, PreExp{1}, T_exp{1}];
+for KK=1:model.nReaction
+    model.Arr(KK,:)       = [ActEnergy{KK}, PreExp{KK}, T_exp{KK}];
+end
 
-model.RStoi       = calcula_R_Stoichiometric(model, model.bool_liq);
-model.ROrder      = calcula_ReactionOrders(model, model.bool_liq);
+model.RStoi       = calcula_R_Stoichiometric(model, model.bool_liq);            %CAMBIAR si hay más de un combustible
 
-model.ROrder(model.nInerts+1:model.nSpecies,:)    = [0, O2_exp{1}, 0, 0, 0, Fuel_exp{1}];
+for KK=1:model.nReaction
+    model.ROrder(KK,:)    = [N2_exp{KK}, O2_exp{KK}, CO2_exp{KK}, H20_exp{KK}, CO_exp{KK}, Fuel_exp{KK}];
+end
 
 model.PStoi       = calcula_P_Stoichiometric(model, model.bool_liq);
 model.DiffStoi    = model.PStoi - model.RStoi;
