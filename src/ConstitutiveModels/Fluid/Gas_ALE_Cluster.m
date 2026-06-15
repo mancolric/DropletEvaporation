@@ -21,22 +21,22 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
     % end
 
     function Q=Qfun(model, T, rhoy, x)
-
+        
         [m,n]         = size(T);
         Q             = cell(model.nDiff,1);
-
+        
         %%%%%%%%%%%%%%%%%%%%%%%% Forma Original %%%%%%%%%%%%%%%%%%%%%%%%
         % C2            = cell(model.nDiff-1,1);
         % CROrder2      = cell(model.nDiff-1,1);
         % Q2            = cell(model.nDiff,1);
-
         
-
+        
+        
         % for II=1:model.nDiff-1
         %     C2{II}          = 1e-6.*rhoy{II}./model.species_mw(II);
         %     CROrder2{II}    = C2{II}.^model.ROrder(5,II);
         % end
-        % 
+        %
         % k2            = model.Arr(5,2)*T.^model.Arr(5,3).*exp(-model.Arr(5,1)./(model.R.*T));
         % omega2        = k2.*CROrder2{2}.*CROrder2{5};
         % for II=1:model.nDiff-1
@@ -44,37 +44,50 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
         % end
         % Q2{end}       = zeros(size(Q2{end-1}));
         % Q             = Q2;
-
+        
         %%%%%%%%%%%%%%%%%%%%%%%% Forma Compacta %%%%%%%%%%%%%%%%%%%%%%%%
-
+        
         C             = cellfun(@(r, mw) 1e-6*r./mw, rhoy, num2cell(model.species_mw(:)), 'UniformOutput', false);   %[mol/cm3]
-        MatrixExpo    = model.ROrder((1:model.nFuels) + model.nInerts, min(1:model.nSpecies, model.nInerts+1)).';
-        CROrder       = cellfun(@(c, exp) c.^exp, repmat(C, 1, model.nFuels), num2cell(MatrixExpo), 'UniformOutput', false);
-
-        idx_Arr = (1:model.nFuels) + model.nInerts;
+        MatrixExpo    = model.ROrder(1:model.nReaction, min(1:model.nSpecies, model.nInerts+1)).';
+        
+        
+        %%%%%%%%%%%%%%%%%%% Cambiado %%%%%%%%%%%%%%%%%%%
+        epsilon_C = 1e-6;
+        
+        % 2. Creamos la función matemática robusta a derivadas infinitas
+        safe_pow = @(c, n) (n == 0) .* ones(size(c)) + ...
+            (n >= 1) .* (max(c,0).^n) + ...
+            (n > 0 & n < 1) .* ( max(c,0) .* (max(c,0) + epsilon_C).^(n - 1.0) );
+        
+        % 3. Aplicamos la función a todas las especies y reacciones
+        CROrder = cellfun(safe_pow, repmat(C, 1, model.nReaction), num2cell(MatrixExpo), 'UniformOutput', false);
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        
+        idx_Arr = (1:model.nReaction);
         A1 = model.Arr(idx_Arr, 1);
         A2 = model.Arr(idx_Arr, 2);
         A3 = model.Arr(idx_Arr, 3);
         calc_omega = @(j) (A2(j) * T.^A3(j) .* exp(-A1(j) ./ (model.R .* T))) .* prod(cat(3, CROrder{:,j}), 3);
-        omega = arrayfun(calc_omega, (1:model.nFuels)', 'UniformOutput', false);
+        omega = arrayfun(calc_omega, (1:model.nReaction)', 'UniformOutput', false);
         
         Omega3D = cat(3, omega{:});
-
-        calc_Q = @(kk) model.species_mw(kk).* 1e6 .* sum(Omega3D .* reshape(model.DiffStoi((1:model.nFuels)+model.nInerts, kk), 1, 1, []), 3);
+        
+        calc_Q = @(kk) model.species_mw(kk).* 1e6 .* sum(Omega3D .* reshape(model.DiffStoi(1:model.nReaction, kk), 1, 1, []), 3);
         Q(1:model.nSpecies) = arrayfun(calc_Q, (1:model.nSpecies)', 'UniformOutput', false);
-
-
+        
+        
         %%%%%%%%%%%%%%%%%%%%% Radiación (cambiado) %%%%%%%%%%%%%%%%%%%%
         [~,y] = calc_rho_y(rhoy,model);
         ap = calc_ap(T, y, model);                      %Plank noseque (1/m*atm)
-        Yi_eval = zeros(model.nInerts, m*n); 
+        Yi_eval = zeros(model.nInerts, m*n);
         for II=1:model.nInerts
             Yi_eval(II,:) = y{II}(:)';
         end
-
+        
         Yf_eval = zeros(model.nSpecies-model.nInerts, m*n);
         for II=1:model.nSpecies-model.nInerts
-
+            
             Yf_eval(II,:) = y{II+model.nInerts}(:)';
         end
         [X_i, X_f]  = calculate_moleFractions(model.comp_inerts,Yi_eval, model.gota, Yf_eval);
@@ -91,7 +104,7 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
         alpha_radiacion                 = 1.0;
         Q{end}                          = -4*alpha_radiacion*model.SBcte*sum_ap_PP.*(T.^4 - T(end,end).^4);
         
-
+        
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %%%%%%%%%%%%%%%%%%%%%%%% Plots, delete %%%%%%%%%%%%%%%%%%%%%%%%
         % hold off
@@ -115,8 +128,8 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
         %     x_final   = x_plot(idx_ultimo);
         %     xlim([x_inicial, x_final]);
         % end
-
-
+        
+        
         % hold off
         % figure(266)
         % x_plot = reshape(x'./4.2e-4,[size(x,2)*size(x,1), 1]);
@@ -128,7 +141,7 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
         % hold off
         % xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
         % ylabel("$$ap \, \left[ 1/(atm*m) \right]$$", "Interpreter","latex")
-
+        
         % figure(267)
         % x_plot = reshape(x'./4.2e-4,[size(x,2)*size(x,1), 1]);
         % plot(x_plot, reshape(Q{end}',[size(Q{end},2)*size(Q{end},1), 1]))
@@ -138,12 +151,12 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
         
         
         % ylim([-0.007, 0.007])
-        % 
-        % 
-        % 
+        %
+        %
+        %
         % [~,y_g] = calc_rho_y(rhoy, model);
         % figure(2)
-        % 
+        %
         % for kk=1:length(y_g)
         %     plot(reshape(x'./((250/2)*1e-6),[size(x,2)*size(x,1), 1]), MatTranspVec(y_g{kk}))
         %     hold on
@@ -159,7 +172,7 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
         % % xlim([10,11])
         % xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
         % ylabel("$$\omega \, \left[ mol/(m^3*s) \right]$$", "Interpreter","latex")
-        % 
+        %
         % figure(5)
         % for kk=1:length(CROrder)
         %     plot(reshape(x'./((250/2)*1e-6),[size(x,2)*size(x,1), 1]), MatTranspVec(CROrder{kk}))
@@ -169,7 +182,7 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
         % hold off
         % xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
         % ylabel("$$C \, \left[ (mol/cm^3)^{ReacOrder} \right]$$", "Interpreter","latex")
-        % 
+        %
         % figure(6)
         % for kk=1:length(C)
         %     plot(reshape(x'./((250/2)*1e-6),[size(x,2)*size(x,1), 1]), MatTranspVec(C{kk}))
@@ -179,9 +192,9 @@ function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEn
         % hold off
         % xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
         % ylabel("$$C \, \left[ mol/cm^3 \right]$$", "Interpreter","latex")
-
+        
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+        
         % Q               = repmat({zeros(299, 11)}, 6, 1);
     end
 
