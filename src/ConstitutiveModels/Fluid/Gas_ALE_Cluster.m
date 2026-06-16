@@ -49,7 +49,6 @@ model.R           = 8.3145;       % Universal Gas Cte [J/mol/K]
         
         C             = cellfun(@(r, mw) 1e-6*r./mw, rhoy, num2cell(model.species_mw(:)), 'UniformOutput', false);   %[mol/cm3]
         
-        % AQUÍ ESTÁ LA CLAVE: Le decimos que la reacción está en la fila 5
         idx_rxn       = model.nInerts + 1;
         
         MatrixExpo    = model.ROrder(idx_rxn, min(1:model.nSpecies, model.nInerts+1)).';
@@ -57,12 +56,10 @@ model.R           = 8.3145;       % Universal Gas Cte [J/mol/K]
         %%%%%%%%%%%%%%%%%%% Cambiado %%%%%%%%%%%%%%%%%%%
         epsilon_C = 1e-6;
         
-        % 2. Creamos la función matemática robusta a derivadas infinitas
         safe_pow = @(c, n) (n == 0) .* ones(size(c)) + ...
             (n >= 1) .* (max(c,0).^n) + ...
             (n > 0 & n < 1) .* ( max(c,0) .* (max(c,0) + epsilon_C).^(n - 1.0) );
         
-        % 3. Aplicamos la función a todas las especies
         CROrder = cellfun(safe_pow, C, num2cell(MatrixExpo), 'UniformOutput', false);
         
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
