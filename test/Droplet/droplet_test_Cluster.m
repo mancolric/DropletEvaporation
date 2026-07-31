@@ -312,8 +312,8 @@ end
 
     %Initial condition for the gas phase from A. Millan dissertation:
     function u = u0_g_Millan(x)
-        t_0_millan_T = 1e-4;
-        t_0_millan_Y = 1e-8;
+        t_0_millan_T = 1e-5;
+        t_0_millan_Y = 1e-5;
         %Left and right states:
         T_R         = T_0;
         y_L         = mass_fracL;
@@ -367,8 +367,10 @@ end
 
         %%%%%%%%%%%%%%%%%% INITIAL SOLUTION PLOT %%%%%%%%%%%%%%%%%%
         xt              = x';
-        if false
-            
+        xplot_l_ini     = PhysicalCoordinates(mesh_l, xiplot)';
+        T_g2            = ones(size(x))*T_inf;
+        if true
+            T_l         = T_0.*ones(size(xplot_l_ini));
             figure(10)
             for kk=1:length(y_g)
                 y_p = y_g{kk}';
@@ -381,10 +383,17 @@ end
             hold off
             figure(11)
             T_g_t = T_g';
-            plot(xt(:)./x_lg, T_g_t(:))
+            T_g_t2 = T_g2';
+            T_l_t = T_l';
+            plot(xt(:)./x_lg, T_g_t2(:))
+            hold on
+            plot(xplot_l_ini(:)./x_lg, T_l_t(:))
             hold off
             xlabel("$$r/a_0 \; \left[ - \right]$$", "Interpreter","latex")
             ylabel("$$T \, \left[ K \right]$$", "Interpreter","latex")
+            xlim([0 2])
+            ylim([250 1250])
+            legend("$$T_{gas} \, [\mathrm{K}]$$", "$$T_{liq} \, [\mathrm{K}]$$", 'Interpreter','latex', 'FontSize',11, 'Location','best')
 
             figure(12)
             H_g_t = H_g';
@@ -457,7 +466,7 @@ end
     L_R  = x_g - rf;        % De rf hacia el infinito
 
     % ==========================================================
-    nElems_Izquierda = round(nElems_g * 0.8); % Porcentaje a la izquierda
+    nElems_Izquierda = round(nElems_g * 0.4); % Porcentaje a la izquierda
     nElems_Derecha   = nElems_g - nElems_Izquierda;
 
     W_1 = log(L_L1 / hmin_lg);
@@ -493,8 +502,8 @@ end
     hElems_2_reversed = fliplr(hElems_2);
 
         % --- Zona 3 ---
-    nElems_3A = nElems_Derecha   - 100; % Porcentaje a la izquierda
-    nElems_3B = 100;
+    nElems_3A = nElems_Derecha   - 150; % Porcentaje a la izquierda
+    nElems_3B = 150;
     
     if nElems_3B <= 2
         error('La Zona 3A tiene demasiados elementos. Reduce nElems_3A o aumenta el total de la malla.');
@@ -535,12 +544,13 @@ end
     if false
         figure;
         hold on;
-        plot(xmesh_l./x_lg, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
-        plot(xmesh_g./x_lg, zeros(size(xmesh_g)), 'r*', 'MarkerSize', 6, 'LineWidth', 1.5, 'DisplayName', 'Gas'); 
-        plot(x_lg, 0, 'go', 'MarkerSize', 10, 'LineWidth', 2, 'DisplayName', 'Interface');
+        % plot(xmesh_l./x_lg, zeros(size(xmesh_l)), 'b.', 'MarkerSize', 8, 'LineWidth', 3, 'DisplayName', 'Mesh Liquid'); 
+        plot(xmesh_g./x_lg, zeros(size(xmesh_g)), 'r.', 'MarkerSize', 8, 'LineWidth', 3, 'DisplayName', 'Mesh Gas'); 
+        % plot(x_lg, 0, 'go', 'MarkerSize', 10, 'LineWidth', 2, 'DisplayName', 'Interface');
         xlabel('x/r0 [-]');
-        title('Point distribution in liquid and gas');
+        % title('Point distribution in liquid and gas');
         legend('Location', 'best');
+        xlim([0 20])
         grid on;
         % return
     end
