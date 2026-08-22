@@ -207,15 +207,63 @@ function [save_vars, model_l, model_g] = ...
     
     %Plot mesh:
     if false
+%         figure;
+%         hold on;
+%         plot(xmesh_l, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
+%         plot(xmesh_g, zeros(size(xmesh_g)), 'r*', 'MarkerSize', 6, 'LineWidth', 1.5, 'DisplayName', 'Gas'); 
+%         plot(x_lg, 0, 'go', 'MarkerSize', 10, 'LineWidth', 2, 'DisplayName', 'Interface');
+%         xlabel('x [m]');
+%         title('Point distribution in liquid and gas');
+%         legend('Location', 'best');
+%         grid on;
+
         figure;
+        fig = gcf;
+        s_font = get(gca, 'FontSize');
+        fig.Position(4) = fig.Position(4) / 2;
+        set(gca, 'FontSize', s_font);
         hold on;
-        plot(xmesh_l, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
-        plot(xmesh_g, zeros(size(xmesh_g)), 'r*', 'MarkerSize', 6, 'LineWidth', 1.5, 'DisplayName', 'Gas'); 
-        plot(x_lg, 0, 'go', 'MarkerSize', 10, 'LineWidth', 2, 'DisplayName', 'Interface');
-        xlabel('x [m]');
-        title('Point distribution in liquid and gas');
-        legend('Location', 'best');
+        interf_plot     = plot([1,1], [-0.01,0.01], '--g', 'MarkerSize', 10, 'LineWidth', 1.5, 'DisplayName', '');
+        interf_plot.Annotation.LegendInformation.IconDisplayStyle = 'off';
+        plot(xmesh_l/x_lg, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
+        plot(xmesh_g/x_lg, zeros(size(xmesh_g)), 'r+', 'MarkerSize', 6, 'LineWidth', 1.5, 'DisplayName', 'Gas'); 
+        xlim([0,5])
+        ax = gca;
+        ax.XAxis.FontSize = 12; 
+        xlabel('$r/a_0$', 'Interpreter', 'latex', 'FontSize', 16, 'FontWeight', 'bold');
+        yticklabels([])
+        yticks([])
+        lgd = legend;
+        lgd.FontSize = 14;
+        lgd.Location = 'best';
+        lgd.Interpreter = 'latex';
         grid on;
+        saveas(gcf, 'mesh_a.png');
+        
+        figure;
+        fig = gcf;
+        s_font = get(gca, 'FontSize');
+        fig.Position(4) = fig.Position(4) / 2;
+        set(gca, 'FontSize', s_font);
+        hold on;
+        interf_plot     = plot([1,1], [-0.01,0.01], '--g', 'MarkerSize', 10, 'LineWidth', 1.5, 'DisplayName', '');
+        interf_plot.Annotation.LegendInformation.IconDisplayStyle = 'off';
+        plot(xmesh_l/x_lg, zeros(size(xmesh_l)), 'bx', 'MarkerSize', 8, 'LineWidth', 1.5, 'DisplayName', 'Liquid'); 
+        plot(xmesh_g/x_lg, zeros(size(xmesh_g)), 'r+', 'MarkerSize', 6, 'LineWidth', 1.5, 'DisplayName', 'Gas'); 
+        xlim([0.8,1.2])
+        ax = gca;
+        ax.XAxis.FontSize = 12; 
+        xlabel('$r/a_0$', 'Interpreter', 'latex', 'FontSize', 16, 'FontWeight', 'bold');
+        yticklabels([])
+        yticks([])
+        lgd = legend;
+        lgd.FontSize = 14;
+        lgd.Location = 'best';
+        lgd.Interpreter = 'latex';
+        grid on;
+        saveas(gcf, 'mesh_b.png');
+        
+        save_vars   = [];
         return
     end
 
