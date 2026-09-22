@@ -60,32 +60,21 @@ T_inf             = [data{Id_sim, 17}];       % Ambient (far-field) temperature 
 fuel_names        = strsplit([data{Id_sim, 18}], ',');
 mass_fracL        = num2cell(str2double(strsplit(string(data{Id_sim, 19}), ',')));
 % Mass fraction of each fuel component (same order as above)
-inert_comps       = {'N2', 'O2', 'CO2', 'H2O', 'CO'};       % Inert gas species (DO NOT MODIFY)
+inert_comps       = strsplit(char(string(data{Id_sim, 20})), ',');       % Inert gas species
 
 % DE AQUÍ SOLO SE USA EL % DE N2 EN COMBUSTIÓN
-mass_fracG        = num2cell(str2double(strsplit([data{Id_sim, 20}], ',')));
+mass_fracG        = num2cell(str2double(strsplit([data{Id_sim, 21}], ',')));
 % Mass fraction of each inert species in the gas phase (same order as above)
-
-% --------------------------- COMBUSTION PARAMET --------------------------
-
-% PreExp       = [data{Id_sim, 21}];
-% ActEnergy    = [data{Id_sim, 22}];
-% T_exp        = [data{Id_sim, 23}];
-% Fuel_exp     = [data{Id_sim, 24}];
-% O2_exp       = [data{Id_sim, 25}];
-
 
 % ------------------- Combustion + CO Reduction PARAMET -------------------
 
-PreExp            = num2cell(str2num(char(string(data{Id_sim, 21}))));
-ActEnergy         = num2cell(str2num(char(string(data{Id_sim, 22}))));
-T_exp             = num2cell(str2num(char(string(data{Id_sim, 23}))));
-Fuel_exp          = num2cell(str2num(char(string(data{Id_sim, 24}))));
-N2_exp            = num2cell(str2num(char(string(data{Id_sim, 25}))));
-O2_exp            = num2cell(str2num(char(string(data{Id_sim, 26}))));
-CO2_exp           = num2cell(str2num(char(string(data{Id_sim, 27}))));
-H20_exp           = num2cell(str2num(char(string(data{Id_sim, 28}))));
-CO_exp            = num2cell(str2num(char(string(data{Id_sim, 29}))));
+PreExp            = num2cell(str2num(char(string(data{Id_sim, 22}))));
+ActEnergy         = num2cell(str2num(char(string(data{Id_sim, 23}))));
+T_exp             = num2cell(str2num(char(string(data{Id_sim, 24}))));
+
+DiffStoi          = str2num(char(string(data{Id_sim, 25})));
+
+ROrder            = str2num(char(string(data{Id_sim, 26})));
 
 % --------------------------- Spark --------------------------
 
@@ -101,8 +90,8 @@ mkdir(ruta_actual, folderName);
 [~] = droplet_test_Cluster(nElems_l, nElems_g, hmin_l, hmin_g, p, Deltat0, t_final, ...
     TimeAdapt, TolT, PlotRes, Save, fuel_names, mass_fracL, inert_comps, ...
     mass_fracG, n_saved_solutions, T_0, T_inf, R_0, XRad, R_end_percent, ...
-    n_saves, folderName, PreExp, ActEnergy, T_exp, Fuel_exp, N2_exp, O2_exp ,...
-    CO2_exp, H20_exp, CO_exp, bool_spark, time_spark, T_spark);
+    n_saves, folderName, PreExp, ActEnergy, T_exp,...
+    bool_spark, time_spark, T_spark, DiffStoi, ROrder);
 return
 
 end

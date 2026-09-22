@@ -1,5 +1,5 @@
 function model=Gas_ALE_Cluster(fuel_names, comp_inerts, frac_masG, PreExp, ActEnergy,...
-    T_exp, Fuel_exp, N2_exp, O2_exp, CO2_exp, H20_exp, CO_exp)
+    T_exp, DiffStoi, ROrder)
 
 %Default values for user-defined parameters:
 model.bool_liq    = false;
@@ -27,41 +27,20 @@ model.R           = 8.3145;       % Universal Gas Cte [J/mol/K]
         [m,n]         = size(T);
         Q             = cell(model.nDiff,1);
         
-        %%%%%%%%%%%%%%%%%%%%%%%% Forma Original %%%%%%%%%%%%%%%%%%%%%%%%
-        % C2            = cell(model.nDiff-1,1);
-        % CROrder2      = cell(model.nDiff-1,1);
-        % Q2            = cell(model.nDiff,1);
-        
-        
-        
-        % for II=1:model.nDiff-1
-        %     C2{II}          = 1e-6.*rhoy{II}./model.species_mw(II);
-        %     CROrder2{II}    = C2{II}.^model.ROrder(5,II);
-        % end
-        %
-        % k2            = model.Arr(5,2)*T.^model.Arr(5,3).*exp(-model.Arr(5,1)./(model.R.*T));
-        % omega2        = k2.*CROrder2{2}.*CROrder2{5};
-        % for II=1:model.nDiff-1
-        %     Q2{II}          = 1e6*model.species_mw(II).*omega2.*model.DiffStoi(5,II);
-        % end
-        % Q2{end}       = zeros(size(Q2{end-1}));
-        % Q             = Q2;
-        
         %%%%%%%%%%%%%%%%%%%%%%%% Forma Compacta %%%%%%%%%%%%%%%%%%%%%%%%
         
         C             = cellfun(@(r, mw) 1e-6*r./mw, rhoy, num2cell(model.species_mw(:)), 'UniformOutput', false);   %[mol/cm3]
-        MatrixExpo    = model.ROrder(1:model.nReaction, min(1:model.nSpecies, model.nInerts+1)).';
-        
+        MatrixExpo    = model.ROrder(1:model.nReaction, 1:model.nSpecies).';
         
         %%%%%%%%%%%%%%%%%%% Cambiado %%%%%%%%%%%%%%%%%%%
-        epsilon_C = 1e-6;
+        epsilon_C = 1e-8;
         
-        % 2. Creamos la función matemática robusta a derivadas infinitas
+        % Prueba con derivadas finitas
         safe_pow = @(c, n) (n == 0) .* ones(size(c)) + ...
             (n >= 1) .* (max(c,0).^n) + ...
-            (n > 0 & n < 1) .* ( max(c,0) .* (max(c,0) + epsilon_C).^(n - 1.0) );
+            (n > 0 & n < 1) .* ( max(c,0) .* (max(c,0) + epsilon_C).^(n - 1.0));
         
-        % 3. Aplicamos la función a todas las especies y reacciones
+        % Elevamos orden de reacción concentraciones
         CROrder = cellfun(safe_pow, repmat(C, 1, model.nReaction), num2cell(MatrixExpo), 'UniformOutput', false);
         
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -93,7 +72,7 @@ model.R           = 8.3145;       % Universal Gas Cte [J/mol/K]
             Yf_eval(II,:) = y{II+model.nInerts}(:)';
         end
         [X_i, X_f]  = calculate_moleFractions(model.comp_inerts,Yi_eval, model.gota, Yf_eval);
-        %Con un facil cat quitamos un bucle for
+        
         ap_PP               = cell(model.nSpecies,1);       %Presión parcial en atmósferas * ap
         for II=1:model.nInerts
             ap_PP{II}                   = reshape(X_i(II,:).*model.P./101325,m,n).*ap{II};
@@ -219,14 +198,13 @@ for KK=1:model.nReaction
     model.Arr(KK,:)       = [ActEnergy{KK}, PreExp{KK}, T_exp{KK}];
 end
 
-model.RStoi       = calcula_R_Stoichiometric(model, model.bool_liq);            %CAMBIAR si hay más de un combustible
+% for KK=1:model.nReaction
+%     model.ROrder(KK,:)    = [N2_exp{KK}, O2_exp{KK}, CO2_exp{KK}, H20_exp{KK}, CO_exp{KK}, Fuel_exp{KK}];
+% end
 
-for KK=1:model.nReaction
-    model.ROrder(KK,:)    = [N2_exp{KK}, O2_exp{KK}, CO2_exp{KK}, H20_exp{KK}, CO_exp{KK}, Fuel_exp{KK}];
-end
 
-model.PStoi       = calcula_P_Stoichiometric(model, model.bool_liq);
-model.DiffStoi    = model.PStoi - model.RStoi;
+model.ROrder      = ROrder;
+model.DiffStoi    = DiffStoi;
 model.fuel_mw     = calcula_fuel_mw(model, model.bool_liq); %[Kg/mol]
 model.species_mw  = cat(2,model.Inerts_mw, model.fuel_mw);  %[Kg/mol]
 model.Tmin        = 300;
