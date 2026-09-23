@@ -34,10 +34,10 @@ T_0               = 300;         % Initial temperature at the center of the drop
 T_inf             = 1600;        % Ambient (far-field) temperature [K]
 
 % Especies
-fuel_names        = 'Heptano';
-mass_fracL        = '1';
-inert_comps       = 'N2,O2,CO2,H2O,CO';
-mass_fracG        = '0.79,0.21,0.0,0.0,0.0';
+fuel_names        = 'Heptano, Etanol';
+mass_fracL        = '0.5, 0.5';
+inert_comps       = 'N2,O2,CO2,H2O';
+mass_fracG        = '0.79,0.21,0.0,0.0';
 
 
 % COMBUSTIÓN
@@ -45,14 +45,12 @@ PreExp            = '6.3e11, 3.981e14, 5e8';
 ActEnergy         = '125520, 167360, 167360';
 T_exp             = '0, 0, 0';
 
-DiffStoi          = [0, -7.5, 0, 8, 7, -1; % N, O, CO2, H2O, CO, Fuels
-                    0, -0.5, 1, 0, -1, 0;
-                    0, 0.5, -1, 0, 1, 0];
-    
+DiffStoi          = [0, -11, 7, 8, -1, 0; % N, O, CO2, H2O, Fuels
+    0, -3, 2, 3, 0, -1];
 
-ROrder            = [0, 1.5, 0, 0, 0, 0.25; % N, O, CO2, H2O, CO, Fuels
-                    0, 0.25, 0, 0.5, 1, 0;
-                    0, 0, 1, 0, 0, 0];
+
+ROrder            = [0, 1, 0, 0, 1, 0; % N, O, CO2, H2O, Fuels
+    0, 1, 0, 0, 0, 1];
 
 
 %2. Generación del Archivo Parametros.txt
