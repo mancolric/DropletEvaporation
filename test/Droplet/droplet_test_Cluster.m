@@ -369,7 +369,7 @@ end
         xt              = x';
         xplot_l_ini     = PhysicalCoordinates(mesh_l, xiplot)';
         T_g2            = ones(size(x))*T_inf;
-        if true
+        if false
             T_l         = T_0.*ones(size(xplot_l_ini));
             figure(10)
             for kk=1:length(y_g)
