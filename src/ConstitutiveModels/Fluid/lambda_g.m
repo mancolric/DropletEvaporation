@@ -16,5 +16,5 @@ function lambda_g = lambda_g(ii,T,T_inf,y,y_inf,model_g,fuel_names)
     gota         = clase_gota(fuel_names(ii));
     matrix       = Polyfit_properties_pureCompounds(gota, model_g.comp_inerts, model_g.Tmin, model_g.Tmax, model_g.P, model_g.N_polyfit);
     Yf_eval(1,:) = 1-sum(Yi_eval);
-    lambda_g     = MixtureRules('k_gas', T_ref, Yi_eval, Yf_eval, matrix, gota, model_g.comp_inerts, model_g.P);
+    lambda_g     = MixtureRules('k_gas', T_ref, Yi_eval, Yf_eval, matrix, gota, model_g.comp_inerts, model_g.P, model_g);
 end

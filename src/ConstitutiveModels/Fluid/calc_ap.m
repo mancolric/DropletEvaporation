@@ -23,7 +23,7 @@ elseif model.bool_liq==0 % Gas
 
         Yf_eval(II,:) = y{II+model.nInerts}(:)';
     end
-    cells_ap = MixtureRules('ap_gas', T_v, Yi_eval, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
+    cells_ap = MixtureRules('ap_gas', T_v, Yi_eval, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P, model);
     ap   = cell(length(cells_ap),1);
     for II=1:model.nSpecies
 

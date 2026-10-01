@@ -1,4 +1,4 @@
-function retArray = MixtureRules(property, T_eval, Yi_eval, Yf_eval, MatrixProperties, gota, comp_inerts, Pressure)
+function retArray = MixtureRules(property, T_eval, Yi_eval, Yf_eval, MatrixProperties, gota, comp_inerts, Pressure, model)
 % Function that estimates any target property for any MIXTURE (Y_eval) at
 % any temperature (T_eval).
 
@@ -248,28 +248,60 @@ switch property
             X_f_tot=Xf_eval;
             Y_f_tot=Yf_eval;
         end
-        X_N2=Xi_eval(1, :);
-        X_O2=Xi_eval(2, :);
-        X_CO2=Xi_eval(3, :);
-        X_H2O=Xi_eval(4, :);
-        X_CO=Xi_eval(5, :);
+        % X_N2=Xi_eval(1, :);
+        % X_O2=Xi_eval(2, :);
+        % X_CO2=Xi_eval(3, :);
+        % X_H2O=Xi_eval(4, :);
+        % X_CO=Xi_eval(5, :);
+        % 
+        % 
+        % retArray{1}     = (1 - X_N2) ./(X_O2./D_N2O2  + X_CO2./D_N2CO2 + X_H2O./D_N2H2O  + X_CO./D_N2CO    + X_f_tot./D_fN2);
+        % retArray{2}     = (1 - X_O2) ./(X_N2./D_N2O2  + X_CO2./D_O2CO2 + X_H2O./D_O2H2O  + X_CO./D_O2CO    + X_f_tot./D_fO2);
+        % retArray{3}     = (1 - X_CO2)./(X_N2./D_N2CO2 + X_O2./D_O2CO2  + X_H2O./D_CO2H2O + X_CO./D_CO2CO   + X_f_tot./D_fCO2);
+        % retArray{4}     = (1 - X_H2O)./(X_N2./D_N2H2O + X_O2./D_O2H2O  + X_CO2./D_CO2H2O + X_CO./D_H2OCO   + X_f_tot./D_fH2O);
+        % retArray{5}     = (1 - X_CO)./(X_N2./D_N2CO + X_O2./D_O2CO     + X_CO2./D_CO2CO  + X_H2O./D_H2OCO  + X_f_tot./D_fCO);
+        % 
+        % retArray{6}     = (1 - X_f_tot)./(X_O2./D_fO2 + X_N2./D_fN2 + X_H2O./D_fH2O + X_CO2./D_fCO2 + X_CO./D_fCO);
+        % 
+
+
+        %%%%%% Flexibilización: %%%%%%
+        D_bin           = cell(model.nInerts+1);
+        for ii = 1:model.nInerts
+            D_bin{end,ii} = calcula_D_binario_Kee_vector2(gota, model.comp_inerts{ii}, T_eval, epsilon_f_eval); %epsilon_f_eval
+        end
+
+        for ii = 1:model.nInerts
+            for jj = 1:model.nInerts
+                if ii~=jj && ii>jj
+                    D_bin{ii,jj} = calcula_D_binario_Kee_vector2(model.comp_inerts{ii}, model.comp_inerts{jj}, T_eval, epsilon_f_eval);
+                end
+            end
+        end
+        % Hacemos que la matriz sea diagonal
+        D_bin_T = D_bin'; D_bin(triu(true(size(D_bin)), 1)) = D_bin_T(triu(true(size(D_bin)), 1));
+        % Diagonal llena de ceros
+        [D_bin{logical(eye(size(D_bin)))}]                  = deal(zeros(size(D_bin{2,1})));
         
-        %%%%%%%%% Cambiado %%%%%%%%%
-        Y_N2=Yi_eval(1, :);
-        Y_O2=Yi_eval(2, :);
-        Y_CO2=Yi_eval(3, :);
-        Y_H2O=Yi_eval(4, :);
-        Y_CO=Yi_eval(5, :);
+        XD_bin          = zeros(model.nInerts+1, length(X_f_tot));
+        X_tot           = cat(1,Xi_eval,X_f_tot);
+
+        for ii = 1:model.nInerts+1
+            for jj = 1:model.nInerts+1
+                if ii~=jj
+                XD_bin(jj,:)      = X_tot(jj,:)./D_bin{ii,jj};
+                end
+            end
+            retArray{ii}          = (1-X_tot(ii,:))./sum(XD_bin,1);
+            XD_bin                = zeros(model.nInerts+1, length(X_f_tot));
+        end
+
+        for ii = model.nInerts+2:model.nSpecies
+            retArray{ii} = retArray{model.nInerts+1};
+        end
+
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        
-        retArray{1}     = (1 - X_N2) ./(X_O2./D_N2O2  + X_CO2./D_N2CO2 + X_H2O./D_N2H2O  + X_CO./D_N2CO    + X_f_tot./D_fN2);
-        retArray{2}     = (1 - X_O2) ./(X_N2./D_N2O2  + X_CO2./D_O2CO2 + X_H2O./D_O2H2O  + X_CO./D_O2CO    + X_f_tot./D_fO2);
-        retArray{3}     = (1 - X_CO2)./(X_N2./D_N2CO2 + X_O2./D_O2CO2  + X_H2O./D_CO2H2O + X_CO./D_CO2CO   + X_f_tot./D_fCO2);
-        retArray{4}     = (1 - X_H2O)./(X_N2./D_N2H2O + X_O2./D_O2H2O  + X_CO2./D_CO2H2O + X_CO./D_H2OCO   + X_f_tot./D_fH2O);
-        retArray{5}     = (1 - X_CO)./(X_N2./D_N2CO + X_O2./D_O2CO     + X_CO2./D_CO2CO  + X_H2O./D_H2OCO  + X_f_tot./D_fCO);
-        
-        retArray{6}     = (1 - X_f_tot)./(X_O2./D_fO2 + X_N2./D_fN2 + X_H2O./D_fH2O + X_CO2./D_fCO2 + X_CO./D_fCO);
-        
+
     otherwise
         error('Property not found: %s', property)
 end

@@ -23,9 +23,9 @@ if model.bool_liq==1 % Liquid
         vector_Dt  = vector_k./(vector_rho.*vector_C); % Dt = k / (rho*C)
     else % Multicomponent
         Yi_liquid  = zeros(size(model.comp_inerts,2), size(T_v,2));
-        vector_rho = MixtureRules('rho_liq', T_v, Yi_liquid, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
-        vector_C   = MixtureRules('C_liq', T_v, Yi_liquid, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
-        vector_k   = MixtureRules('k_liq', T_v, Yi_liquid, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
+        vector_rho = MixtureRules('rho_liq', T_v, Yi_liquid, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P, model);
+        vector_C   = MixtureRules('C_liq', T_v, Yi_liquid, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P, model);
+        vector_k   = MixtureRules('k_liq', T_v, Yi_liquid, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P, model);
         vector_Dt  = vector_k./(vector_rho.*vector_C); % Dt = k / (rho*C)
     end
 elseif model.bool_liq==0 % Gas
@@ -37,9 +37,9 @@ elseif model.bool_liq==0 % Gas
     for II=1:model.nSpecies-model.nInerts
         Yf_eval(II,:) = y{II+model.nInerts}(:)';
     end
-    vector_rho = MixtureRules('rho_gas', T_v, Yi_eval, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
-    vector_Cp  = MixtureRules('Cp_gas', T_v, Yi_eval, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
-    vector_k   = MixtureRules('k_gas', T_v, Yi_eval, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
+    vector_rho = MixtureRules('rho_gas', T_v, Yi_eval, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P, model);
+    vector_Cp  = MixtureRules('Cp_gas', T_v, Yi_eval, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P, model);
+    vector_k   = MixtureRules('k_gas', T_v, Yi_eval, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P, model);
     vector_Dt  = vector_k./(vector_rho.*vector_Cp(:)'); % Gas thermal diffusivity Dt=k/(rho*C)
 else
     error('Error calc_D_T')

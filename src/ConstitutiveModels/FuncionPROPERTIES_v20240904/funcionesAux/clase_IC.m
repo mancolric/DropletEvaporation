@@ -19,7 +19,7 @@ classdef clase_IC
             %CLASE_IC Construct an instance of this class
             %   Detailed explanation goes here
             % obj.nu      = 3.52;
-            obj.nu      = -gas.DiffStoi(1,2)* gas.species_mw(2) / (-gas.DiffStoi(1,end) * gas.species_mw(end));     %Suponiendo un solo combustible
+            obj.nu      = -gas.DiffStoi(1,2)* gas.species_mw(1,2) / (-gas.DiffStoi(1,gas.nInerts+1) * gas.species_mw(1,gas.nInerts+1));     %Suponiendo un solo combustible
             obj.diff_h  = gas.gota.h_comb * gas.frac_masG{2};
             Cell_F          = cell(1, gas.nInerts + 1);
             Cell_F(1:end-1) = {0};  
@@ -28,11 +28,11 @@ classdef clase_IC
             % obj.cpO2    = calc_Cp(T_0, {0,1,0,0,0}, gas);
             obj.cpO2    = 1175;
             obj.T_inf   = T_inf;
-            obj.hfg     = gas.Lv;
+            obj.hfg     = gas.Lv(1);
             % obj.kg      = calc_D_T(T_0, {0,0,0,0,1}, gas);
-            obj.kg      = MixtureRules('k_gas', T_0, zeros(gas.nInerts, 1), 1, gas.matrix, gas.gota, gas.comp_inerts, gas.P);
+            obj.kg      = MixtureRules('k_gas', T_0, zeros(gas.nInerts, 1), [1.0], gas.matrix, gas.gota, gas.comp_inerts, gas.P, gas);
             obj.rs      = x_lg;
-            obj.Tb      = gas.gota.Tb;
+            obj.Tb      = gas.gota.Tb(1);
         end
         
     end

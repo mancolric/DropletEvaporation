@@ -54,7 +54,9 @@ model.R           = 8.3145;       % Universal Gas Cte [J/mol/K]
         
         Omega3D = cat(3, omega{:});
         
+        %  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!    !!!
         calc_Q = @(kk) model.species_mw(kk).* 1e6 .* sum(Omega3D .* reshape(model.DiffStoi(1:model.nReaction, kk), 1, 1, []), 3);
+        %  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!    !!!
         Q(1:model.nSpecies) = arrayfun(calc_Q, (1:model.nSpecies)', 'UniformOutput', false);
         
         
@@ -279,7 +281,7 @@ if ComputeJ
         [~, Y_pert]         = calc_rho_y(rhoY_pert, model);
         T_pert              = calc_T(H, rhoY_pert, model);
         rho_bar_pert1       = calc_rho(model, Y_pert, T_pert);
-        Q_pert1             = model.Q(model, T, rhoY_pert, x);
+        Q_pert1             = model.Q(model, T_pert, rhoY_pert, x);
         rhoY_pert1          = rhoY_pert;
         
         %Perturb rhoY again:
@@ -290,7 +292,7 @@ if ComputeJ
         [~, Y_pert]         = calc_rho_y(rhoY_pert, model);
         T_pert              = calc_T(H, rhoY_pert, model);
         rho_bar_pert2       = calc_rho(model, Y_pert, T_pert);
-        Q_pert2             = model.Q(model, T, rhoY_pert, x);
+        Q_pert2             = model.Q(model, T_pert, rhoY_pert, x);
         rhoY_pert2          = rhoY_pert;
         
         %Add contribution of rho_bar:

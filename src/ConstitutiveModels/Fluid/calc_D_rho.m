@@ -19,7 +19,7 @@ if model.bool_liq==1 %Liquid
         vector_D     = 0.0*T_v;
     else % Multicomponent
         Yi_liquid    = zeros(size(model.comp_inerts,2), size(T_v,2));
-        vector_D     = MixtureRules('D_liq', T_v, Yi_liquid, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
+        vector_D     = MixtureRules('D_liq', T_v, Yi_liquid, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P, model);
     end
     D_rho = reshape(vector_D,m,n); % D_rho[nElems x (2*p+1)]
 elseif model.bool_liq==0 % Gas
@@ -33,7 +33,7 @@ elseif model.bool_liq==0 % Gas
 
         Yf_eval(II,:) = y{II+model.nInerts}(:)';
     end
-    cells_D = MixtureRules('D_gas', T_v, Yi_eval, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
+    cells_D = MixtureRules('D_gas', T_v, Yi_eval, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P, model);
     D_rho   = cell(length(cells_D),1);
     for II=1:model.nSpecies
 

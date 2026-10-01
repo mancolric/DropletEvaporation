@@ -28,8 +28,8 @@ function t_evap_i = calc_t_evap_i(T_i,T_inf,y_inf,model_l,model_g,frac_masL,fuel
         gota         = clase_gota(fuel_names(ii));
         matrix       = Polyfit_properties_pureCompounds(gota, model_g.comp_inerts, model_g.Tmin, model_g.Tmax, model_g.P, model_g.N_polyfit);
         Yf_eval(1,:) = 1-sum(Yi_eval);
-        rho_g_evap   = MixtureRules('rho_gas', T_ref, Yi_eval, Yf_eval, matrix, gota, model_g.comp_inerts, model_g.P);
-        k_g_evap     = MixtureRules('k_gas', T_ref, Yi_eval, Yf_eval, matrix, gota, model_g.comp_inerts, model_g.P);
+        rho_g_evap   = MixtureRules('rho_gas', T_ref, Yi_eval, Yf_eval, matrix, gota, model_g.comp_inerts, model_g.P, model_g);
+        k_g_evap     = MixtureRules('k_gas', T_ref, Yi_eval, Yf_eval, matrix, gota, model_g.comp_inerts, model_g.P, model_g);
         D_T_evap     = k_g_evap./(rho_g_evap.*Cp_gas(:)');
         Lv           = calcula_Lv_fuel(gota,[],T_ref,[]);
         

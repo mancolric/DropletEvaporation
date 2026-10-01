@@ -20,7 +20,7 @@ if model.bool_liq==1 % Liquid
         vector_rho = Polyval(squeeze(model.matrix{row_rho_liq, id_f}), T_v);
     else % Multicomponent
         Yi_liquid  = zeros(size(model.comp_inerts,2), size(T_v,2));
-        vector_rho = MixtureRules('rho_liq', T_v, Yi_liquid, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
+        vector_rho = MixtureRules('rho_liq', T_v, Yi_liquid, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P, model);
     end
 elseif model.bool_liq==0 % Gas
     Yi_eval = zeros(model.nInerts, size(T_v,2)); 
@@ -31,7 +31,7 @@ elseif model.bool_liq==0 % Gas
     for II=1:model.nSpecies-model.nInerts
         Yf_eval(II,:) = y{II+model.nInerts}(:)';
     end
-    vector_rho = MixtureRules('rho_gas', T_v, Yi_eval, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P);
+    vector_rho = MixtureRules('rho_gas', T_v, Yi_eval, Yf_eval, model.matrix, model.gota, model.comp_inerts, model.P, model);
 else
     error('Error calc_rho')
 end
